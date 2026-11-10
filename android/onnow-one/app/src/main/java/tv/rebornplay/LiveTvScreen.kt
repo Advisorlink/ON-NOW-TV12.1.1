@@ -48,6 +48,7 @@ import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.EpgCache
 import tv.onnowtv.livetv.data.ParentalLock
 import tv.onnowtv.livetv.data.Programme
+import tv.onnowtv.livetv.data.ReminderStore
 import tv.onnowtv.livetv.data.Settings
 import tv.vesper.app.LiveTvEntry
 import java.text.SimpleDateFormat
@@ -180,8 +181,8 @@ private fun LvText(text: String, size: androidx.compose.ui.unit.TextUnit = 11.sp
 /** V2 `now_pill_bg`: solid red, 3dp radius, 8sp bold white — NOW while on air, LIVE for live events. */
 @Composable
 private fun LiveBadge(live: Boolean) {
-    Box(Modifier.clip(RoundedCornerShape(3.dp)).background(LvRed).padding(horizontal = 6.dp, vertical = 2.dp)) {
-        Text(if (live) "LIVE" else "NOW", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 8.sp, letterSpacing = 0.8.sp)
+    Box(Modifier.height(14.dp).clip(RoundedCornerShape(3.dp)).background(LvRed).padding(horizontal = 7.dp), contentAlignment = Alignment.Center) {
+        Text(if (live) "LIVE" else "NOW", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 8.sp, lineHeight = 8.sp, letterSpacing = 1.sp)
     }
 }
 
@@ -196,7 +197,7 @@ private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: 
     LaunchedEffect(now?.title) {
         val t = now?.title?.takeIf { it.isNotBlank() } ?: run { art = null; return@LaunchedEffect }
         art = LiveStore.art[t]
-        if (art == null) { delay(500); val a = LiveStore.fetchArt(t); if (now?.title == t) art = a }
+        if (art == null) { delay(350); val a = LiveStore.fetchArt(t); if (now?.title == t) art = a }
     }
     val heroH = if (compact) 210.dp else 300.dp
     Box(Modifier.fillMaxWidth().height(heroH)) {
@@ -354,7 +355,7 @@ private fun ChannelRow(ch: Channel, fav: Boolean, active: Boolean, requester: Fo
     val now = remember(ch.id, LiveStore.epg[LiveStore.key(ch)], tick) { LiveStore.nowNext(ch).first }
     Focusable(Modifier.fillMaxWidth(), onClick = onClick, requester = requester, onFocus = { if (it) onFocus() }) { f ->
         Column(Modifier.fillMaxWidth().focusScale(f, 1.01f).tileFocus(f, 12.dp).clip(RowShape).background(if (f) LvFocus else LvCard)
-            .border(1.dp, if (f) LvAccent else if (active) LvAccent.copy(alpha = 0.35f) else Color.Transparent, RowShape)) {
+            .border(1.dp, if (!f && active) LvAccent.copy(alpha = 0.35f) else Color.Transparent, RowShape)) {
             Row(Modifier.fillMaxWidth().height(64.dp).padding(start = 12.dp, end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (f || active) Box(Modifier.width(3.dp).height(30.dp).clip(CircleShape).background(LvAccent)) else Spacer(Modifier.width(3.dp))
                 Spacer(Modifier.width(10.dp))
@@ -378,6 +379,9 @@ private fun ChannelRow(ch: Channel, fav: Boolean, active: Boolean, requester: Fo
     }
 }
 
+private val LvGreen = Color(0xFF5BD49A)   // livetv_reminder_yellow (V2 reminder colour)
+
+/** Programme guide (V2 item_guide_row): focusable rows, red NOW + progress on the live one, OK on a future programme sets/clears a reminder (green ring). */
 @Composable
 private fun GuideColumn(ch: Channel?, fmt: SimpleDateFormat, tick: Long) {
     val ctx = LocalContext.current
@@ -387,22 +391,43 @@ private fun GuideColumn(ch: Channel?, fmt: SimpleDateFormat, tick: Long) {
     val shown = remember(list, tick) { list.filter { it.stopMs > nowMs - 3 * 3_600_000L }.take(80) }
     val today = remember(tick) { dayFmt.format(Date()) }
     val rows = remember(shown) { buildList<Any> { var last = ""; shown.forEach { p -> val d = dayFmt.format(Date(p.startMs)); if (d != last) { last = d; add(d) }; add(p) } } }
+    var reminders by remember { mutableStateOf(ReminderStore.load(ctx).keys.toSet()) }
+    fun key(p: Programme) = "${ch?.epgChannelId ?: ""}:${p.startMs}"
+    fun toggle(p: Programme) {
+        val c = ch ?: return
+        val map = ReminderStore.load(ctx); val k = key(p)
+        if (map.remove(k) == null) map[k] = ReminderStore.Reminder(k, c.id, c.name, c.logoUrl, c.lcn, p.title, p.startMs, p.stopMs)
+        ReminderStore.save(ctx, map); reminders = map.keys.toSet()
+    }
     Column(Modifier.width(GuideW).fillMaxHeight().clip(RoundedCornerShape(16.dp)).background(LvCard.copy(alpha = 0.7f)).border(1.dp, LvBorder, RoundedCornerShape(16.dp)).padding(14.dp)) {
         LvMono("Guide", 10.sp, LvAccent, 0.24f)
-        Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "—", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
+        Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "—", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
         if (shown.isEmpty()) LvMono(if (ch == null) "" else "Loading guide…", 10.sp, Txt3)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            items(rows.size) { i ->
+            items(rows.size, key = { i -> (rows[i] as? Programme)?.startMs ?: rows[i] }) { i ->
                 val row = rows[i]
                 if (row is String) { LvMono(if (row == today) "Today" else row, 9.sp, Txt3, 0.2f, Modifier.padding(top = if (i == 0) 0.dp else 10.dp, bottom = 4.dp)); return@items }
                 val p = row as Programme
-                val live = p.isLiveAt(nowMs); val past = p.stopMs <= nowMs
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (live) LvFocus else Color.Transparent).border(1.dp, if (live) LvAccent.copy(alpha = 0.5f) else Color.Transparent, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Top) {
-                    LvText(fmt.format(Date(p.startMs)), 11.sp, if (live) LvAccent else if (past) LvDimmer else LvDim, Modifier.width(64.dp))
-                    Column(Modifier.weight(1f)) {
-                        if (live) { Box(Modifier.padding(bottom = 4.dp)) { LiveBadge(p.live) } }
-                        Text(p.title, color = if (live) Color.White else if (past) LvDimmer else LvDim, fontFamily = V2Sans, fontWeight = if (live) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        if (live) { Spacer(Modifier.height(5.dp)); ProgressBar(p, Modifier.fillMaxWidth(), 2.dp) }
+                val live = p.isLiveAt(nowMs); val past = p.stopMs <= nowMs; val future = p.startMs > nowMs
+                val set = key(p) in reminders
+                Focusable(Modifier.fillMaxWidth(), onClick = { if (future) toggle(p) }) { f ->
+                    val shape = RoundedCornerShape(8.dp)
+                    Column(Modifier.fillMaxWidth().clip(shape).background(if (f) LvFocus else if (live) LvCard else Color.Transparent)
+                        .border(if (set) 2.dp else 1.dp, if (set) LvGreen else if (f) LvAccent else if (live) LvAccent.copy(alpha = 0.35f) else Color.Transparent, shape)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            LvText(fmt.format(Date(p.startMs)), 11.sp, if (live || f) LvAccent else if (past) LvDimmer else LvDim, Modifier.width(64.dp))
+                            Column(Modifier.weight(1f)) {
+                                if (live) { Box(Modifier.padding(bottom = 4.dp)) { LiveBadge(p.live) } }
+                                Text(p.title, color = if (live || f) Color.White else if (past) LvDimmer else LvDim, fontFamily = V2Sans, fontWeight = if (live || f) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                if (live) { Spacer(Modifier.height(5.dp)); ProgressBar(p, Modifier.fillMaxWidth(), 2.dp) }
+                            }
+                            if (set) Icon(Lucide.BellRing, "Reminder set", Modifier.size(13.dp), tint = LvGreen)
+                        }
+                        if (future && (f || set)) Row(Modifier.padding(top = 6.dp, start = 64.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(if (set) Lucide.BellRing else Lucide.Bell, null, Modifier.size(11.dp), tint = if (set) LvGreen else LvDim); Spacer(Modifier.width(6.dp))
+                            LvMono(if (set) "Reminder set · OK to clear" else "Push OK to set reminder", 8.sp, if (set) LvGreen else LvDim, 0.14f)
+                        }
                     }
                 }
             }

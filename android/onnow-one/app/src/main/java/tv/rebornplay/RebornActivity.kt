@@ -47,12 +47,16 @@ class RebornActivity : ComponentActivity() {
                 RebornApp(this, { pendingRoute }, { pendingRoute = null }, resumeTick)
             }
         }
+        // Guide reminders (same banner + watcher as the V2 guide): tapping the banner jumps to the channel.
+        tv.onnowtv.livetv.ReminderWatcher.attach(this, findViewById(android.R.id.content)) { r ->
+            LiveStore.bundle.value?.channels?.firstOrNull { it.id == r.channelId }?.let { LiveStore.openFullscreen(this, it, emptyList()) }
+        }
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); pendingRoute = intent.getStringExtra("reborn_route") }
     override fun onResume() { super.onResume(); resumeTick++ }
     override fun onPause() { super.onPause(); TrailerPlayer.stop() }
-    override fun onDestroy() { super.onDestroy(); TrailerPlayer.release() }
+    override fun onDestroy() { super.onDestroy(); tv.onnowtv.livetv.ReminderWatcher.detach(this); TrailerPlayer.release() }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean = handleGlobalVolumeKey(this, event) || super.dispatchKeyEvent(event)
 }
 

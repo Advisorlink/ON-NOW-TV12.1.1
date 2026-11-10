@@ -1124,3 +1124,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Compose BOM 2024.09.00 (1.7.0) with Kotlin 1.9.23 / compiler 1.5.13.
 - Hero backdrop is now a full-bleed page background (FullBleedBackdrop) — no hard edge/band where the hero image ended; removed the blue "glow band" overlay at the shelf line; HD-backdrop enrich debounced 280 ms.
 - Freed /app disk (deleted two June snapshot backups in .local_safety_net).
+
+## 2026-11-10 — v3.9.4 (43)
+- Live TV guide column: focusable programme rows (D-pad up/down), OK on a future programme sets/clears a reminder (ReminderStore, green ring + bell, "Push OK to set reminder"), ReminderWatcher banner attached app-wide (tap → channel full screen).
+- Channel rows: single focus ring (inner border dropped while focused). NOW/LIVE pill is a small 14dp-high rectangle.
+- Hero art: EpgArt no longer caches failures; falls back to poster; retry 350 ms. (TMDB has no art for e.g. "Sky Sports Breakfast" → channel logo, same as V2.)

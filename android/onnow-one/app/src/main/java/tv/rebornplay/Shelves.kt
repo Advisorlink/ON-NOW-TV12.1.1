@@ -282,7 +282,8 @@ object EpgArt {
     fun cached(title: String): String? = cache[title]?.takeIf { it.isNotBlank() }
     suspend fun fetch(title: String): String? {
         cache[title]?.let { return it.takeIf { u -> u.isNotBlank() } }
-        val url = withContext(Dispatchers.IO) { runCatching { RebornApi.obj("/api/epg/art?title=" + java.net.URLEncoder.encode(title, "UTF-8")).optString("backdrop", "") }.getOrDefault("") }
+        val r = withContext(Dispatchers.IO) { runCatching { RebornApi.obj("/api/epg/art?title=" + java.net.URLEncoder.encode(title, "UTF-8")) }.onFailure { android.util.Log.w("Reborn", "epg art failed: ${it.message}") }.getOrNull() }
+        val url = r?.let { it.optString("backdrop", "").ifBlank { it.optString("poster", "") } } ?: return null   // network failure → retry later
         cache[title] = url
         return url.takeIf { it.isNotBlank() }
     }
