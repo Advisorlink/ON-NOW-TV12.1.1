@@ -88,6 +88,9 @@ object Prefs {
     fun expandMs(ctx: Context) = p(ctx).getInt("expand_ms", 220)
     fun cycleExpandMs(ctx: Context): Int { val i = EXPAND_SPEEDS.indexOf(expandMs(ctx)); val v = EXPAND_SPEEDS[(i + 1) % EXPAND_SPEEDS.size]; p(ctx).edit().putInt("expand_ms", v).apply(); return v }
     fun expandLabel(ms: Int) = when (ms) { 120 -> "Fast"; 400 -> "Slow"; else -> "Normal" }
+    /** Appearance → card size (0.75 … 1.25, 1 = default). */
+    fun cardScale(ctx: Context) = p(ctx).getFloat("card_scale", 1f)
+    fun setCardScale(ctx: Context, v: Float) = p(ctx).edit().putFloat("card_scale", v.coerceIn(0.75f, 1.25f)).apply()
     /** Vesper "Covers only": no wide pop-out card, no trailers — just the posters. */
     fun coversOnly(ctx: Context) = p(ctx).getBoolean("covers_only", false)
     fun setCoversOnly(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("covers_only", v).apply()

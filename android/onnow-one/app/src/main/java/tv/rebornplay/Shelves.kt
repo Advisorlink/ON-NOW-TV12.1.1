@@ -85,7 +85,7 @@ fun PosterShelf(eyebrow: String, title: String, items: List<Item>, total: Int = 
         SectionHeader(eyebrow, title, "${items.size} of $total titles", Modifier.padding(horizontal = inset))
         LazyRow(state = state, contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             itemsIndexed(items.distinctBy { it.id }, key = { _, it -> it.id }) { i, it ->
-                PosterTile(it, if (i == 0) firstRequester else null, { item -> onFocusItem?.invoke(item); scope.launch { state.animateScrollToItem(i) } }, row, rowNav, i == 0, tileH) { onOpen(it) }
+                PosterTile(it, if (i == 0) firstRequester else null, { item -> onFocusItem?.invoke(item); scope.launch { state.animateScrollToItem((i - 1).coerceAtLeast(0)) } }, row, rowNav, i == 0, tileH) { onOpen(it) }
             }
         }
     }
@@ -158,12 +158,12 @@ fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
     LaunchedEffect(live) { live.forEach { ch -> runCatching { LiveStore.programmes(ctx, ch) } } }
     val h = (tileH * 0.84f).coerceAtMost(190.dp)
-    Row(Modifier.fillMaxWidth().padding(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+    Row(Modifier.fillMaxWidth().padding(end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         if (cw.isNotEmpty()) Column(Modifier.weight(1.4f)) {
-            SectionHeader("Pick up where you left off", "Continue Watching", "${cw.size} in progress")
+            SectionHeader("Pick up where you left off", "Continue Watching", "${cw.size} in progress", Modifier.padding(horizontal = inset))
             val state = rememberLazyListState(); val scope = rememberCoroutineScope()
-            LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 24.dp)) {
-                itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav, { if (it) scope.launch { state.animateScrollToItem(i) } }) { onResume(e) } }
+            LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(start = 64.dp + inset, end = 24.dp)) {
+                itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav, { if (it) scope.launch { state.animateScrollToItem((i - 1).coerceAtLeast(0)) } }) { onResume(e) } }
             }
         }
         if (live.isNotEmpty()) Column(Modifier.weight(1f)) {
@@ -245,7 +245,7 @@ fun LiveRow(row: Int, rowNav: RowNav?, tileH: Dp, onChannel: (tv.onnowtv.livetv.
         }
         LazyRow(state = state, contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
-                val snap: (Boolean) -> Unit = { if (it) scope.launch { state.animateScrollToItem(i) } }
+                val snap: (Boolean) -> Unit = { if (it) scope.launch { state.animateScrollToItem((i - 1).coerceAtLeast(0)) } }
                 when (style) {
                     "logos" -> LogoTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }
                     "cards" -> LiveNowTile(ch, h, i == 0, row, rowNav) { onChannel(ch) }

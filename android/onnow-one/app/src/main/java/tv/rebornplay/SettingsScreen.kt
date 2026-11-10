@@ -21,11 +21,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.key.*
 import com.composables.icons.lucide.*
 import tv.vesper.app.LiveTvEntry
 
 private data class Sec(val id: String, val label: String, val hint: String, val icon: ImageVector)
 private val SECTIONS = listOf(
+    Sec("appearance", "Appearance", "Card size, preview", Lucide.Palette),
     Sec("home", "Home screen", "Row order, show / hide", Lucide.LayoutGrid),
     Sec("playback", "Playback", "Auto play, trailers", Lucide.Play),
     Sec("livetv", "Live TV", "Channels, guide, player", Lucide.RadioTower),
@@ -39,7 +41,7 @@ private val SECTIONS = listOf(
 @Composable
 fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit, onHomeRows: () -> Unit = {}, onPickLiveCategory: () -> Unit = {}, onBack: () -> Unit = {}) {
     val ctx = LocalContext.current
-    var section by rememberSaveable { mutableStateOf("home") }
+    var section by rememberSaveable { mutableStateOf("appearance") }
     val first = remember { FocusRequester() }
     FocusOnShow(first, Unit)
     val inset = safeInset()
@@ -53,6 +55,7 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
             LazyColumn(Modifier.weight(1f).fillMaxHeight(), contentPadding = PaddingValues(bottom = 80.dp)) {
                 item {
                     when (section) {
+                        "appearance" -> AppearanceSection()
                         "home" -> HomeSection(onHomeRows, onPickLiveCategory)
                         "playback" -> PlaybackSection(autoplay, onAutoplay)
                         "livetv" -> {
@@ -181,6 +184,58 @@ private fun ActionRow(title: String, desc: String, action: String?, onClick: () 
         Spacer(Modifier.width(16.dp))
         Box(Modifier.clip(CircleShape).background(if (f) Blue else Color.White.copy(alpha = 0.08f)).border(1.dp, if (f) Color.Transparent else Color.White.copy(alpha = 0.12f), CircleShape).padding(horizontal = 12.dp, vertical = 6.dp)) {
             Mono(action, 10.sp, if (f) Bg0 else Txt, 0.16f)
+        }
+    }
+}
+
+/** Appearance — D-pad slider for cover size with a live preview of the cards underneath; Save writes it for Home / Box Sets / Library. */
+@Composable
+private fun AppearanceSection() {
+    val ctx = LocalContext.current
+    var scale by remember { mutableStateOf(Prefs.cardScale(ctx)) }
+    var saved by remember { mutableStateOf(scale) }
+    SectionHead("Settings · Appearance", "Cover size", Lucide.Palette)
+    Text("Move left / right on the slider to shrink or grow every cover on Home, Box Sets and My Library. The preview below is the real card.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 14.dp))
+    val shape = RoundedCornerShape(10.dp)
+    Focusable(Modifier.padding(bottom = 14.dp).onPreviewKeyEvent { e ->
+        if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        when (e.key) {
+            Key.DirectionLeft -> { scale = (scale - 0.05f).coerceAtLeast(0.75f); true }
+            Key.DirectionRight -> { scale = (scale + 0.05f).coerceAtMost(1.25f); true }
+            else -> false
+        }
+    }, onClick = { Prefs.setCardScale(ctx, scale); saved = scale }) { f ->
+        Column(Modifier.fillMaxWidth().tileFocus(f, 10.dp).clip(shape).background(Color.White.copy(alpha = if (f) 0.07f else 0.04f)).border(1.dp, Color.White.copy(alpha = 0.08f), shape).padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Cover size", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Mono("${(scale * 100).toInt()} %", 11.sp, if (f) BlueBright else Txt2, 0.1f)
+            }
+            Spacer(Modifier.height(10.dp))
+            val frac = (scale - 0.75f) / 0.5f
+            Box(Modifier.fillMaxWidth().height(22.dp), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)))
+                Box(Modifier.fillMaxWidth(frac).height(4.dp).clip(CircleShape).background(Blue))
+                BoxWithConstraints(Modifier.fillMaxWidth()) { Box(Modifier.padding(start = (maxWidth - 18.dp) * frac).size(18.dp).clip(CircleShape).background(if (f) BlueBright else Color.White).border(2.dp, Bg0, CircleShape)) }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row { Mono("Smaller", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono(if (saved == scale) "Saved" else "Press OK to save", 9.sp, if (saved == scale) Txt3 else Amber, 0.16f); Spacer(Modifier.weight(1f)); Mono("Bigger", 9.sp, Txt3, 0.16f) }
+        }
+    }
+    SubHead("Preview")
+    val sample = remember { (Cache.home?.heroes?.map { it.item } ?: Gorilla.catalog?.movies?.take(8) ?: emptyList()).take(6) }
+    val base = 150.dp
+    val h = base * scale
+    if (sample.isEmpty()) Text("Covers appear here once the catalogue has loaded.", color = Txt3, fontFamily = Geist, fontSize = 12.sp)
+    else Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Bg0).border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(14.dp)).padding(vertical = 18.dp)) {
+        Mono("Trending now · live preview", 10.sp, Blue, 0.32f, Modifier.padding(start = 18.dp, bottom = 10.dp))
+        Row(Modifier.padding(start = 18.dp).height(h + 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            sample.forEachIndexed { i, it ->
+                Box(Modifier.width(if (i == 1) h * 16 / 9 else h * 2 / 3).height(h).then(if (i == 1) Modifier.tileFocus(true, 12.dp) else Modifier).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.05f), TileShape)) {
+                    coil.compose.AsyncImage(if (i == 1) (it.background ?: it.poster) else it.poster, it.name, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                    if (i == 1) Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.9f))))
+                    if (i == 1) Text(it.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp))
+                }
+            }
         }
     }
 }

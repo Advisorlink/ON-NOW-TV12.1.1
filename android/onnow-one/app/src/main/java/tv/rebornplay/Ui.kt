@@ -47,9 +47,10 @@ import com.composables.icons.lucide.ArrowLeft
 import tv.vesper.app.R
 
 /* Palette — identical to the web app's CSS variables. */
-val Bg0 = Color(0xFF06080F)
-val Bg1 = Color(0xFF0A0E1A)
-val Bg2 = Color(0xFF111827)
+// Deep midnight blue (not black) across the app — user request.
+val Bg0 = Color(0xFF0A1222)
+val Bg1 = Color(0xFF0F1A2E)
+val Bg2 = Color(0xFF172540)
 val Txt = Color(0xFFF5F7FA)
 val Txt2 = Color(0xFF9BA8C2)
 val Txt3 = Color(0xFF5B6580)

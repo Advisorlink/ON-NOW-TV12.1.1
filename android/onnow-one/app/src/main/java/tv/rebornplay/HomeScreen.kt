@@ -147,9 +147,12 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // Vesper: billboard text sits low, the shelf hugs the bottom edge (≈5 % margin) — no dead band under the covers.
         val total = maxHeight
-        val heroH = total * 0.52f
         val bottomPad = total * 0.05f
-        val tileH = (total - heroH - bottomPad - 58.dp).coerceIn(140.dp, 240.dp)   // 58dp = shelf header
+        val ctx = LocalContext.current
+        val scale = remember { Prefs.cardScale(ctx) }
+        // Default: hero 52 %, covers fill the rest down to a 5 % margin. Appearance slider scales the covers; the hero gives/takes the difference.
+        val tileH = ((total - total * 0.52f - bottomPad - 58.dp) * scale).coerceIn(120.dp, total * 0.58f)
+        val heroH = total - bottomPad - 58.dp - tileH
         Column(Modifier.fillMaxSize()) {
             HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, onPlay = onPlayHero, onInfo = { nav.open(it.item) })
             Box(Modifier.fillMaxWidth().weight(1f).padding(bottom = bottomPad), contentAlignment = Alignment.BottomStart) {

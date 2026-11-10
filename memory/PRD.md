@@ -1103,3 +1103,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Home Live row = V2-style 16:9 programme cards (TMDB programme art via /api/epg/art, white channel-logo chip, LIVE red / NOW blue badge, title, time window, next, progress line), a touch smaller than Continue Watching; default row style "art".
 - Rows: focused tile snaps to the row start (Vesper), symmetric 64dp+inset padding, TV overscan inset 32dp — no more covers cut at the right edge.
 - Reborn Live TV screen recoloured to the V2 palette (bg #0A0F1A, cards #141C2A, focus #1A2438, accent #5DC8FF, red #FF2535), LIVE/NOW badges, Vesper pill focus on hero buttons.
+
+## 2026-11-10 — v3.9.0 (39)
+- Palette: deep midnight blue (Bg0 #0A1222 / Bg1 #0F1A2E / Bg2 #172540) instead of near-black.
+- Rows: focused card anchored as the 2nd visible card (one card of context on the left) so pop-outs and Continue Watching never clip at the left edge; CW row gets real start padding.
+- Live TV tab now opens the real V2 guide (LiveTvEntry.open, hosted with the Reborn menu) — exact V2 look, fonts, red NOW and speed. Reborn LiveTvScreen.kt kept but unused.
+- Settings → Appearance: D-pad cover-size slider (75–125 %) with live card preview, OK saves; Home tile height scales (hero gives/takes the difference).
