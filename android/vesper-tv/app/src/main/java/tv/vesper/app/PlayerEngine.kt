@@ -22,7 +22,7 @@ enum class PlayerEngine(val token: String, val label: String) {
         val DEFAULT = EXO_FFMPEG
 
         fun fromToken(tok: String?): PlayerEngine =
-            values().firstOrNull { it.token == tok } ?: DEFAULT
+            (values().firstOrNull { it.token == tok } ?: DEFAULT).let { if (it == MPV && android.os.Build.VERSION.SDK_INT < 26) VLC else it }   // libmpv needs Android 8+
 
         fun read(ctx: Context): PlayerEngine {
             val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

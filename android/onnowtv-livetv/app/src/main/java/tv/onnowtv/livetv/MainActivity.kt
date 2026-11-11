@@ -128,9 +128,9 @@ class MainActivity : AppCompatActivity() {
     private var locationBlockedInSettings = false
 
     private fun hasLocationPermission(): Boolean =
-        checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+        androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED ||
-            checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
 
     override fun onRequestPermissionsResult(

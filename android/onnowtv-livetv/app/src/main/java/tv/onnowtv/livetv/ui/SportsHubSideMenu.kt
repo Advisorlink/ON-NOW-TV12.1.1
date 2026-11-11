@@ -79,7 +79,7 @@ class SportsHubSideMenu(private val act: AppCompatActivity, private val style: S
         val focusBg = UI.bg(UI.CARD_FOCUS, radius, dp(2f), accent)
         val idleBg = when {
             e.selected && !dock -> LayerDrawable(arrayOf(UI.bg(ColorUtils.setAlphaComponent(accent, 40), radius), UI.bg(accent, dp(2f).toFloat()))).apply {
-                setLayerWidth(1, dp(4f)); setLayerGravity(1, Gravity.START or Gravity.FILL_VERTICAL) }
+                if (android.os.Build.VERSION.SDK_INT >= 23) { setLayerWidth(1, dp(4f)); setLayerGravity(1, Gravity.START or Gravity.FILL_VERTICAL) } }
             e.selected -> UI.bg(ColorUtils.setAlphaComponent(accent, 36), radius, dp(1.5f), accent)
             else -> null
         }

@@ -5,6 +5,7 @@ plugins {
 
 android {
     testOptions { unitTests.isReturnDefaultValues = true }
+    lint { abortOnError = false; checkReleaseBuilds = false; checkOnly += "NewApi"; textReport = true; textOutput = file("/tmp/one-lint-app.txt") }
     namespace = "tv.vesper.app"
 
     sourceSets.getByName("main") {
@@ -30,7 +31,8 @@ android {
         // libmpv (dev.jdtech.mpv:libmpv:0.5.1) requires minSdk 26.
         // Same real-world story — every Android TV box on the market
         // ships Android 9+, so this loses zero deployed devices.
-        minSdk = 26
+        // Fire OS 5 (API 22) and Fire OS 6 (API 25) sticks/boxes included; MPV engine (needs API 26) is gated at runtime.
+        minSdk = 22
         targetSdk = 34
         // versionCode + versionName are normally driven by CI from
         // CHANGELOG.md (see .github/workflows/build-apk.yml — the

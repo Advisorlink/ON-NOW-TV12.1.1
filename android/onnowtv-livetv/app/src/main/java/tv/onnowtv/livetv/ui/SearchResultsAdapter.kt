@@ -128,7 +128,7 @@ class SearchResultsAdapter(
                 val set = hasReminder(r.channel, p)
                 reminder.visibility = View.VISIBLE
                 reminder.text = if (set) "REMINDER SET" else "OK · REMIND ME"
-                reminder.setTextColor(itemView.context.getColor(if (set) R.color.livetv_reminder_yellow else R.color.livetv_fg_dim))
+                reminder.setTextColor(androidx.core.content.ContextCompat.getColor(itemView.context, if (set) R.color.livetv_reminder_yellow else R.color.livetv_fg_dim))
             }
             val d = p.description?.trim().orEmpty()
             desc.visibility = if (d.isEmpty()) View.GONE else View.VISIBLE

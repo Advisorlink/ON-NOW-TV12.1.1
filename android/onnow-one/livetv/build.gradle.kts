@@ -7,7 +7,7 @@ android {
     namespace = "tv.onnowtv.livetv"
     compileSdk = 34
     defaultConfig {
-        minSdk = 26
+        minSdk = 22
         consumerProguardFiles("../../onnowtv-livetv/app/proguard-rules.pro")
         buildConfigField("String", "VERSION_NAME", "\"embedded\"")
     }
@@ -18,12 +18,13 @@ android {
         assets.setSrcDirs(listOf("../../onnowtv-livetv/app/src/main/assets"))
     }
     buildFeatures { viewBinding = true; buildConfig = true }
-    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17; isCoreLibraryDesugaringEnabled = true }
     kotlinOptions { jvmTarget = "17" }
-    lint { abortOnError = false }
+    lint { abortOnError = false; checkOnly += "NewApi"; textReport = true; textOutput = file("/tmp/one-lint-livetv.txt") }
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.4")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.webkit:webkit:1.11.0")
     implementation("androidx.appcompat:appcompat:1.7.0")

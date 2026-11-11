@@ -27,7 +27,7 @@ object SearchEngine {
         val q = query.trim().lowercase(Locale.UK)
         if (q.length < 2) return emptyList()
         val bySid = HashMap<String, Channel>(channels.size)
-        for (c in channels) c.epgChannelId?.takeIf { it.isNotBlank() }?.let { bySid.putIfAbsent(it, c) }
+        for (c in channels) c.epgChannelId?.takeIf { it.isNotBlank() }?.let { if (!bySid.containsKey(it)) bySid[it] = c }
 
         val nowShows = ArrayList<Pair<Int, SearchRow.Show>>()
         val later = ArrayList<Pair<Int, SearchRow.Show>>()

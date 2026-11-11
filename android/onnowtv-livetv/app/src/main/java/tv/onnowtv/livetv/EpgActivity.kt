@@ -191,9 +191,9 @@ class EpgActivity : AppCompatActivity() {
     /** Channels whose lazy-fetch returned no EPG.  We remember
      *  these so the channel pill stops showing "Loading guide…"
      *  forever — it'll just show the channel name. */
-    private val epgKnownEmpty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val epgKnownEmpty = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
     /** Channel IDs the user has favourited.  Mirrors [FavouritesStore]. */
-    private val favouriteSet = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val favouriteSet = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
 
     /** What the middle column is currently showing.  Tracked so
      *  `launchPlayer` knows whether to look up a real channel or
@@ -211,7 +211,7 @@ class EpgActivity : AppCompatActivity() {
      *  restarts and EPG re-fetches.  The mirrored in-memory map
      *  drives the GuideRow paint and is kept in sync with the
      *  on-disk SharedPreferences whenever we add/remove. */
-    private val reminderSet = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val reminderSet = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
     private fun reminderKey(p: Programme): String {
         val sid = focusedChannel?.epgChannelId ?: ""
         return "$sid:${p.startMs}"
@@ -221,7 +221,7 @@ class EpgActivity : AppCompatActivity() {
     // Channels currently being lazy-fetched.  Prevents the same
     // channel from being requested twice when the RecyclerView
     // rebinds the same row multiple times during a scroll.
-    private val pendingEpgFetch = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val pendingEpgFetch = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
 
     private val clockHandler = Handler(Looper.getMainLooper())
     private val categoryFocusHandler = Handler(Looper.getMainLooper())
@@ -935,7 +935,7 @@ class EpgActivity : AppCompatActivity() {
         for (q in recent) {
             row.addView(TextView(this).apply {
                 text = q
-                setTextColor(getColor(R.color.livetv_fg))
+                setTextColor(androidx.core.content.ContextCompat.getColor(this@EpgActivity, R.color.livetv_fg))
                 textSize = 14f
                 setPadding((16 * dp).toInt(), (8 * dp).toInt(), (16 * dp).toInt(), (8 * dp).toInt())
                 setBackgroundResource(R.drawable.channel_pill_bg)

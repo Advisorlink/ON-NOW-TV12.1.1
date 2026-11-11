@@ -99,7 +99,7 @@ class ChannelPillAdapter(
         private fun progressContainer(): FrameLayout? = progress.parent as? FrameLayout
 
         fun bind(channel: Channel) {
-            itemView.foreground = androidx.core.content.ContextCompat.getDrawable(itemView.context, R.drawable.channel_focus_outline)
+            if (android.os.Build.VERSION.SDK_INT >= 23) itemView.foreground = androidx.core.content.ContextCompat.getDrawable(itemView.context, R.drawable.channel_focus_outline)
             itemView.clipToOutline = true
             if (!channel.logoUrl.isNullOrBlank() && tv.onnowtv.livetv.data.Settings.showLogos) {
                 logo.load(channel.logoUrl)

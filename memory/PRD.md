@@ -1144,3 +1144,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Preview window keeps playing the clicked channel while the hero follows the highlighted one.
 - Continue Watching: wider gaps, smaller focus zoom, focused card drawn on top (user said cards overlap).
 - Home mini player (HomePip.kt): channel opened from Home goes full screen; Back leaves a mini player right of the billboard title; Back again closes; OK on it = full screen. "Mini player size" slider in Appearance.
+
+## 3.9.7 (build 46) — lockdown + device coverage (BUILD/LINT/UNIT-TEST VERIFIED, not run on hardware)
+- Security: Reborn already inherits V2 IntegrityGuard via OnNowApplication (package, signing cert, debugger/Frida/Xposed, R8). Added `Lockdown.kt` (second independent check: package, label "Reborn Play", debuggable flag, signing-cert SHA-256; runs onCreate + onResume every 3 min, release only) and FLAG_SECURE on RebornActivity. `LockdownTest` (3 tests) proves the embedded hash == real keystore cert. APK verified: v1+v2+v3 signed, not debuggable, rebornplay classes obfuscated.
+- Device coverage: minSdk 26 -> 22 (Fire OS 5/6 sticks previously could not install). mpv overrideLibrary + PlayerEngine falls back to VLC below API 26; livetv embed module (onnow-one/livetv) gets core-library desugaring; API-23/24 calls in shared livetv sources guarded/compat (no behaviour change for V2). Lint NewApi: remaining hits only in unused Vesper/LiveTV MainActivity permission gates, WorkManager builder, and a cosmetic style attr.
+- Same look everywhere: `Device.kt` `TvCanvas` — TV-class devices (uiMode TV / leanback / fire_tv / no touchscreen / <=160dpi >=1280px box) are laid out on a fixed 1280dp-wide canvas (LocalDensity + LocalConfiguration override). Phones untouched. `isTv()` now uses Device.isTvClass. Live TV hero buttons drawn at menu scale (LocalOuterDensity).
+- NOTE: build env (/opt/native-tools, /android-sdk) is wiped on pod reset -> run `bash /app/scripts/setup-vesper-build-env.sh` first. Lint: `./gradlew :app:lintRelease :livetv:lintRelease` (reports /tmp/one-lint-*.txt).
+- Not supported: x86 boxes; Vega OS Fire Sticks (not Android).

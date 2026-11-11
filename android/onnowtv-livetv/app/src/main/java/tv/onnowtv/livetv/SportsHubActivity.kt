@@ -173,7 +173,7 @@ class SportsHubActivity : AppCompatActivity() {
             background = when {
                 has -> UI.bg(UI.CARD_FOCUS, radius, dp(ctx, 2f), hubLayout.accent)
                 selected -> android.graphics.drawable.LayerDrawable(arrayOf(UI.bg(androidx.core.graphics.ColorUtils.setAlphaComponent(hubLayout.accent, 28), radius), UI.bg(hubLayout.accent, dp(ctx, 2f).toFloat()))).apply {
-                    setLayerHeight(1, dp(ctx, 3f)); setLayerGravity(1, Gravity.BOTTOM or Gravity.FILL_HORIZONTAL); setLayerInset(1, dp(ctx, 10f), 0, dp(ctx, 10f), 0)
+                    if (android.os.Build.VERSION.SDK_INT >= 23) { setLayerHeight(1, dp(ctx, 3f)); setLayerGravity(1, Gravity.BOTTOM or Gravity.FILL_HORIZONTAL); setLayerInset(1, dp(ctx, 10f), 0, dp(ctx, 10f), 0) }
                 }
                 else -> UI.bg(android.graphics.Color.TRANSPARENT, radius)
             }

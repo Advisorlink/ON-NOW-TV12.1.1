@@ -255,12 +255,15 @@ private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: 
                 } else { Spacer(Modifier.height(8.dp)); LvText("No programme information", 12.sp, LvDimmer) }
             }
         }
-        Row(Modifier.align(Alignment.TopEnd).padding(top = if (wideBar) navTop + 9.dp * k else topPad, end = side), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        // Drawn at the menu's own scale (not the Live TV size) so they always sit beside the menu without touching it.
+        CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides (LocalOuterDensity.current ?: androidx.compose.ui.platform.LocalDensity.current)) {
+        Row(Modifier.align(Alignment.TopEnd).padding(top = if (wideBar) 23.dp + safeInset() / 2 else topPad / k, end = 10.dp + safeInset() / 2), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             val fav = ch != null && ch.id in favs
             HeroPill(Lucide.Trophy, "Sports Hub", onSportsHub)
             HeroIcon(Lucide.Star, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
             HeroIcon(Lucide.RefreshCw, "Refresh", null, onRefresh)
             HeroIcon(Lucide.Settings, "Live TV settings", null, onSettings)
+        }
         }
     }
 }

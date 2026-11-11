@@ -240,10 +240,7 @@ fun Modifier.focusScale(focused: Boolean, to: Float = 1.06f): Modifier = compose
 
 /** TV overscan: panels hide ~3-5% at the edges, so TV builds get a safe-area inset. */
 @Composable
-fun isTv(): Boolean {
-    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
-    return (cfg.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
-}
+fun isTv(): Boolean = Device.isTvClass(androidx.compose.ui.platform.LocalContext.current)
 
 @Composable
 fun safeInset(): Dp = if (isTv()) 32.dp else 0.dp   // TV overscan: keeps rows/menus off the panel edge

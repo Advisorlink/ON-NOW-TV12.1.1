@@ -39,12 +39,16 @@ class RebornActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Lockdown.enforce(this)
+        // Same as V2: release builds block OS screenshots / screen recording / cast mirroring (HDMI output is unaffected).
+        if (!tv.vesper.app.BuildConfig.DEBUG) window.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
         installLiveTvHostBar()
         tv.onnowtv.livetv.data.AuthStore.configure(Gorilla.SCHEME, Gorilla.HOST, Gorilla.PORT)
         pendingRoute = intent?.getStringExtra("reborn_route")
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Blue, background = Bg0, surface = Bg1)) {
-                RebornApp(this, { pendingRoute }, { pendingRoute = null }, resumeTick)
+                TvCanvas { RebornApp(this, { pendingRoute }, { pendingRoute = null }, resumeTick) }
             }
         }
         // Guide reminders (same banner + watcher as the V2 guide): tapping the banner jumps to the channel.
@@ -54,7 +58,7 @@ class RebornActivity : ComponentActivity() {
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); pendingRoute = intent.getStringExtra("reborn_route") }
-    override fun onResume() { super.onResume(); resumeTick++ }
+    override fun onResume() { super.onResume(); Lockdown.enforce(this); resumeTick++ }
     override fun onPause() { super.onPause(); TrailerPlayer.stop() }
     override fun onDestroy() { super.onDestroy(); tv.onnowtv.livetv.ReminderWatcher.detach(this); TrailerPlayer.release() }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean = handleGlobalVolumeKey(this, event) || super.dispatchKeyEvent(event)
