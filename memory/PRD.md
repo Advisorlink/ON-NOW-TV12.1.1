@@ -1137,3 +1137,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Channel rows: one focus treatment only (single cyan border + soft glow).
 - Sports Hub / favourite / refresh / settings buttons sit in the menu row only on screens >= 1200dp wide; otherwise just below the menu on the right (menu would overlap).
 - Pending: device verification of all of the above + earlier pending items (Home navigation, card-size slider, Home live row art).
+
+## 3.9.6 (build 45) — BUILD-VERIFIED ONLY, not tested on a TV box
+- Live TV laid out on a fixed 1060-wide canvas (density override) × user "Live TV size" slider (Settings → Appearance, 80–140 %); bigger preview window (300x169).
+- Guide loads for the whole group up front (LiveStore.loadRow: disk guide, else per-channel service guide, 4 at a time) instead of only on focus.
+- Preview window keeps playing the clicked channel while the hero follows the highlighted one.
+- Continue Watching: wider gaps, smaller focus zoom, focused card drawn on top (user said cards overlap).
+- Home mini player (HomePip.kt): channel opened from Home goes full screen; Back leaves a mini player right of the billboard title; Back again closes; OK on it = full screen. "Mini player size" slider in Appearance.

@@ -141,6 +141,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
             "profiles" -> ProfilesScreen(onPick = { profileKey++; nav.go(Route.Home); stage = "main" }, onSignOut = signOut)
             else -> key(profileKey) {
                 val playHero: (Hero) -> Unit = { h ->
+                    HomePip.close()
                     val url = h.item.playUrl
                     if (url == null) nav.open(h.item) else launchPlayer(activity, h.item, h.item.name, url, h.item.id)
                 }
@@ -153,7 +154,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                     else -> CompositionLocalProvider(LocalToken provides "xtream") { Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
                         val inset = safeInset()
                         when (cur) {
-                            is Route.Home -> HomeScreen(nav, rowNav, playHero, onResume = { resumeEntry(activity, it) }, onChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) })
+                            is Route.Home -> { HomeScreen(nav, rowNav, playHero, onResume = { HomePip.close(); resumeEntry(activity, it) }, onChannel = { ch -> HomePip.open(activity, ch) }); HomePipWindow(activity) }
                             is Route.Tab -> Box(Modifier.padding(horizontal = inset)) { TabGridScreen(cur.type) { nav.go(Route.Detail(it)) } }
                             is Route.BoxSets -> BoxSetsScreen(onOpenSet = { nav.go(Route.BoxSet(it)) })
                             is Route.Search -> Box(Modifier.padding(horizontal = inset)) { SearchScreen(onOpen = { nav.go(Route.Detail(it)) }, onOpenChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) }) }

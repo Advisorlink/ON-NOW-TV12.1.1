@@ -46,6 +46,24 @@ object LiveStore {
         return list
     }
 
+    private val rowGate = kotlinx.coroutines.sync.Semaphore(4)
+    private val rowTried = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    /** Guide for a channel row without waiting for focus: disk guide first, then the service's per-channel guide (4 at a time, retried after 10 min). */
+    suspend fun loadRow(ctx: Context, ch: Channel) {
+        val k = key(ch)
+        if (epg[k]?.any { it.stopMs > System.currentTimeMillis() } == true) return
+        val last = rowTried[ch.id]; if (last != null && System.currentTimeMillis() - last < 600_000L) return
+        rowGate.acquire()
+        val list = try {
+            rowTried[ch.id] = System.currentTimeMillis()
+            withContext(Dispatchers.IO) {
+                runCatching { EpgCache.loadChannel(ctx, k) }.getOrNull()?.takeIf { l -> l.any { it.stopMs > System.currentTimeMillis() } }
+                    ?: runCatching { DirectProviderFetcher.fetchShortEpg(ctx, ch.id) }.getOrDefault(emptyList())
+            }
+        } finally { rowGate.release() }
+        if (list.isNotEmpty()) epg[k] = list
+    }
+
     fun nowNext(ch: Channel): Pair<Programme?, Programme?> {
         val list = epg[key(ch)] ?: return null to null
         val now = System.currentTimeMillis()

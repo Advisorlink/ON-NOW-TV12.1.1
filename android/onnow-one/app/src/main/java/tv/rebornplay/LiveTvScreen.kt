@@ -54,8 +54,9 @@ import tv.vesper.app.LiveTvEntry
 import java.text.SimpleDateFormat
 import java.util.Date
 
-private val CatW = 162.dp
-private val GuideW = 224.dp
+private val CatW = 180.dp
+private val GuideW = 250.dp
+private val LocalK = compositionLocalOf { 1f }   // real dp → scaled dp
 private val CatWCompact = 132.dp
 private val RowShape = RoundedCornerShape(9.dp)
 private val PanelShape = RoundedCornerShape(12.dp)
@@ -140,10 +141,15 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
     }
 
     val compact = isCompact()
-    val inset = safeInset()
+    // TV: lay the screen out on a fixed 1060-wide canvas so it looks the same on every box, then apply the user's Live TV size.
+    val real = androidx.compose.ui.platform.LocalDensity.current
+    val userScale by Prefs.liveScaleState(ctx)
+    val d = if (compact) real.density else androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * real.density / 1060f * userScale
+    CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d, real.fontScale), LocalK provides real.density / d) {
+    val inset = safeInset() * LocalK.current
     val side = 10.dp + inset / 2
     Column(Modifier.fillMaxSize().background(LvBg)) {
-        LiveHero(current, preview != null && preview?.id == current?.id, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
+        LiveHero(current, preview, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
             onSettings = { LiveTvEntry.open(activity, settings = true) },
             onSportsHub = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }) { v -> playerView = v }
         Row(Modifier.weight(1f).fillMaxWidth().padding(start = side, end = side, bottom = 10.dp + inset / 2), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -159,6 +165,7 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
             }
             if (!compact) GuideColumn(current, fmt, tick)
         }
+    }
     }
     gate?.let { c -> PinGate(c.name, onClose = { gate = null }) { unlocked += c.id; gate = null; selectCategory(c) } }
 }
@@ -191,11 +198,15 @@ private fun LiveBadge(live: Boolean, big: Boolean = false) {
 private fun clock(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return "%02d:%02d:%02d".format(s / 3600, (s / 60) % 60, s % 60) }
 
 @Composable
-private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onSportsHub: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
+private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onSportsHub: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
     val ctx = LocalContext.current
     val compact = isCompact()
-    val inset = safeInset()
+    val k = LocalK.current
+    val inset = safeInset() * k
     val side = 10.dp + inset / 2
+    val previewing = previewCh != null
+    // The preview window keeps showing (and timing) the channel that is actually playing while the hero follows the highlighted one.
+    val playingNow = remember(previewCh?.id, LiveStore.epg[previewCh?.let { LiveStore.key(it) } ?: ""], tick) { previewCh?.let { LiveStore.nowNext(it).first } }
     val (now, next) = remember(ch?.id, LiveStore.epg[ch?.let { LiveStore.key(it) } ?: ""], tick) { ch?.let { LiveStore.nowNext(it) } ?: (null to null) }
     var art by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(now?.title) {
@@ -204,10 +215,10 @@ private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: 
         delay(250); art = LiveStore.fetchArt(t)
     }
     val wideBar = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 1200
-    val navTop = (if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 1000) 14.dp else 8.dp) + inset / 2
-    val topPad = navTop + 52.dp + 6.dp
-    val prevW = if (compact) 178.dp else 250.dp
-    val prevH = if (compact) 100.dp else 140.dp
+    val navTop = (if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 1000) 14.dp else 8.dp) * k + inset / 2
+    val topPad = navTop + 58.dp * k + 6.dp
+    val prevW = if (compact) 178.dp else 300.dp
+    val prevH = if (compact) 100.dp else 169.dp
     Box(Modifier.fillMaxWidth().height(topPad + prevH + 12.dp)) {
         if (art != null) {
             Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.72f)) {
@@ -227,7 +238,7 @@ private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: 
                     else { Box(Modifier.fillMaxSize().background(LvCard)); if (ch?.logoUrl != null) AsyncImage(ch.logoUrl, null, Modifier.align(Alignment.Center).fillMaxSize(0.45f), contentScale = ContentScale.Fit, alpha = 0.6f) }
                 }
                 Box(Modifier.align(Alignment.TopStart).padding(8.dp)) { LiveBadge(true, big = true) }
-                PreviewBar(now, previewing, Modifier.align(Alignment.BottomCenter))
+                PreviewBar(if (previewing) playingNow else now, previewing, Modifier.align(Alignment.BottomCenter))
             }
             Spacer(Modifier.width(20.dp))
             Column(Modifier.weight(1f)) {
@@ -236,7 +247,7 @@ private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: 
                 Text(ch?.let { Settings.cleanName(ctx, it.name) } ?: "Live TV", color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = if (compact) 12.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (now != null) {
                     Text(now.title, color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = if (compact) 20.sp else 30.sp, lineHeight = if (compact) 24.sp else 34.sp, letterSpacing = (-0.6).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.6f))
-                    if (!compact && !now.description.isNullOrBlank()) { Spacer(Modifier.height(5.dp)); Text(now.description!!, color = Color.White.copy(alpha = 0.88f), fontFamily = V2Sans, fontSize = 10.5.sp, lineHeight = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(260.dp)) }
+                    if (!compact && !now.description.isNullOrBlank()) { Spacer(Modifier.height(5.dp)); Text(now.description!!, color = Color.White.copy(alpha = 0.88f), fontFamily = V2Sans, fontSize = 10.5.sp, lineHeight = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(300.dp)) }
                     Spacer(Modifier.height(9.dp))
                     ProgressBar(now, Modifier.width(if (compact) 200.dp else 260.dp), 3.dp)
                     Spacer(Modifier.height(8.dp))
@@ -244,7 +255,7 @@ private fun LiveHero(ch: Channel?, previewing: Boolean, favs: Set<String>, fmt: 
                 } else { Spacer(Modifier.height(8.dp)); LvText("No programme information", 12.sp, LvDimmer) }
             }
         }
-        Row(Modifier.align(Alignment.TopEnd).padding(top = if (wideBar) navTop + 9.dp else topPad, end = side), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        Row(Modifier.align(Alignment.TopEnd).padding(top = if (wideBar) navTop + 9.dp * k else topPad, end = side), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             val fav = ch != null && ch.id in favs
             HeroPill(Lucide.Trophy, "Sports Hub", onSportsHub)
             HeroIcon(Lucide.Star, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
@@ -365,12 +376,11 @@ private fun ChannelColumn(channels: List<Channel>, favs: Set<String>, currentId:
     val ctx = LocalContext.current
     if (channels.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LvMono("No channels in this group", 11.sp, LvDimmer) }; return }
     val state: LazyListState = rememberLazyListState()
+    // Whole group's guide loads up front (V2 behaviour) — no need to rest on a channel.
+    LaunchedEffect(channels) { channels.take(300).forEach { ch -> launch { runCatching { LiveStore.loadRow(ctx, ch) } } } }
     LazyColumn(state = state, verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(start = 2.dp, end = 2.dp, top = 2.dp, bottom = 12.dp)) {
         itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
-            LaunchedEffect(ch.id) {
-                val k = LiveStore.key(ch)
-                if (LiveStore.epg[k] == null) withContext(Dispatchers.IO) { runCatching { EpgCache.loadChannel(ctx, k) }.getOrNull() }?.let { LiveStore.epg[k] = it }
-            }
+            LaunchedEffect(ch.id) { runCatching { LiveStore.loadRow(ctx, ch) } }
             ChannelRow(ch, ch.id in favs, ch.id == currentId, if (i == 0) first else null, fmt, tick, onFocus = { onFocus(ch) }) { onOpen(ch) }
         }
     }

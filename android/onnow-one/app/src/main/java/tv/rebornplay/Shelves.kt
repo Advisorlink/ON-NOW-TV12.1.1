@@ -163,8 +163,8 @@ fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row
     Row(Modifier.fillMaxWidth().padding(end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         if (cw.isNotEmpty()) Column(Modifier.weight(1.4f)) {
             SectionHeader("Pick up where you left off", "Continue Watching", "${cw.size} in progress", Modifier.padding(horizontal = inset))
-            AnchoredRow(64.dp + inset + h * 16 / 9 + 12.dp) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(start = 64.dp + inset, end = 24.dp)) {
+            AnchoredRow(64.dp + inset + h * 16 / 9 + 22.dp) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(22.dp), contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp)) {
                     itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav) { onResume(e) } }
                 }
             }
@@ -188,8 +188,9 @@ private fun CwTile(e: CwEntry, h: Dp, first: Boolean, row: Int, rowNav: RowNav?,
 /** Continue Watching card — 16:9 backdrop, title, play dot + progress bar + minutes left. */
 @Composable
 fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -> Unit)? = null, onClick: () -> Unit) {
-    Focusable(onClick = onClick, requester = req, onFocus = onFocus) { f ->
-        Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
+    var top by remember { mutableStateOf(false) }
+    Focusable(Modifier.zIndex(if (top) 1f else 0f), onClick = onClick, requester = req, onFocus = { top = it; onFocus?.invoke(it) }) { f ->
+        Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
             AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
             Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {

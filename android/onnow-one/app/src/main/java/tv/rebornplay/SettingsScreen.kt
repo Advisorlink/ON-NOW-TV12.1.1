@@ -27,7 +27,7 @@ import tv.vesper.app.LiveTvEntry
 
 private data class Sec(val id: String, val label: String, val hint: String, val icon: ImageVector)
 private val SECTIONS = listOf(
-    Sec("appearance", "Appearance", "Card size, preview", Lucide.Palette),
+    Sec("appearance", "Appearance", "Cover, Live TV & mini player size", Lucide.Palette),
     Sec("home", "Home screen", "Row order, show / hide", Lucide.LayoutGrid),
     Sec("playback", "Playback", "Auto play, trailers", Lucide.Play),
     Sec("livetv", "Live TV", "Channels, guide, player", Lucide.RadioTower),
@@ -193,33 +193,13 @@ private fun ActionRow(title: String, desc: String, action: String?, onClick: () 
 private fun AppearanceSection() {
     val ctx = LocalContext.current
     var scale by Prefs.cardScaleState(ctx)
-    SectionHead("Settings · Appearance", "Cover size", Lucide.Palette)
+    SectionHead("Settings · Appearance", "Sizes", Lucide.Palette)
     Text("Move left / right on the slider to shrink or grow every cover on Home and Box Sets — it applies straight away, no restart. The preview below is the real card.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 14.dp))
-    val shape = RoundedCornerShape(10.dp)
-    Focusable(Modifier.padding(bottom = 14.dp).onPreviewKeyEvent { e ->
-        if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-        when (e.key) {
-            Key.DirectionLeft -> { Prefs.setCardScale(ctx, scale - 0.05f); true }
-            Key.DirectionRight -> { Prefs.setCardScale(ctx, scale + 0.05f); true }
-            else -> false
-        }
-    }, onClick = { Prefs.setCardScale(ctx, 1f) }) { f ->
-        Column(Modifier.fillMaxWidth().tileFocus(f, 10.dp).clip(shape).background(Color.White.copy(alpha = if (f) 0.07f else 0.04f)).border(1.dp, Color.White.copy(alpha = 0.08f), shape).padding(horizontal = 14.dp, vertical = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Cover size", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                Mono("${(scale * 100).toInt()} %", 11.sp, if (f) BlueBright else Txt2, 0.1f)
-            }
-            Spacer(Modifier.height(10.dp))
-            val frac = (scale - 0.75f) / 0.5f
-            Box(Modifier.fillMaxWidth().height(22.dp), contentAlignment = Alignment.CenterStart) {
-                Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)))
-                Box(Modifier.fillMaxWidth(frac).height(4.dp).clip(CircleShape).background(Blue))
-                BoxWithConstraints(Modifier.fillMaxWidth()) { Box(Modifier.padding(start = (maxWidth - 18.dp) * frac).size(18.dp).clip(CircleShape).background(if (f) BlueBright else Color.White).border(2.dp, Bg0, CircleShape)) }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row { Mono("Smaller", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono("Applies instantly · OK resets to 100 %", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono("Bigger", 9.sp, Txt3, 0.16f) }
-        }
-    }
+    SliderRow("Cover size", scale, 0.75f, 1.25f) { Prefs.setCardScale(ctx, it) }
+    val live by Prefs.liveScaleState(ctx)
+    SliderRow("Live TV size", live, 0.8f, 1.4f, "Bigger = larger preview window, text and rows on the Live TV screen (fewer channels per page).") { Prefs.setLiveScale(ctx, it) }
+    val pip by Prefs.pipScaleState(ctx)
+    SliderRow("Mini player size", pip, 0.6f, 1.6f, "The small live window that stays on the Movies & TV screen after you come back from a channel.") { Prefs.setPipScale(ctx, it) }
     SubHead("Preview")
     val sample = remember { (Cache.home?.heroes?.map { it.item } ?: Gorilla.catalog?.movies?.take(8) ?: emptyList()).take(6) }
     val base = 150.dp
@@ -235,6 +215,37 @@ private fun AppearanceSection() {
                     if (i == 1) Text(it.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp))
                 }
             }
+        }
+    }
+}
+
+/** D-pad slider: Left / Right move it in 5 % steps, OK resets to 100 %. Applies instantly. */
+@Composable
+private fun SliderRow(title: String, value: Float, min: Float, max: Float, desc: String? = null, onChange: (Float) -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Focusable(Modifier.padding(bottom = 14.dp).onPreviewKeyEvent { e ->
+        if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        when (e.key) {
+            Key.DirectionLeft -> { onChange(value - 0.05f); true }
+            Key.DirectionRight -> { onChange(value + 0.05f); true }
+            else -> false
+        }
+    }, onClick = { onChange(1f) }) { f ->
+        Column(Modifier.fillMaxWidth().tileFocus(f, 10.dp).clip(shape).background(Color.White.copy(alpha = if (f) 0.07f else 0.04f)).border(1.dp, Color.White.copy(alpha = 0.08f), shape).padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Mono("${Math.round(value * 100)} %", 11.sp, if (f) BlueBright else Txt2, 0.1f)
+            }
+            if (desc != null) Text(desc, color = Txt2, fontFamily = Geist, fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 3.dp))
+            Spacer(Modifier.height(10.dp))
+            val frac = ((value - min) / (max - min)).coerceIn(0f, 1f)
+            Box(Modifier.fillMaxWidth().height(22.dp), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)))
+                Box(Modifier.fillMaxWidth(frac).height(4.dp).clip(CircleShape).background(Blue))
+                BoxWithConstraints(Modifier.fillMaxWidth()) { Box(Modifier.padding(start = (maxWidth - 18.dp) * frac).size(18.dp).clip(CircleShape).background(if (f) BlueBright else Color.White).border(2.dp, Bg0, CircleShape)) }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row { Mono("Smaller", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono("Applies instantly · OK resets to 100 %", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono("Bigger", 9.sp, Txt3, 0.16f) }
         }
     }
 }

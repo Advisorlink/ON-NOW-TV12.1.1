@@ -93,6 +93,12 @@ object Prefs {
     fun cardScaleState(ctx: Context): androidx.compose.runtime.MutableState<Float> = scaleState ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("card_scale", 1f)).also { scaleState = it }
     fun cardScale(ctx: Context) = cardScaleState(ctx).value
     fun setCardScale(ctx: Context, v: Float) { val c = v.coerceIn(0.75f, 1.25f); cardScaleState(ctx).value = c; p(ctx).edit().putFloat("card_scale", c).apply() }
+    private var liveScaleS: androidx.compose.runtime.MutableState<Float>? = null
+    fun liveScaleState(ctx: Context) = liveScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("live_scale", 1f)).also { liveScaleS = it }
+    fun setLiveScale(ctx: Context, v: Float) { val c = v.coerceIn(0.8f, 1.4f); liveScaleState(ctx).value = c; p(ctx).edit().putFloat("live_scale", c).apply() }
+    private var pipScaleS: androidx.compose.runtime.MutableState<Float>? = null
+    fun pipScaleState(ctx: Context) = pipScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("pip_scale", 1f)).also { pipScaleS = it }
+    fun setPipScale(ctx: Context, v: Float) { val c = v.coerceIn(0.6f, 1.6f); pipScaleState(ctx).value = c; p(ctx).edit().putFloat("pip_scale", c).apply() }
     /** Vesper "Covers only": no wide pop-out card, no trailers — just the posters. */
     fun coversOnly(ctx: Context) = p(ctx).getBoolean("covers_only", false)
     fun setCoversOnly(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("covers_only", v).apply()
