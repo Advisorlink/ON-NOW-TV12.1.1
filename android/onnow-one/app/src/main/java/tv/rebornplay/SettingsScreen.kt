@@ -27,9 +27,9 @@ import tv.vesper.app.LiveTvEntry
 
 private data class Sec(val id: String, val label: String, val hint: String, val icon: ImageVector)
 private val SECTIONS = listOf(
-    Sec("appearance", "Appearance", "Cover, Live TV & mini player size", Lucide.Palette),
-    Sec("home", "Home screen", "Row order, show / hide", Lucide.LayoutGrid),
-    Sec("playback", "Playback", "Auto play, trailers", Lucide.Play),
+    Sec("appearance", "Appearance", "Sizes, covers, trailers", Lucide.Palette),
+    Sec("home", "Home screen", "Arrange your rows", Lucide.LayoutGrid),
+    Sec("playback", "Playback", "Auto play", Lucide.Play),
     Sec("livetv", "Live TV", "Channels, guide, player", Lucide.RadioTower),
     Sec("profiles", "Profiles", "Who's watching", Lucide.UsersRound),
     Sec("catalogue", "Catalogue", "Movies & shows data", Lucide.Database),
@@ -55,7 +55,7 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
             LazyColumn(Modifier.weight(1f).fillMaxHeight(), contentPadding = PaddingValues(bottom = 80.dp)) {
                 item {
                     when (section) {
-                        "appearance" -> AppearanceSection()
+                        "appearance" -> AppearanceSection(onPickLiveCategory)
                         "home" -> HomeSection(onHomeRows, onPickLiveCategory)
                         "playback" -> PlaybackSection(autoplay, onAutoplay)
                         "livetv" -> {
@@ -97,29 +97,15 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
 
 @Composable
 private fun HomeSection(onHomeRows: () -> Unit, onPickLiveCategory: () -> Unit) {
-    val ctx = LocalContext.current
-    SectionHead("Settings · Home screen", "Arrange your For You page", Lucide.LayoutGrid)
-    ActionRow("Home rows", "Move rows up or down and hide the ones you skip — the Live TV row can sit on any line.", "Customise", onClick = onHomeRows)
-    SubHead("Live TV row")
-    var src by remember { mutableStateOf(LiveRowPrefs.source(ctx)) }
-    var look by remember { mutableStateOf(LiveRowPrefs.style(ctx)) }
-    val catName = LiveStore.categories(ctx).firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) }?.name ?: "Not set"
-    ActionRow("What the row shows", "Favourites · live sport right now · what's on now · or one category of your choice.", LiveRowPrefs.sourceLabel(src)) { src = LiveRowPrefs.cycleSource(ctx); Cache.home = null }
-    ActionRow("Category for the row", "Used when the row is set to \"A category I pick\".", catName, onClick = onPickLiveCategory)
-    ActionRow("How the row looks", "Channel cards, big programme cards or compact logos.", LiveRowPrefs.styleLabel(look)) { look = LiveRowPrefs.cycleStyle(ctx); Cache.home = null }
+    SectionHead("Settings · Home screen", "Arrange your rows", Lucide.LayoutGrid)
+    Text("Use the arrows to move a row up or down, and the eye to hide it. Changes apply the next time Home opens.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 14.dp))
+    HomeRowsList()
 }
 
 @Composable
 private fun PlaybackSection(autoplay: Boolean, onAutoplay: () -> Unit) {
-    val ctx = LocalContext.current
-    SectionHead("Settings · Playback", "Auto play & trailers", Lucide.Play)
+    SectionHead("Settings · Playback", "Auto play", Lucide.Play)
     ToggleRow("Auto play", "Play straight away from the hero and Continue Watching; off asks first.", autoplay, onAutoplay)
-    var covers by remember { mutableStateOf(Prefs.coversOnly(ctx)) }
-    ToggleRow("Pop-out preview", "Resting on a cover slides it open into a wide card with its backdrop and trailer. Off = covers only, no wide card, no trailers.", !covers) { covers = !covers; Prefs.setCoversOnly(ctx, covers) }
-    var delay by remember { mutableStateOf(Prefs.trailerDelayMs(ctx)) }
-    var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
-    ActionRow("Trailer delay", "How long you rest on a title before its trailer starts playing in the cover.", Prefs.trailerDelayLabel(delay)) { delay = Prefs.cycleTrailerDelay(ctx) }
-    ActionRow("Pop-out speed", "How quickly a focused cover slides open into its wide card.", Prefs.expandLabel(speed)) { speed = Prefs.cycleExpandMs(ctx) }
 }
 
 @Composable
@@ -190,7 +176,7 @@ private fun ActionRow(title: String, desc: String, action: String?, onClick: () 
 
 /** Appearance — D-pad slider for cover size with a live preview of the cards underneath; Save writes it for Home / Box Sets / Library. */
 @Composable
-private fun AppearanceSection() {
+private fun AppearanceSection(onPickLiveCategory: () -> Unit) {
     val ctx = LocalContext.current
     var scale by Prefs.cardScaleState(ctx)
     SectionHead("Settings · Appearance", "Sizes", Lucide.Palette)
@@ -219,6 +205,20 @@ private fun AppearanceSection() {
             }
         }
     }
+    SubHead("Covers & trailers")
+    var covers by remember { mutableStateOf(Prefs.coversOnly(ctx)) }
+    ToggleRow("Pop-out preview", "Resting on a cover slides it open into a wide card with its backdrop and trailer. Off = covers only, no wide card, no trailers.", !covers) { covers = !covers; Prefs.setCoversOnly(ctx, covers) }
+    var delay by remember { mutableStateOf(Prefs.trailerDelayMs(ctx)) }
+    var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
+    ActionRow("Trailer delay", "How long you rest on a title before its trailer starts playing in the cover.", Prefs.trailerDelayLabel(delay)) { delay = Prefs.cycleTrailerDelay(ctx) }
+    ActionRow("Pop-out speed", "How quickly a focused cover slides open into its wide card.", Prefs.expandLabel(speed)) { speed = Prefs.cycleExpandMs(ctx) }
+    SubHead("Live TV row on Home")
+    var src by remember { mutableStateOf(LiveRowPrefs.source(ctx)) }
+    var look by remember { mutableStateOf(LiveRowPrefs.style(ctx)) }
+    val catName = LiveStore.categories(ctx).firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) }?.name ?: "Not set"
+    ActionRow("What the row shows", "Favourites · live sport right now · what's on now · or one category of your choice.", LiveRowPrefs.sourceLabel(src)) { src = LiveRowPrefs.cycleSource(ctx); Cache.home = null }
+    ActionRow("Category for the row", "Used when the row is set to \"A category I pick\".", catName, onClick = onPickLiveCategory)
+    ActionRow("How the row looks", "Channel cards, big programme cards or compact logos.", LiveRowPrefs.styleLabel(look)) { look = LiveRowPrefs.cycleStyle(ctx); Cache.home = null }
 }
 
 /** D-pad slider: Left / Right move it in 5 % steps, OK resets to 100 %. Applies instantly. */

@@ -90,7 +90,7 @@ object Prefs {
     fun expandLabel(ms: Int) = when (ms) { 120 -> "Fast"; 400 -> "Slow"; else -> "Normal" }
     /** Appearance → card size (0.75 … 1.25, 1 = default) — observable so Home/Box Sets resize the moment the slider moves. */
     private var scaleState: androidx.compose.runtime.MutableState<Float>? = null
-    fun cardScaleState(ctx: Context): androidx.compose.runtime.MutableState<Float> = scaleState ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("card_scale", 1f)).also { scaleState = it }
+    fun cardScaleState(ctx: Context): androidx.compose.runtime.MutableState<Float> = scaleState ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("card_scale", 0.8f)).also { scaleState = it }
     fun cardScale(ctx: Context) = cardScaleState(ctx).value
     fun setCardScale(ctx: Context, v: Float) { val c = v.coerceIn(0.75f, 1.25f); cardScaleState(ctx).value = c; p(ctx).edit().putFloat("card_scale", c).apply() }
     private var liveScaleS: androidx.compose.runtime.MutableState<Float>? = null
@@ -100,7 +100,7 @@ object Prefs {
     fun uiScaleState(ctx: Context) = uiScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("ui_scale", 1f)).also { uiScaleS = it }
     fun setUiScale(ctx: Context, v: Float) { val c = v.coerceIn(0.75f, 1.3f); uiScaleState(ctx).value = c; p(ctx).edit().putFloat("ui_scale", c).apply() }
     private var pipScaleS: androidx.compose.runtime.MutableState<Float>? = null
-    fun pipScaleState(ctx: Context) = pipScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("pip_scale", 1f)).also { pipScaleS = it }
+    fun pipScaleState(ctx: Context) = pipScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("pip_scale", 1.25f)).also { pipScaleS = it }
     fun setPipScale(ctx: Context, v: Float) { val c = v.coerceIn(0.6f, 1.6f); pipScaleState(ctx).value = c; p(ctx).edit().putFloat("pip_scale", c).apply() }
     /** Vesper "Covers only": no wide pop-out card, no trailers — just the posters. */
     fun coversOnly(ctx: Context) = p(ctx).getBoolean("covers_only", false)

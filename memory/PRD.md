@@ -1199,3 +1199,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## 3.9.16 (build 55) — TEST COPY (login pre-filled), BUILD-VERIFIED ONLY
 - Default canvas back to 1280dp wide = the canvas Vesper's own app uses on Fire TV/Shield/boxes (vesper-tv MainActivity normalises the WebView to 1280 CSS px; HK1 gets 1920). So Reborn dp == Vesper px.
 - Details page sized from Detail.jsx/CastRow.jsx: title clamp(44, 4.6vw, 72), buttons clamp(50, 4vw, 60), synopsis 16/25 max 560 wide 3 lines, cast cards clamp(116, 9.4vw, 172) 2:3, heading "Cast · N actors". Movies: cast lane pinned to the bottom of the screen, 5 % off the bottom edge (same as Home covers). Series: cast stays inline above the episodes.
+
+## 3.9.17 (build 56) — TEST COPY (login pre-filled), BUILD-VERIFIED ONLY
+- Defaults: cover size 80 %, mini player 125 % (only applies where the user never moved the slider).
+- Settings regrouped: Appearance = sizes + preview + Pop-out preview / Trailer delay / Pop-out speed + Live TV row options. Home screen = only the row list, shown inline (HomeRowsList in HomeRowsScreen.kt). Playback = Auto play only.

@@ -106,3 +106,37 @@ fun LiveCategoryPickScreen(onDone: () -> Unit) {
         }
     }
 }
+
+/** Every Home row, shown straight in Settings → Home screen: move up / down, show / hide. */
+@Composable
+fun HomeRowsList() {
+    val ctx = LocalContext.current
+    val cat = Gorilla.catalog
+    var tick by remember { mutableStateOf(0) }
+    val rows = remember(cat, tick) { cat?.let { HomeRowPrefs.apply(ctx, allHomeRows(it), includeHidden = true) } ?: emptyList() }
+    val hidden = remember(tick) { HomeRowPrefs.hidden(ctx) }
+    fun move(i: Int, dir: Int) {
+        val keys = rows.map { it.first }.toMutableList(); val j = i + dir
+        if (j !in keys.indices) return
+        keys[i] = keys[j].also { keys[j] = keys[i] }
+        HomeRowPrefs.setOrder(ctx, keys); Cache.home = null; tick++
+    }
+    Column {
+        if (rows.isEmpty()) Text("Your catalogue hasn't loaded yet.", color = Txt3, fontFamily = Geist, fontSize = 14.sp)
+        rows.forEachIndexed { i, (key, row) ->
+            val isHidden = key in hidden
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(14.dp)).background(Bg1.copy(alpha = if (isHidden) 0.35f else 0.7f)).border(1.dp, Line, RoundedCornerShape(14.dp)).padding(start = 16.dp, end = 10.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Mono(String.format("%02d", i + 1), 11.sp, Txt3, 0.1f, modifier = Modifier.width(30.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(row.second, color = if (isHidden) Txt3 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, textDecoration = if (isHidden) TextDecoration.LineThrough else null)
+                    Text(if (isHidden) "Hidden from Home" else "${row.first} · ${row.third.size} titles", color = Txt3, fontFamily = Geist, fontSize = 11.sp)
+                }
+                IconBtn(Lucide.ChevronUp, i > 0, null) { move(i, -1) }
+                IconBtn(Lucide.ChevronDown, i < rows.lastIndex) { move(i, 1) }
+                IconBtn(if (isHidden) Lucide.EyeOff else Lucide.Eye, true) { HomeRowPrefs.toggleHidden(ctx, key); Cache.home = null; tick++ }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Pill("Reset to default order", icon = Lucide.RotateCcw) { HomeRowPrefs.reset(ctx); Cache.home = null; tick++ }
+    }
+}
