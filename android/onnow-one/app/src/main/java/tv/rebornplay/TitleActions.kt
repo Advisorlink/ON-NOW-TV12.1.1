@@ -32,7 +32,9 @@ object TitleActions {
     var sel by mutableStateOf(0)
     /** Cover whose playing trailer is showing the choices. */
     var inlineId: String? by mutableStateOf(null)
-    fun openInline(id: String) { sel = 0; armed = false; inlineId = id }
+    /** Two stacked choices (Coming Soon) instead of the usual four. */
+    private var two = false
+    fun openInline(id: String, twoChoices: Boolean = false) { sel = 0; armed = false; two = twoChoices; inlineId = id }
     var play: (Item) -> Unit = {}
     var details: (Item) -> Unit = {}
     internal var activate: () -> Unit = {}
@@ -51,7 +53,7 @@ object TitleActions {
     fun key(e: KeyEvent): Boolean {
         if (item == null && inlineId == null) return false
         when (e.key) {
-            Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight -> if (e.type == KeyEventType.KeyDown) sel = move(sel, e.key)
+            Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight -> if (e.type == KeyEventType.KeyDown) sel = if (two && item == null) (when (e.key) { Key.DirectionUp -> 0; Key.DirectionDown -> 1; else -> sel }) else move(sel, e.key)
             Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> if (e.type == KeyEventType.KeyDown) armed = true else if (armed) { armed = false; activate() }
             Key.Back, Key.Escape -> return false
         }
@@ -66,6 +68,15 @@ private fun VPill(label: String, icon: ImageVector, on: Boolean, compact: Boolea
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
         Icon(icon, null, Modifier.size(if (compact) 12.dp else 16.dp), tint = if (on) BlueBright else Color.White); Spacer(Modifier.width(if (compact) 6.dp else 9.dp))
         Text(label, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 11.sp else 14.sp, maxLines = 1)
+    }
+}
+
+/** Coming Soon: the two choices on the playing trailer. */
+@Composable
+fun SoonPills(sel: Int, remind: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        VPill("Play Trailer Full Screen", Lucide.Maximize, sel == 0, true, Modifier.width(196.dp))
+        VPill(if (remind) "Reminder Set" else "Remind Me", if (remind) Lucide.BellRing else Lucide.Bell, sel == 1, true, Modifier.width(196.dp))
     }
 }
 

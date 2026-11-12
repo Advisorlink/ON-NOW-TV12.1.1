@@ -428,19 +428,28 @@ private fun SoonCard(item: Item, h: Dp, first: Boolean, row: Int, rowNav: RowNav
     val dwell = remember { if (Prefs.coversOnly(ctx)) 0L else Prefs.trailerDelayMs(ctx) }
     if (dwell > 0) TrailerDwell(item, top && TitleActions.item == null, dwell)
     val trailerOn = top && TrailerPlayer.playingId == item.id
-    Focusable(Modifier.zIndex(if (top) 1f else 0f), requester = req, onFocus = { top = it; if (it) { rowNav?.focused(row, req); onFocusItem?.invoke(item) } }, onClick = {
+    val toggle = {
         remind = NotifyList.toggle(ctx, item)
         android.widget.Toast.makeText(ctx, if (remind) "We'll let you know when ${item.name} arrives in HD" else "Reminder removed", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    // Trailer already playing: OK puts the two choices on the rectangle. Not playing yet: OK just sets the reminder.
+    val menu = TitleActions.inlineId == item.id
+    SideEffect { if (!trailerOn && menu) TitleActions.inlineId = null }
+    androidx.activity.compose.BackHandler(enabled = menu) { TitleActions.inlineId = null }
+    if (menu) SideEffect { TitleActions.activate = { if (TitleActions.sel == 0) { TitleActions.inlineId = null; TitleActions.expand(item) } else toggle() } }
+    Focusable(Modifier.zIndex(if (top) 1f else 0f), requester = req, onFocus = { top = it; if (it) { rowNav?.focused(row, req); onFocusItem?.invoke(item) } }, onClick = {
+        if (trailerOn) TitleActions.openInline(item.id, twoChoices = true) else toggle()
     }) { f ->
         Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
             AsyncImage(item.background ?: item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
             if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient((if (trailerOn) 0.65f else 0.4f) to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
+            if (menu) { Box(Modifier.fillMaxSize().background(Color(0x8C05070D))); SoonPills(TitleActions.sel, remind, Modifier.align(Alignment.Center)) }
+            if (!menu) Box(Modifier.fillMaxSize().background(Brush.verticalGradient((if (trailerOn) 0.65f else 0.4f) to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
             Row(Modifier.align(Alignment.TopEnd).padding(8.dp).height(22.dp).clip(CircleShape).background(if (remind) Amber else Bg0.copy(alpha = 0.82f)).border(1.dp, if (remind) Color.Transparent else Blue.copy(alpha = 0.6f), CircleShape).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(if (remind) Lucide.BellRing else Lucide.Bell, null, Modifier.size(11.dp), tint = if (remind) Bg0 else Blue)
                 if (f || remind) { Spacer(Modifier.width(5.dp)); Text(if (remind) "Reminder set" else "Remind me", color = if (remind) Bg0 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp) }
             }
-            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {
+            if (!menu) Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {
                 Text(item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Mono(item.category ?: item.year ?: "Coming soon", 9.sp, Txt2, 0.08f, Modifier.padding(top = 4.dp), upper = false)
             }

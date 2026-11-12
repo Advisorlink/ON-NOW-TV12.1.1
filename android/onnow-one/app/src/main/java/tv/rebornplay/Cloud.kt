@@ -16,8 +16,15 @@ object Cloud {
     private fun p(ctx: Context) = ctx.getSharedPreferences("reborn_cloud", Context.MODE_PRIVATE)
     private fun deviceId(ctx: Context): String = android.provider.Settings.Secure.getString(ctx.contentResolver, android.provider.Settings.Secure.ANDROID_ID).orEmpty()
 
-    private fun post(path: String, body: JSONObject): JSONObject? = runCatching {
-        val c = (URL(RebornApi.BASE + path).openConnection() as HttpURLConnection).apply {
+    // The save service lives on the published app; the main address is tried first in case it is moved there later.
+    private val hosts = listOf(RebornApi.BASE, "https://rebrand-app-5.emergent.host")
+    @Volatile private var good: String? = null
+    private fun post(path: String, body: JSONObject): JSONObject? {
+        for (h in listOfNotNull(good) + hosts.filter { it != good }) { val r = postTo(h, path, body); if (r != null) { good = h; return r } }
+        return null
+    }
+    private fun postTo(host: String, path: String, body: JSONObject): JSONObject? = runCatching {
+        val c = (URL(host + path).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"; doOutput = true; connectTimeout = 8_000; readTimeout = 20_000; setRequestProperty("Content-Type", "application/json")
         }
         try { c.outputStream.use { it.write(body.toString().toByteArray()) }; if (c.responseCode in 200..299) JSONObject(c.inputStream.bufferedReader().use { it.readText() }) else null } finally { c.disconnect() }

@@ -1210,3 +1210,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## 3.9.19 (build 58) — TEST COPY, BUILD-VERIFIED ONLY
 - Coming Soon rectangles play their trailer in place when focused (TrailerDwell + TrailerSurface in SoonCard); OK still toggles the reminder.
 - Top-row clipping: Movies / TV Shows grid (TitleGrid) and Box Sets grid given 22dp top content padding so the focused top row's zoom + glow isn't cut by the list edge. Cause assumed from code, not seen on device.
+
+## 3.9.20 (build 59) — TEST COPY, BUILD-VERIFIED ONLY
+- Coming Soon card: OK before the trailer plays = toggle reminder; OK while the trailer plays = two on-card choices (Play Trailer Full Screen / Remind Me), remote locked to them, Back closes.
+
+## 3.9.21 (build 60) — TEST COPY, BUILD-VERIFIED ONLY
+- Account sync now reachable: Cloud.kt tries RebornApi.BASE (onnowhub.com, still 404 for /api/reborn/*) then falls back to https://rebrand-app-5.emergent.host (verified live: remember/recall/forget round-trip OK with the test login; push/pull round-trip OK on preview).
+- Upload every 45 s while the app is open if anything changed (plus on pause). Download happens at app start / sign-in only. Last save wins. Synced: profiles, My List, Continue Watching + resume points, reminders, saved actors.
+- Not tested on two real devices.

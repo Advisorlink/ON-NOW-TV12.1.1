@@ -195,6 +195,8 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 TitleActionsSheet(activity) { nav.go(Route.Detail(it)) }
                 TrailerFullscreen()
                 NotifyHitToast { nav.go(Route.Detail(it)) }
+                // Anything saved (My List, Continue Watching, reminders, actors, profiles) is uploaded within a minute, not only when the app closes.
+                LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(45_000); Cloud.pushIfChanged(ctx) } }
             }
         }
     }
