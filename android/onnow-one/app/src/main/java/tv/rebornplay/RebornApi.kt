@@ -43,7 +43,7 @@ object RebornApi {
     private fun req(path: String, token: String?) = Request.Builder().url(BASE + path).header("User-Agent", "RebornPlay/2.0 Android")
         .apply { if (!token.isNullOrBlank()) header("Authorization", "Bearer $token") }
 
-    private fun raw(path: String, token: String? = null): String = http.newCall(req(path, token).build()).execute().use { r ->
+    fun raw(path: String, token: String? = null): String = http.newCall(req(path, token).build()).execute().use { r ->
         val body = r.body?.string().orEmpty()
         if (!r.isSuccessful) throw IllegalStateException("HTTP ${r.code}: ${body.take(160)}")
         body

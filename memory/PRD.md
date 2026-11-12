@@ -1225,3 +1225,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## 3.9.23 (build 62) — TEST COPY, BUILD-VERIFIED ONLY
 - Confirm.kt: port of Vesper ConfirmModal (Cancel / action, remote locked via root key handler). Hold OK on Continue Watching -> "Remove / Cancel"; hold OK on a box set -> "Add to Library / Cancel" (or Remove if already saved).
 - Series details like Vesper (SeriesEpisodes.jsx): buttons = Play Trailer + My List (no Play S1E1 button any more); season pills below; episode list hidden until a season is clicked (click again or Back closes); cast pinned at the bottom while the list is closed. Episode cards: 16:9 still (falls back to the show's backdrop), S·E badge, play disc on focus, resume bar / Watched badge, title, date, 3-line overview.
+
+## 3.9.24 (build 63) — TEST COPY, BUILD-VERIFIED ONLY
+- Coming Soon row vanished for the user. Not removed in code; row was conditional: needed >=3 upcoming titles not on the service, fetched within 6 s. Backend /api/tmdb/upcoming-movies currently returns only 8 titles. Now: shows with >=1 title, 8 s timeout, last good list cached on the box (Tmdb.upcomingSaved), window 180 days. Exact cause on the user's box not confirmed. If still missing: check Settings > Home screen for a hidden 'Coming Soon' row; consider widening the backend list.

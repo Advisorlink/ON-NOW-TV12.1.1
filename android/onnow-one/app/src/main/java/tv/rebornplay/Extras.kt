@@ -41,8 +41,13 @@ object Tmdb {
     }.getOrDefault(iso)
 
     /** Upcoming cinema / streaming releases. */
-    suspend fun upcoming(): List<Item> = withContext(Dispatchers.IO) {
-        runCatching { val a = RebornApi.obj("/api/tmdb/upcoming-movies?limit=30&days=90").optJSONArray("data") ?: JSONArray(); (0 until a.length()).map { item(a.getJSONObject(it)) } }.getOrDefault(emptyList())
+    private fun parseUpcoming(raw: String): List<Item> = runCatching { val a = JSONObject(raw).optJSONArray("data") ?: JSONArray(); (0 until a.length()).map { item(a.getJSONObject(it)) } }.getOrDefault(emptyList())
+    /** Last list the box managed to fetch — so Coming Soon never vanishes because of a slow connection. */
+    fun upcomingSaved(ctx: Context): List<Item> = p(ctx).getString("upcoming", null)?.let { parseUpcoming(it) }.orEmpty()
+    suspend fun upcoming(ctx: Context): List<Item> = withContext(Dispatchers.IO) {
+        val raw = runCatching { RebornApi.raw("/api/tmdb/upcoming-movies?limit=40&days=180") }.getOrNull()
+        val fresh = raw?.let { parseUpcoming(it) }.orEmpty()
+        if (fresh.isNotEmpty()) { p(ctx).edit().putString("upcoming", raw).apply(); fresh } else upcomingSaved(ctx)
     }
 
     suspend fun search(q: String): List<Item> = withContext(Dispatchers.IO) {
