@@ -146,7 +146,7 @@ fun BoxSetsScreen(onOpenSet: (String) -> Unit) {
         when {
             !BoxSets.ready && sets.isEmpty() -> if (BoxSets.error != null) Column { Text(BoxSets.error!!, color = Txt2, fontFamily = Geist, fontSize = 14.sp); Spacer(Modifier.height(14.dp)); Pill("Try again", requester = first) { BoxSets.reset() } } else Spinner("Building your box sets")
             sets.isEmpty() -> Text("None of the box sets match films on your service yet.", color = Txt2, fontFamily = Geist, fontSize = 14.sp)
-            else -> LazyVerticalGrid(GridCells.Adaptive(236.dp), contentPadding = PaddingValues(top = 6.dp, bottom = 80.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            else -> LazyVerticalGrid(GridCells.Adaptive(236.dp), contentPadding = PaddingValues(top = 22.dp, bottom = 80.dp, start = 10.dp, end = 10.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 itemsIndexed(sets, key = { _, s -> s.slug }) { i, s -> CollectionTile(s, BoxSets.films[s.slug]?.size ?: 0, requester = if (i == 0) first else null) { onOpenSet(s.slug) } }
             }
         }

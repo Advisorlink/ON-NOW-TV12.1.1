@@ -424,13 +424,18 @@ private fun SoonCard(item: Item, h: Dp, first: Boolean, row: Int, rowNav: RowNav
     if (first) rowNav?.register(row, req)
     var top by remember { mutableStateOf(false) }
     var remind by remember(item.id) { mutableStateOf(NotifyList.has(ctx, item.id)) }
+    // Trailer plays inside the rectangle while it is focused (respects the trailer delay / covers-only settings).
+    val dwell = remember { if (Prefs.coversOnly(ctx)) 0L else Prefs.trailerDelayMs(ctx) }
+    if (dwell > 0) TrailerDwell(item, top && TitleActions.item == null, dwell)
+    val trailerOn = top && TrailerPlayer.playingId == item.id
     Focusable(Modifier.zIndex(if (top) 1f else 0f), requester = req, onFocus = { top = it; if (it) { rowNav?.focused(row, req); onFocusItem?.invoke(item) } }, onClick = {
         remind = NotifyList.toggle(ctx, item)
         android.widget.Toast.makeText(ctx, if (remind) "We'll let you know when ${item.name} arrives in HD" else "Reminder removed", android.widget.Toast.LENGTH_SHORT).show()
     }) { f ->
         Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
             AsyncImage(item.background ?: item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
+            if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient((if (trailerOn) 0.65f else 0.4f) to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
             Row(Modifier.align(Alignment.TopEnd).padding(8.dp).height(22.dp).clip(CircleShape).background(if (remind) Amber else Bg0.copy(alpha = 0.82f)).border(1.dp, if (remind) Color.Transparent else Blue.copy(alpha = 0.6f), CircleShape).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(if (remind) Lucide.BellRing else Lucide.Bell, null, Modifier.size(11.dp), tint = if (remind) Bg0 else Blue)
                 if (f || remind) { Spacer(Modifier.width(5.dp)); Text(if (remind) "Reminder set" else "Remind me", color = if (remind) Bg0 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp) }

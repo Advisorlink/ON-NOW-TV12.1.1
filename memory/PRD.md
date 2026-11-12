@@ -1206,3 +1206,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.18 (build 57) — TEST COPY, BUILD-VERIFIED ONLY
 - Defaults: Live TV size 95 %; Home live row = category whose name contains 'sky sports' (fallback when no category picked), style 'cards' (logo + now + progress).
+
+## 3.9.19 (build 58) — TEST COPY, BUILD-VERIFIED ONLY
+- Coming Soon rectangles play their trailer in place when focused (TrailerDwell + TrailerSurface in SoonCard); OK still toggles the reminder.
+- Top-row clipping: Movies / TV Shows grid (TitleGrid) and Box Sets grid given 22dp top content padding so the focused top row's zoom + glow isn't cut by the list edge. Cause assumed from code, not seen on device.

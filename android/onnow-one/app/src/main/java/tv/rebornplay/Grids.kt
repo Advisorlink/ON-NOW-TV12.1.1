@@ -51,7 +51,7 @@ fun GridTile(item: Item, requester: FocusRequester? = null, onClick: () -> Unit)
 
 @Composable
 fun GenreChips(genres: List<String>, selected: String, onSelect: (String) -> Unit) {
-    LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 20.dp)) {
+    LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 2.dp)) {
         items(listOf("All") + genres) { g ->
             val active = (g == "All" && selected.isEmpty()) || g == selected
             Focusable(onClick = { onSelect(if (g == "All") "" else g) }) { f ->
@@ -82,7 +82,7 @@ fun TabGridScreen(type: String, onOpen: (Item) -> Unit) {
             Text(if (type == "movie") "Movies" else "TV Shows", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 26.sp)
             Spacer(Modifier.width(18.dp)); Mono("${shown.size} titles", 10.sp, Txt3, modifier = Modifier.padding(bottom = 8.dp))
         }
-        LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 20.dp)) {
+        LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 2.dp)) {
             items(listOf("" to "All") + cats) { (id, name) ->
                 val active = id == genre
                 Focusable(onClick = { genre = id }) { f ->
@@ -99,7 +99,7 @@ fun TabGridScreen(type: String, onOpen: (Item) -> Unit) {
 @Composable
 fun TitleGrid(items: List<Item>, first: FocusRequester? = null, onOpen: (Item) -> Unit) {
     if (items.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Mono("Nothing here yet", 12.sp, Txt3) }; return }
-    LazyVerticalGrid(GridCells.Adaptive(160.dp), contentPadding = PaddingValues(start = 64.dp, end = 48.dp, bottom = 60.dp),
+    LazyVerticalGrid(GridCells.Adaptive(160.dp), contentPadding = PaddingValues(start = 64.dp, end = 48.dp, top = 22.dp, bottom = 60.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         val list = items.distinctBy { it.id }
         items(list, key = { it.id }) { it -> GridTile(it, if (list.firstOrNull() == it) first else null) { onOpen(it) } }
