@@ -57,7 +57,7 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     val w by animateDpAsState(if (focused && !coversOnly) tileH * 16 / 9 else posterW, tween(expandMs), label = "w")
     val req = requester ?: remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
-    if (dwell > 0) TrailerDwell(item, focused, dwell)
+    if (dwell > 0) TrailerDwell(item, focused && TitleActions.item == null, dwell)
     val trailerOn = focused && TrailerPlayer.playingId == item.id
     // Vesper: OK while the trailer is playing puts the choices on the trailer itself (no pop-up); the D-pad moves between them.
     var menu by remember { mutableStateOf(false) }
@@ -67,8 +67,8 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     androidx.activity.compose.BackHandler(enabled = menu) { menu = false }
     val keys = Modifier.onPreviewKeyEvent { e ->
         if (!menu) return@onPreviewKeyEvent false
-        val move = when (e.key) { Key.DirectionLeft -> if (sel % 2 == 1) -1 else 0; Key.DirectionRight -> if (sel % 2 == 0) 1 else 0; Key.DirectionUp -> if (sel >= 2) -2 else 0; Key.DirectionDown -> if (sel < 2) 2 else 0; else -> return@onPreviewKeyEvent false }
-        if (e.type == KeyEventType.KeyDown) sel += move
+        if (e.key != Key.DirectionUp && e.key != Key.DirectionDown && e.key != Key.DirectionLeft && e.key != Key.DirectionRight) return@onPreviewKeyEvent false
+        if (e.type == KeyEventType.KeyDown) sel = TitleActions.move(sel, e.key)
         true
     }
     // Coming Soon titles: OK sets / clears the reminder right on the cover.
@@ -103,20 +103,8 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
                 if (focused) { Spacer(Modifier.width(5.dp)); Text(if (remind) "Reminder set" else "Remind me", color = if (remind) Bg0 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp) }
             }
             if (menu) {
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Bg0.copy(alpha = 0.94f))))
-                Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    val labels = listOf((if (item.type == "series") "Play Show" else "Play Movie") to Lucide.Play, "Expand Trailer" to Lucide.Maximize,
-                        (if (inList) "In My List" else "Add to List") to (if (inList) Lucide.Check else Lucide.Plus), (if (item.type == "series") "Show Details" else "Movie Details") to Lucide.Info)
-                    for (r in 0..1) Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        for (c in 0..1) { val i = r * 2 + c; val on = sel == i; val cs = RoundedCornerShape(9.dp)
-                            Row(Modifier.weight(1f).height(34.dp).clip(cs).background(if (on) Blue else Bg0.copy(alpha = 0.72f)).border(1.dp, if (on) Color.White.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.16f), cs).padding(horizontal = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                                Icon(labels[i].second, null, Modifier.size(13.dp), tint = if (on) Bg0 else Txt); Spacer(Modifier.width(7.dp))
-                                Text(labels[i].first, color = if (on) Bg0 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
-                            }
-                        }
-                    }
-                }
+                Box(Modifier.fillMaxSize().background(Color(0x8C05070D)))
+                ActionPills(sel, item.type == "series", inList, compact = true, modifier = Modifier.align(Alignment.Center))
             } else
             Column(Modifier.align(Alignment.BottomStart).padding(if (focused) 14.dp else 9.dp)) {
                 Text(item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = if (focused) 15.sp else 11.sp, lineHeight = if (focused) 18.sp else 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -400,6 +388,50 @@ private fun LogoTile(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolean, 
                 else Text(ch.name.take(3).uppercase(), color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 20.sp)
             }
             Text(ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+    }
+}
+
+
+/** Coming Soon — landscape cards (like Continue Watching) with the title's own artwork; OK sets / clears the reminder. */
+@Composable
+fun ComingSoonShelf(eyebrow: String, title: String, items: List<Item>, row: Int, rowNav: RowNav?, tileH: Dp, onFocusItem: ((Item) -> Unit)? = null) {
+    if (items.isEmpty()) return
+    val inset = safeInset()
+    if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
+    val h = (tileH * 0.84f).coerceAtMost(190.dp)
+    Column {
+        SectionHeader(eyebrow, title, "${items.size} on the way", Modifier.padding(horizontal = inset))
+        AnchoredRow(64.dp + inset + h * 16 / 9 + 22.dp) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(22.dp), contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset)) {
+                itemsIndexed(items, key = { _, it -> it.id }) { i, it -> SoonCard(it, h, i == 0 && row >= 0, row, rowNav, onFocusItem) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SoonCard(item: Item, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onFocusItem: ((Item) -> Unit)?) {
+    val ctx = LocalContext.current
+    val req = remember { FocusRequester() }
+    if (first) rowNav?.register(row, req)
+    var top by remember { mutableStateOf(false) }
+    var remind by remember(item.id) { mutableStateOf(NotifyList.has(ctx, item.id)) }
+    Focusable(Modifier.zIndex(if (top) 1f else 0f), requester = req, onFocus = { top = it; if (it) { rowNav?.focused(row, req); onFocusItem?.invoke(item) } }, onClick = {
+        remind = NotifyList.toggle(ctx, item)
+        android.widget.Toast.makeText(ctx, if (remind) "We'll let you know when ${item.name} arrives in HD" else "Reminder removed", android.widget.Toast.LENGTH_SHORT).show()
+    }) { f ->
+        Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
+            AsyncImage(item.background ?: item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
+            Row(Modifier.align(Alignment.TopEnd).padding(8.dp).height(22.dp).clip(CircleShape).background(if (remind) Amber else Bg0.copy(alpha = 0.82f)).border(1.dp, if (remind) Color.Transparent else Blue.copy(alpha = 0.6f), CircleShape).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (remind) Lucide.BellRing else Lucide.Bell, null, Modifier.size(11.dp), tint = if (remind) Bg0 else Blue)
+                if (f || remind) { Spacer(Modifier.width(5.dp)); Text(if (remind) "Reminder set" else "Remind me", color = if (remind) Bg0 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp) }
+            }
+            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {
+                Text(item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Mono(item.category ?: item.year ?: "Coming soon", 9.sp, Txt2, 0.08f, Modifier.padding(top = 4.dp), upper = false)
+            }
         }
     }
 }

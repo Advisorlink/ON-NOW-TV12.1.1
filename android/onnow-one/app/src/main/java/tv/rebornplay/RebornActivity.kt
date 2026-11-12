@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -144,7 +145,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
         liveReady = false; stage = "loading"
     }
 
-    Box(Modifier.fillMaxSize().background(Bg0)) {
+    Box(Modifier.fillMaxSize().background(Bg0).onPreviewKeyEvent { TitleActions.key(it) }) {
         when (stage) {
             "login" -> LoginScreen { user, pass ->
                 signOutQuiet(ctx)   // drop anything cached under a previous account (old channels, old catalogue)

@@ -55,7 +55,7 @@ fun allHomeRows(c: Gorilla.Catalog): List<Pair<String, Triple<String, String, Li
 
 fun loadHomeRows(c: Gorilla.Catalog): List<Triple<String, String, List<Item>>> = allHomeRows(c).map { it.second }
 
-fun Nav.open(it: Item) { if (it.id.startsWith("tmdb:")) go(Route.Detail(it)) else TitleActions.item = it }
+fun Nav.open(it: Item) { if (it.id.startsWith("tmdb:")) go(Route.Detail(it)) else TitleActions.open(it) }
 
 @Composable
 fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (CwEntry) -> Unit = {}, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit = {}) {
@@ -118,6 +118,7 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
                 when {
                     key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, 200.dp, onResume, onChannel)
                     key == "live" -> LiveRow(1 + i, rowNav, 200.dp, onChannel)
+                    key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, 200.dp)
                     else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav) { nav.open(it) }
                 }
             }
@@ -172,6 +173,7 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
                         when {
                             key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, tileH, onResume, onChannel)
                             key == "live" -> LiveRow(1 + i, rowNav, tileH, onChannel)
+                            key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, tileH) { preview = it }
                             else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 0.dp) { nav.open(it) }
                         }
                     }

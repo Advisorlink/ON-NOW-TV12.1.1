@@ -138,8 +138,9 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                     if (error != null) { Spacer(Modifier.height(12.dp)); Text(error!!, color = Color(0xFFFF8A8A), fontFamily = Geist, fontSize = 13.sp) }
                     if (external) { Spacer(Modifier.height(12.dp)); Text(if (notify) "On your notify list — a pop-up appears in the top-right corner the moment this arrives on your service in HD." else "Not on your service yet. Press Notify me and we'll tell you the moment it arrives in HD.", color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 19.sp) }
                 }
-                CastRow(meta, onActor)
             }
+            // Own row, so landing on an actor scrolls the whole cast strip into view.
+            item { CastRow(meta, onActor) }
             if (isSeries && episodes.isNotEmpty()) {
                 item {
                     Spacer(Modifier.height(if (compact) 16.dp else 26.dp))

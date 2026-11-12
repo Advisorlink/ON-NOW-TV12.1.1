@@ -39,7 +39,7 @@ object TrailerPlayer {
     var fullscreen: Item? by mutableStateOf(null)
 
     fun get(ctx: Context): ExoPlayer = player ?: ExoPlayer.Builder(ctx.applicationContext)
-        .setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder().setBufferDurationsMs(20_000, 60_000, 1_500, 3_000).build())
+        .setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder().setBufferDurationsMs(20_000, 60_000, 1_000, 2_500).build())
         .build().apply { repeatMode = Player.REPEAT_MODE_ONE; volume = softVolume }.also { player = it }
 
     suspend fun resolveKey(ctx: Context, item: Item): String? {
@@ -49,10 +49,18 @@ object TrailerPlayer {
         return key
     }
 
+    private val streamCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, tv.vesper.app.YouTubeTrailerExtractor.TrailerStreams>>()
+    /** Trailer links, remembered for 20 minutes so a second look starts straight away. */
+    private suspend fun streams(key: String, cap: Int) = streamCache["$key:$cap"]?.takeIf { System.currentTimeMillis() - it.first < 20 * 60_000L }?.second
+        ?: withContext(Dispatchers.IO) { runCatching { YouTubeTrailerExtractor.extract(key, cap) ?: YouTubeTrailerExtractor.extractMuxed(key) }.onFailure { android.util.Log.w("Reborn", "trailer extract failed for $key: ${it.message}") }.getOrNull() }
+            ?.also { streamCache["$key:$cap"] = System.currentTimeMillis() to it }
+    /** Look the trailer up ahead of time (while the user is still resting on the cover). */
+    suspend fun warm(ctx: Context, item: Item, cap: Int = 480) { resolveKey(ctx, item)?.let { streams(it, cap) } }
+
     /** Resolve + start playback for `item`. Returns false when no trailer could be found. */
     suspend fun play(ctx: Context, item: Item, cap: Int = 480): Boolean {
         val key = resolveKey(ctx, item) ?: return false
-        val ts = withContext(Dispatchers.IO) { runCatching { YouTubeTrailerExtractor.extract(key, cap) ?: YouTubeTrailerExtractor.extractMuxed(key) }.onFailure { android.util.Log.w("Reborn", "trailer extract failed for $key: ${it.message}") }.getOrNull() }
+        val ts = streams(key, cap)
         if (ts == null) { android.util.Log.w("Reborn", "no trailer streams for $key"); return false }
         val p = get(ctx)
         val http = DefaultHttpDataSource.Factory().setUserAgent("Mozilla/5.0 (Linux; Android 11) RebornPlay").setAllowCrossProtocolRedirects(true)
@@ -101,7 +109,11 @@ fun TrailerDwell(item: Item, focused: Boolean, dwellMs: Long = 1800) {
     val ctx = LocalContext.current
     LaunchedEffect(focused, item.id) {
         if (!focused) { if (TrailerPlayer.playingId == item.id) TrailerPlayer.stop(); return@LaunchedEffect }
-        delay(dwellMs)
+        // The slow part (finding the trailer) runs during the wait instead of after it.
+        val started = System.currentTimeMillis()
+        delay(minOf(350L, dwellMs))
+        runCatching { TrailerPlayer.warm(ctx, item) }
+        delay((dwellMs - (System.currentTimeMillis() - started)).coerceAtLeast(0))
         TrailerPlayer.play(ctx, item)
     }
 }

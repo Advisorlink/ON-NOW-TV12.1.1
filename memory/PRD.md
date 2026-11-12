@@ -1181,3 +1181,11 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.12 (build 51)
 - User: "App not installed" on Fire Stick for build 50. APK verified valid (v1/v2/v3, same cert, served bytes == built bytes). Cause not confirmed; suspected low storage (72 MB APK). Build now armeabi-v7a only (~41 MB). If it still fails: check stick storage / leftover Downloader files / exact Fire Stick model.
+
+## 3.9.13 (build 52) — BUILD-VERIFIED ONLY (armeabi-v7a only, ~41 MB)
+- Coming Soon row = landscape 16:9 cards (ComingSoonShelf/SoonCard in Shelves.kt), OK toggles reminder.
+- Cover choices restyled to Vesper's trailer actions (centred glowing pills: Play / Expand Trailer / Library | Details) — shared `ActionPills` for the on-trailer menu and the pop-up card.
+- Pop-up focus bug: pop-up no longer takes focus at all; root `onPreviewKeyEvent { TitleActions.key(it) }` in RebornApp handles all D-pad/OK while open, Back closes and focus is still on the cover.
+- Trailer start: trailer lookup now warms during the dwell, links cached 20 min, start buffer 1 s.
+- Details page: cast strip is its own list row (scrolls fully into view), cards 112dp.
+- OPEN: user reported "App not installed" on Fire Stick for builds 50 and 51 — unresolved, no device info supplied. User is likely still looking at build <=49 (1280 canvas, bigger text).
