@@ -42,9 +42,9 @@ fun TvCanvas(content: @Composable () -> Unit) {
     val real = LocalDensity.current
     if (!Device.isTvClass(ctx) || cfg.screenWidthDp <= cfg.screenHeightDp) { CompositionLocalProvider(LocalOuterDensity provides real) { content() }; return }
     val widthPx = cfg.screenWidthDp * real.density
-    // 1600-wide canvas = Vesper's proportions (finer text, more on screen); "Whole app size" in Settings scales it.
+    // Same canvas as Vesper, so every size below maps 1:1 to Vesper's; "Whole app size" in Settings scales it.
     val ui by Prefs.uiScaleState(ctx)
-    val canvasW = Math.round(1600f / ui)
+    val canvasW = Math.round(1280f / ui)   // 1280 = the canvas Vesper itself uses on Fire TV / Shield / TV boxes
     val d = widthPx / canvasW
     val canvas = remember(cfg, d) { Configuration(cfg).apply {
         screenWidthDp = canvasW; screenHeightDp = Math.round(cfg.screenHeightDp * real.density / d); smallestScreenWidthDp = screenHeightDp; densityDpi = Math.round(d * 160f); fontScale = 1f

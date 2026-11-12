@@ -105,7 +105,12 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
         val compact = isCompact()
         val pad = if (compact) 28.dp else 80.dp
         val seasons = episodes.map { it.season }.distinct().sorted()
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = pad, end = pad, top = if (compact) 20.dp else 40.dp, bottom = 40.dp)) {
+        // Vesper sizes: title clamp(44, 4.6vw, 72), buttons clamp(50, 4vw, 60); movies keep the cast lane pinned to the bottom of the screen.
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        val titleSp = (cfg.screenWidthDp * 0.046f).coerceIn(44f, 72f)
+        val btnH = (cfg.screenWidthDp * 0.04f).dp.coerceIn(50.dp, 60.dp)
+        val pinned = !isSeries && !compact
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = pad, end = pad, top = if (compact) 20.dp else 40.dp, bottom = if (pinned) 0.dp else 60.dp)) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Pill("Back", icon = Lucide.ArrowLeft, mono = true, height = 44.dp, onClick = onBack)
@@ -118,14 +123,14 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                 Column(Modifier.fillMaxWidth(if (compact) 0.85f else 0.68f)) {
                     Eyebrow(listOfNotNull(if (external) "Coming soon" else if (isSeries) "Series" else "Movie", meta.category).joinToString(" · "))
                     Spacer(Modifier.height(8.dp))
-                    Text(meta.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 32.sp else 56.sp, lineHeight = if (compact) 34.sp else 58.sp, letterSpacing = (-1.5).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(meta.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 32.sp else titleSp.sp, lineHeight = if (compact) 34.sp else (titleSp * 1.05f).sp, letterSpacing = (-titleSp * 0.035f).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(12.dp))
                     MetaLine(meta, if (compact) 14.sp else 18.sp)
                     Spacer(Modifier.height(12.dp))
-                    Text(meta.description.orEmpty(), color = Txt2, fontFamily = Geist, fontSize = if (compact) 13.sp else 16.sp, lineHeight = if (compact) 18.sp else 24.sp, maxLines = if (isSeries || compact) 3 else 5, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.9f))
+                    Text(meta.description.orEmpty(), color = Txt2, fontFamily = Geist, fontSize = if (compact) 13.sp else 16.sp, lineHeight = if (compact) 18.sp else 25.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 560.dp))
                     Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        val h = if (compact) 46.dp else 54.dp
+                        val h = if (compact) 46.dp else btnH
                         if (external) Pill(if (notify) "We'll notify you" else "Notify me in HD", icon = if (notify) Lucide.BellRing else Lucide.Bell, primary = !notify, height = h, fontSize = 16.sp, requester = primary) { notify = NotifyList.toggle(ctx, meta) }
                         else if (!isSeries) Pill(if (!ready) "Loading…" else "Play movie", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && meta.playUrl != null) { playMovie() }
                         else Pill(if (!ready) "Loading…" else "Play S$season E${episodes.firstOrNull { it.season == season }?.episode ?: 1}", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && episodes.isNotEmpty()) {
@@ -140,7 +145,7 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                 }
             }
             // Own row, so landing on an actor scrolls the whole cast strip into view.
-            item { CastRow(meta, onActor) }
+            if (!pinned) item { Spacer(Modifier.height(26.dp)); CastRow(meta, onActor = onActor) }
             if (isSeries && episodes.isNotEmpty()) {
                 item {
                     Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
@@ -159,6 +164,9 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                     Box(Modifier.fillMaxWidth(if (compact) 1f else 0.68f).padding(bottom = 8.dp)) { EpisodeRow(e) { playEpisode(e) } }
                 }
             }
+        }
+        if (pinned) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(0f to Color.Transparent, 0.7f to Bg0.copy(alpha = 0.7f), 1f to Bg0.copy(alpha = 0.9f))).padding(top = 40.dp, bottom = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.05f).dp - 14.dp)) {
+            CastRow(meta, side = 80.dp, onActor = onActor)
         }
     }
 }

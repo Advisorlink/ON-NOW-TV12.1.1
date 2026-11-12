@@ -172,10 +172,10 @@ private val Grey = androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx
 
 /** CastRow.jsx ActorCard — 2:3 portrait, black & white until focused, name + "as Character" on a bottom fade. */
 @Composable
-fun CastCard(m: CastMember, onClick: () -> Unit) {
+fun CastCard(m: CastMember, w: Dp = 120.dp, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Focusable(onClick = onClick) { f ->
-        Box(Modifier.width(112.dp).aspectRatio(2f / 3f).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(shape).background(Brush.verticalGradient(listOf(Bg2, Bg1))).border(1.dp, Color.White.copy(alpha = 0.05f), shape)) {
+        Box(Modifier.width(w).aspectRatio(2f / 3f).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(shape).background(Brush.verticalGradient(listOf(Bg2, Bg1))).border(1.dp, Color.White.copy(alpha = 0.05f), shape)) {
             if (m.photo != null) AsyncImage(m.photo, m.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, colorFilter = if (f) null else Grey, alpha = if (f) 1f else 0.92f)
             else Text(m.name.take(1).uppercase(), color = Blue.copy(alpha = 0.18f), fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 56.sp, modifier = Modifier.align(Alignment.Center))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.42f).background(Brush.verticalGradient(0f to Color.Transparent, 0.78f to Color(0xED06080F), 1f to Color(0xFF06080F))))
@@ -189,15 +189,19 @@ fun CastCard(m: CastMember, onClick: () -> Unit) {
 
 /** Cast strip on the title page (CastRow.jsx). */
 @Composable
-fun CastRow(item: Item, onActor: (CastMember) -> Unit) {
+fun CastRow(item: Item, side: Dp = 0.dp, onActor: (CastMember) -> Unit) {
     val ctx = LocalContext.current
     var cast by remember(item.id) { mutableStateOf<List<CastMember>>(emptyList()) }
     LaunchedEffect(item.id) { val t = Tmdb.resolve(ctx, item) ?: return@LaunchedEffect; cast = Tmdb.cast(item.type, t).take(16) }
     if (cast.isEmpty()) return
-    Column(Modifier.padding(top = 26.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Lucide.Users, null, Modifier.size(14.dp), tint = Blue); Spacer(Modifier.width(8.dp)); Mono("Cast", 11.sp, Blue, 0.32f) }
-        Spacer(Modifier.height(12.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(top = 10.dp, bottom = 16.dp, start = 6.dp, end = 6.dp)) { items(cast, key = { it.id }) { m -> CastCard(m) { onActor(m) } } }
+    // Vesper: card width clamp(116px, 9.4vw, 172px), 14 gap, heading 18 + count.
+    val w = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.094f).dp.coerceIn(116.dp, 172.dp)
+    Column {
+        Row(Modifier.padding(start = side, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
+            Text("Cast", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 18.sp, letterSpacing = (-0.4).sp)
+            Spacer(Modifier.width(12.dp)); Mono("${cast.size} actors", 10.sp, Txt3, 0.22f, Modifier.padding(bottom = 3.dp))
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(top = 12.dp, bottom = 14.dp, start = side, end = side)) { items(cast, key = { it.id }) { m -> CastCard(m, w) { onActor(m) } } }
     }
 }
 
