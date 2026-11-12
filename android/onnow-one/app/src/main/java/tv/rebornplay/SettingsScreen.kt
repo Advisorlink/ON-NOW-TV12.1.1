@@ -215,7 +215,7 @@ private fun AppearanceSection(onPickLiveCategory: () -> Unit) {
     SubHead("Live TV row on Home")
     var src by remember { mutableStateOf(LiveRowPrefs.source(ctx)) }
     var look by remember { mutableStateOf(LiveRowPrefs.style(ctx)) }
-    val catName = LiveStore.categories(ctx).firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) }?.name ?: "Not set"
+    val catName = LiveStore.categories(ctx).let { cs -> cs.firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) } ?: cs.firstOrNull { it.name.contains("sky sports", true) } }?.name ?: "Not set"
     ActionRow("What the row shows", "Favourites · live sport right now · what's on now · or one category of your choice.", LiveRowPrefs.sourceLabel(src)) { src = LiveRowPrefs.cycleSource(ctx); Cache.home = null }
     ActionRow("Category for the row", "Used when the row is set to \"A category I pick\".", catName, onClick = onPickLiveCategory)
     ActionRow("How the row looks", "Channel cards, big programme cards or compact logos.", LiveRowPrefs.styleLabel(look)) { look = LiveRowPrefs.cycleStyle(ctx); Cache.home = null }

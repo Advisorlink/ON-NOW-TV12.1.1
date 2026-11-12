@@ -1203,3 +1203,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## 3.9.17 (build 56) — TEST COPY (login pre-filled), BUILD-VERIFIED ONLY
 - Defaults: cover size 80 %, mini player 125 % (only applies where the user never moved the slider).
 - Settings regrouped: Appearance = sizes + preview + Pop-out preview / Trailer delay / Pop-out speed + Live TV row options. Home screen = only the row list, shown inline (HomeRowsList in HomeRowsScreen.kt). Playback = Auto play only.
+
+## 3.9.18 (build 57) — TEST COPY, BUILD-VERIFIED ONLY
+- Defaults: Live TV size 95 %; Home live row = category whose name contains 'sky sports' (fallback when no category picked), style 'cards' (logo + now + progress).

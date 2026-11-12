@@ -198,7 +198,7 @@ fun liveRowChannels(ctx: android.content.Context): Pair<String, List<tv.onnowtv.
             if (chans.isEmpty()) "What's on now" to (b.channels.filter { it.id in LiveStore.favourites.value } + b.channels).distinctBy { it.id }.take(30)
             else "Live sport right now" to chans.sortedByDescending { ch -> LiveStore.nowNext(ch).first?.let { p -> if (p.live) 2 else if (p.isLiveAt(now)) 1 else 0 } ?: 0 }.take(30)
         }
-        "category" -> { val c = cats.firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) }; (c?.name ?: "Live TV") to b.channels.filter { it.categoryId == c?.id }.take(30) }
+        "category" -> { val c = cats.firstOrNull { it.id == LiveRowPrefs.categoryId(ctx) } ?: cats.firstOrNull { it.name.contains("sky sports", true) }; (c?.name ?: "Live TV") to b.channels.filter { it.categoryId == c?.id }.take(30) }
         else -> "What's on now" to (b.channels.filter { it.id in LiveStore.favourites.value } + (cats.firstOrNull()?.let { c -> b.channels.filter { it.categoryId == c.id } } ?: b.channels)).distinctBy { it.id }.take(30)
     }
 }

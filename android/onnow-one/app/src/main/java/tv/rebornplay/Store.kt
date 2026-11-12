@@ -94,7 +94,7 @@ object Prefs {
     fun cardScale(ctx: Context) = cardScaleState(ctx).value
     fun setCardScale(ctx: Context, v: Float) { val c = v.coerceIn(0.75f, 1.25f); cardScaleState(ctx).value = c; p(ctx).edit().putFloat("card_scale", c).apply() }
     private var liveScaleS: androidx.compose.runtime.MutableState<Float>? = null
-    fun liveScaleState(ctx: Context) = liveScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("live_scale", 1f)).also { liveScaleS = it }
+    fun liveScaleState(ctx: Context) = liveScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("live_scale", 0.95f)).also { liveScaleS = it }
     fun setLiveScale(ctx: Context, v: Float) { val c = v.coerceIn(0.8f, 1.4f); liveScaleState(ctx).value = c; p(ctx).edit().putFloat("live_scale", c).apply() }
     private var uiScaleS: androidx.compose.runtime.MutableState<Float>? = null
     fun uiScaleState(ctx: Context) = uiScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("ui_scale", 1f)).also { uiScaleS = it }
@@ -111,13 +111,13 @@ object Prefs {
 object LiveRowPrefs {
     private fun p(ctx: Context) = ctx.getSharedPreferences("reborn_live_row", Context.MODE_PRIVATE)
     val SOURCES = listOf("favourites", "sports", "now", "category")
-    fun source(ctx: Context) = p(ctx).getString("source", "sports") ?: "sports"
+    fun source(ctx: Context) = p(ctx).getString("source", "category") ?: "category"
     fun cycleSource(ctx: Context): String { val v = SOURCES[(SOURCES.indexOf(source(ctx)) + 1) % SOURCES.size]; p(ctx).edit().putString("source", v).apply(); return v }
     fun sourceLabel(v: String) = when (v) { "favourites" -> "My favourites"; "sports" -> "Live sport right now"; "category" -> "A category I pick"; else -> "What's on now" }
     fun categoryId(ctx: Context): String? = p(ctx).getString("category", null)
     fun setCategory(ctx: Context, id: String) = p(ctx).edit().putString("category", id).putString("source", "category").apply()
     val STYLES = listOf("cards", "art", "logos")
-    fun style(ctx: Context) = p(ctx).getString("style", "art") ?: "art"
+    fun style(ctx: Context) = p(ctx).getString("style", "cards") ?: "cards"
     fun cycleStyle(ctx: Context): String { val v = STYLES[(STYLES.indexOf(style(ctx)) + 1) % STYLES.size]; p(ctx).edit().putString("style", v).apply(); return v }
     fun styleLabel(v: String) = when (v) { "logos" -> "Channel logos (compact)"; "cards" -> "Channel cards (logo + now + progress)"; else -> "Programme cards (artwork, LIVE badge, timeline)" }
 }
