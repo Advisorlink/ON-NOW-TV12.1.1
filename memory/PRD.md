@@ -1178,3 +1178,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Every launch: if on-box lists are >30 min old they are re-downloaded in the background, swapped into Gorilla.catalog and NotifyScan runs again -> top-right pop-up. Home shelves themselves still show the list the app opened with.
 - Whole UI scale: TvCanvas default canvas 1280 -> 1600 dp wide (everything ~20 % smaller, Vesper proportions) + "Whole app size" slider (75-130 %) in Settings -> Appearance. Live TV keeps its own canvas/slider.
 - User still wants a more "Vesper-pretty, less Android" look overall: only global sizing addressed this round; no per-screen restyle done.
+
+## 3.9.12 (build 51)
+- User: "App not installed" on Fire Stick for build 50. APK verified valid (v1/v2/v3, same cert, served bytes == built bytes). Cause not confirmed; suspected low storage (72 MB APK). Build now armeabi-v7a only (~41 MB). If it still fails: check stick storage / leftover Downloader files / exact Fire Stick model.

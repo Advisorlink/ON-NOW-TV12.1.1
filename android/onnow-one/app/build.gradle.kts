@@ -72,7 +72,7 @@ android {
         // We ship BOTH 32-bit and 64-bit ARM so a single APK works on
         // every cheap Android TV box plus modern Android TVs.
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+            abiFilters += listOf("armeabi-v7a")   // 32-bit only: runs on every Fire TV, Shield and ARM box, and halves the install size
         }
     }
 
