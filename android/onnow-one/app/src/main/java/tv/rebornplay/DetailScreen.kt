@@ -54,8 +54,12 @@ fun resumeEntry(activity: Activity, e: CwEntry) {
 
 /** Title page — same structure as Detail.jsx: backdrop, Back/Home, title, meta, synopsis, CTA row, seasons + episodes. */
 @Composable
-fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: () -> Unit) {
+fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: () -> Unit, onActor: (CastMember) -> Unit = {}) {
     val ctx = LocalContext.current
+    // A Coming Soon / notify title that the service now carries opens as the real, playable title.
+    val external = initial.id.startsWith("tmdb:")
+    if (external) { val real = remember(initial.id) { Match.find(initial) }; if (real != null) { DetailScreen(activity, real, onBack, onHome, onActor); return } }
+    var notify by remember { mutableStateOf(NotifyList.has(ctx, initial.id)) }
     val scope = rememberCoroutineScope()
     var meta by remember { mutableStateOf(initial) }
     var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
@@ -68,6 +72,10 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
     val isSeries = initial.type == "series"
 
     LaunchedEffect(initial.id) {
+        if (external) {
+            if (meta.trailerYt == null) withContext(Dispatchers.IO) { runCatching { RebornApi.trailerKey(initial.type, initial.tmdbId ?: 0L) }.getOrNull() }?.let { meta = meta.copy(trailerYt = it) }
+            ready = true; return@LaunchedEffect
+        }
         runCatching { if (isSeries) Gorilla.seriesInfo(ctx, initial).also { (m, eps) -> meta = m; episodes = eps; season = eps.firstOrNull { it.season > 0 }?.season ?: 1 } else meta = Gorilla.movieInfo(ctx, initial) }
             .onFailure { error = it.message }
         ready = true
@@ -108,7 +116,7 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                 }
                 Spacer(Modifier.height(if (compact) 14.dp else 22.dp))
                 Column(Modifier.fillMaxWidth(if (compact) 0.85f else 0.68f)) {
-                    Eyebrow(listOfNotNull(if (isSeries) "Series" else "Movie", meta.category).joinToString(" · "))
+                    Eyebrow(listOfNotNull(if (external) "Coming soon" else if (isSeries) "Series" else "Movie", meta.category).joinToString(" · "))
                     Spacer(Modifier.height(8.dp))
                     Text(meta.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 32.sp else 56.sp, lineHeight = if (compact) 34.sp else 58.sp, letterSpacing = (-1.5).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(12.dp))
@@ -118,15 +126,19 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                     Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         val h = if (compact) 46.dp else 54.dp
-                        if (!isSeries) Pill(if (!ready) "Loading…" else "Play movie", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && meta.playUrl != null) { playMovie() }
+                        if (external) Pill(if (notify) "We'll notify you" else "Notify me in HD", icon = if (notify) Lucide.BellRing else Lucide.Bell, primary = !notify, height = h, fontSize = 16.sp, requester = primary) { notify = NotifyList.toggle(ctx, meta) }
+                        else if (!isSeries) Pill(if (!ready) "Loading…" else "Play movie", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && meta.playUrl != null) { playMovie() }
                         else Pill(if (!ready) "Loading…" else "Play S$season E${episodes.firstOrNull { it.season == season }?.episode ?: 1}", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && episodes.isNotEmpty()) {
                             episodes.firstOrNull { it.season == season }?.let { playEpisode(it) }
                         }
                         Pill(if (trailerBusy) "Loading…" else "Trailer", icon = Lucide.Clapperboard, height = h, fontSize = 15.sp) { playTrailer() }
-                        Pill(if (inList) "In My List" else "My List", icon = if (inList) Lucide.Check else Lucide.Plus, height = h, fontSize = 15.sp) { inList = Library.toggle(ctx, meta) }
+                        if (!external) Pill(if (inList) "In My List" else "My List", icon = if (inList) Lucide.Check else Lucide.Plus, height = h, fontSize = 15.sp) { inList = Library.toggle(ctx, meta) }
+                        if (!external && !Match.isHd(meta)) Pill(if (notify) "We'll notify you" else "Notify me in HD", icon = if (notify) Lucide.BellRing else Lucide.Bell, height = h, fontSize = 15.sp) { notify = NotifyList.toggle(ctx, meta) }
                     }
                     if (error != null) { Spacer(Modifier.height(12.dp)); Text(error!!, color = Color(0xFFFF8A8A), fontFamily = Geist, fontSize = 13.sp) }
+                    if (external) { Spacer(Modifier.height(12.dp)); Text(if (notify) "On your notify list — a pop-up appears in the top-right corner the moment this arrives on your service in HD." else "Not on your service yet. Press Notify me and we'll tell you the moment it arrives in HD.", color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 19.sp) }
                 }
+                CastRow(meta, onActor)
             }
             if (isSeries && episodes.isNotEmpty()) {
                 item {

@@ -1151,3 +1151,12 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Same look everywhere: `Device.kt` `TvCanvas` — TV-class devices (uiMode TV / leanback / fire_tv / no touchscreen / <=160dpi >=1280px box) are laid out on a fixed 1280dp-wide canvas (LocalDensity + LocalConfiguration override). Phones untouched. `isTv()` now uses Device.isTvClass. Live TV hero buttons drawn at menu scale (LocalOuterDensity).
 - NOTE: build env (/opt/native-tools, /android-sdk) is wiped on pod reset -> run `bash /app/scripts/setup-vesper-build-env.sh` first. Lint: `./gradlew :app:lintRelease :livetv:lintRelease` (reports /tmp/one-lint-*.txt).
 - Not supported: x86 boxes; Vega OS Fire Sticks (not Android).
+
+## 3.9.8 (build 47) — Library / Calendar / Notify / Actors (BUILD + UNIT-TEST VERIFIED, not run on hardware)
+- New files: `Extras.kt` (Tmdb lookups via RebornApi.BASE, Match = TMDB title -> service catalogue, NotifyList, SavedActors, NotifyScan), `LibraryScreens.kt` (LibraryScreen, NotifyPanel, CastRow/CastCard, ActorScreen, NotifyHitToast, CalendarScreen port of LibraryCalendar.jsx). Old LibraryScreen removed from Grids.kt.
+- My Library: Vesper layout, covers only (CoverTile, no expand/trailer); header has Calendar + Notifications pills; sections Continue Watching, TV Shows, Movies, Actors, Waiting for HD.
+- Calendar (user choice: new episodes only): library series -> TMDB id (name/year search, cached) -> imdb -> POST /api/tmdb/upcoming-episodes. Route.Calendar.
+- Notify (user choice: Coming Soon row + search): Home row `coming_soon` (upcoming releases not on the service in HD); Search shows "Not on your service yet" row; tmdb: items open DetailScreen in "external" mode with Notify me button. CAM copies (name/category markers) don't count as HD; a CAM title page gets its own "Notify me in HD". NotifyScan runs in loadHome(); hits pop top-right (NotifyHitToast).
+- Actors (user choice: show their titles on the service): cast row on title page -> Route.Actor -> titles matched in the catalogue, Save actor -> My Library.
+- Tests: MatchTest (3), LockdownTest (3).
+- Known limits: scan runs only when Home loads (app start / refresh); users with a saved Home row order get Coming Soon at the end.

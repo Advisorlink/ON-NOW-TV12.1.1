@@ -153,7 +153,9 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 val rowNav = remember(cur) { RowNav { if (it == 0) 0 else it + 1 }.also { it.scope = scope } }
                 BackHandler(enabled = nav.stack.size > 1 || cur !is Route.Home) { if (!nav.back()) nav.go(Route.Home) }
                 when (cur) {
-                    is Route.Detail -> DetailScreen(activity, cur.item, onBack = { nav.back() }, onHome = { nav.go(Route.Home) })
+                    is Route.Detail -> key(cur.item.id) { DetailScreen(activity, cur.item, onBack = { nav.back() }, onHome = { nav.go(Route.Home) }, onActor = { nav.go(Route.Actor(it)) }) }
+                    is Route.Actor -> key(cur.member.id) { ActorScreen(cur.member, onBack = { nav.back() }) { nav.go(Route.Detail(it)) } }
+                    is Route.Calendar -> CalendarScreen(onBack = { nav.back() }) { nav.go(Route.Detail(it)) }
                     is Route.BoxSet -> BoxSetScreen(cur.id, onBack = { nav.back() }, onOpen = { nav.go(Route.Detail(it)) }, onPlay = { it.playUrl?.let { url -> launchPlayer(activity, it, it.name, url, it.id) } ?: nav.go(Route.Detail(it)) })
                     else -> CompositionLocalProvider(LocalToken provides "xtream") { Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
                         val inset = safeInset()
@@ -162,7 +164,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             is Route.Tab -> Box(Modifier.padding(horizontal = inset)) { TabGridScreen(cur.type) { nav.go(Route.Detail(it)) } }
                             is Route.BoxSets -> BoxSetsScreen(onOpenSet = { nav.go(Route.BoxSet(it)) })
                             is Route.Search -> Box(Modifier.padding(horizontal = inset)) { SearchScreen(onOpen = { nav.go(Route.Detail(it)) }, onOpenChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) }) }
-                            is Route.Library -> LibraryScreen(onBack = { nav.go(Route.Home) }, onResume = { resumeEntry(activity, it) }) { nav.go(Route.Detail(it)) }
+                            is Route.Library -> LibraryScreen(onBack = { nav.go(Route.Home) }, onResume = { resumeEntry(activity, it) }, onCalendar = { nav.go(Route.Calendar) }, onActor = { nav.go(Route.Actor(it)) }) { nav.go(Route.Detail(it)) }
                             is Route.Live -> LiveTvScreen(activity, onRefresh = refreshLive)
                             is Route.Settings -> Box(Modifier.padding(horizontal = inset)) { SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = refreshLive, onHomeRows = { nav.go(Route.HomeRows) }, onPickLiveCategory = { nav.go(Route.LiveCategoryPick) }, onBack = { nav.go(Route.Home) }) }
                             is Route.LiveCategoryPick -> Box(Modifier.padding(horizontal = inset)) { LiveCategoryPickScreen(onDone = { nav.go(Route.Settings) }) }
@@ -175,6 +177,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             onSpeedTest = { toast = "Speed test lives in Live TV → Settings for now" }, onProfile = { stage = "profiles" })
                     } }
                 }
+                NotifyHitToast { nav.go(Route.Detail(it)) }
             }
         }
     }

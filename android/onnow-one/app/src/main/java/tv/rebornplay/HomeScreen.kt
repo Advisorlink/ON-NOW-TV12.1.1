@@ -31,6 +31,9 @@ suspend fun loadHome(ctx: android.content.Context): HomeData {
     val c = Gorilla.loadCatalog(ctx)
     val heroItems = c.movies.sortedByDescending { it.added }.filter { it.poster != null }.take(6)
     val heroes = withContext(Dispatchers.IO) { heroItems.map { async { Hero(runCatching { Gorilla.movieInfo(ctx, it) }.getOrDefault(it), 0L) } }.awaitAll() }
+    // Coming Soon: upcoming releases the service doesn't have in HD yet; then check the notify list against the fresh catalogue.
+    NotifyScan.coming = kotlinx.coroutines.withTimeoutOrNull(6000) { Tmdb.upcoming() }.orEmpty().filter { it.poster != null && Match.find(it, hdOnly = true) == null }
+    NotifyScan.run(ctx)
     return HomeData(heroes, HomeRowPrefs.apply(ctx, allHomeRows(c)))
 }
 
@@ -42,6 +45,7 @@ fun allHomeRows(c: Gorilla.Catalog): List<Pair<String, Triple<String, String, Li
     rows += "live" to Triple("Live TV", "Live TV", emptyList())            // rendered by LiveRow (source/look from Settings)
     rows += "new_movies" to Triple("Movies", "New movies", newMovies.take(40))
     rows += "new_series" to Triple("Series", "New series", newSeries.take(40))
+    if (NotifyScan.coming.size >= 4) rows += "coming_soon" to Triple("Coming soon · Notify me", "Coming Soon", NotifyScan.coming)
     val mRows = c.movieCats.mapNotNull { (id, name) -> val l = c.movies.filter { it.categoryId == id }; if (l.size >= 4) "mcat:$id" to Triple("Movies", name, l.sortedByDescending { it.added }.take(40)) else null }
     val sRows = c.seriesCats.mapNotNull { (id, name) -> val l = c.series.filter { it.categoryId == id }; if (l.size >= 4) "scat:$id" to Triple("Series", name, l.sortedByDescending { it.added }.take(40)) else null }
     // Alternate the service's movie and series categories so both reach the screen early.

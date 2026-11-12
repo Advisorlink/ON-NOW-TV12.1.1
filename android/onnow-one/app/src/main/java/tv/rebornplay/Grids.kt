@@ -106,55 +106,6 @@ fun TitleGrid(items: List<Item>, first: FocusRequester? = null, onOpen: (Item) -
     }
 }
 
-/** Library.jsx — "Your collection / My Library" header, then eyebrow + icon-titled sections with cover rows. */
-@Composable
-fun LibraryScreen(onBack: () -> Unit = {}, onResume: (CwEntry) -> Unit = {}, onOpen: (Item) -> Unit) {
-    val ctx = LocalContext.current
-    val items = remember { Library.items(ctx).reversed() }
-    val cw = remember { ContinueWatching.entries(ctx) }
-    val series = items.filter { it.type == "series" }
-    val movies = items.filter { it.type != "series" }
-    val back = remember { FocusRequester() }
-    FocusOnShow(back, Unit)
-    val inset = safeInset()
-    androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 84.dp, bottom = 100.dp)) {
-        item { Box(Modifier.padding(start = 64.dp + inset, end = 48.dp + inset)) { PageHeader("Your collection", "My Library", backRequester = back, right = "${items.size} titles", onBack = onBack) } }
-        item { LibrarySection("My library · Continue watching" + if (cw.isNotEmpty()) " · ${cw.size}" else "", "Continue Watching", Lucide.History) {
-            if (cw.isEmpty()) EmptyNote("Nothing in progress — anything you start shows up here with a resume bar.")
-            else LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(cw, key = { it.cwId }) { e -> CwCard(e, 150.dp) { onResume(e) } } }
-        } }
-        item { LibrarySection("My library · Series", "TV Shows", Lucide.Tv) {
-            if (series.isEmpty()) EmptyNote("No shows saved yet. Press My List on any series to keep it here.")
-            else LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(series, key = { it.id }) { PosterTile(it, tileH = 210.dp) { onOpen(it) } } }
-        } }
-        item { LibrarySection("My library · Movies", "Movies", Lucide.Film) {
-            if (movies.isEmpty()) EmptyNote("No movies saved yet. Press My List on any film to keep it here.")
-            else LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(movies, key = { it.id }) { PosterTile(it, tileH = 210.dp) { onOpen(it) } } }
-        } }
-    }
-}
-
-@Composable
-private fun LibrarySection(eyebrow: String, title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, content: @Composable () -> Unit) {
-    val inset = safeInset()
-    Column(Modifier.padding(bottom = 44.dp)) {
-        Mono(eyebrow, 11.sp, Blue, 0.32f, Modifier.padding(start = 64.dp + inset + 36.dp, bottom = 10.dp))
-        Row(Modifier.padding(start = 64.dp + inset, bottom = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, Modifier.size(24.dp), tint = Blue); Spacer(Modifier.width(12.dp))
-            Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 32.sp, letterSpacing = (-0.8).sp)
-        }
-        content()
-    }
-}
-
-@Composable
-private fun EmptyNote(text: String) {
-    val inset = safeInset()
-    Box(Modifier.padding(start = 64.dp + inset, end = 48.dp + inset).fillMaxWidth(0.6f).glass(RoundedCornerShape(12.dp)).padding(horizontal = 18.dp, vertical = 16.dp)) {
-        Text(text, color = Txt2, fontFamily = Geist, fontSize = 14.sp, lineHeight = 20.sp)
-    }
-}
-
 /** Search — local, over everything the service has. */
 @Composable
 fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.Channel) -> Unit = {}) {
@@ -171,6 +122,14 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
     val channels = remember(q, live) {
         if (t.length < 2 || live == null) emptyList() else live.channels.filter { it.name.lowercase().contains(t) }.take(30)
     }
+    // Titles the service doesn't have (in HD) yet — open one to press Notify me.
+    var more by remember { mutableStateOf<List<Item>>(emptyList()) }
+    LaunchedEffect(t) {
+        more = emptyList()
+        if (t.length < 3) return@LaunchedEffect
+        kotlinx.coroutines.delay(700)
+        more = Tmdb.search(q.trim()).filter { it.poster != null && Match.find(it, hdOnly = true) == null }.take(14)
+    }
     Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
         Row(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column { Eyebrow("Search"); Text("Find anything", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 26.sp) }
@@ -180,7 +139,7 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
             Mono(if (results.isNotEmpty() || channels.isNotEmpty()) "${results.size} titles · ${channels.size} channels" else "", 10.sp, Txt3)
         }
         if (t.length < 2) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Start typing to search movies, TV shows and live channels", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
-        else if (results.isEmpty() && channels.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nothing matches “${q.trim()}”", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
+        else if (results.isEmpty() && channels.isEmpty() && more.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nothing matches “${q.trim()}”", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
         else Column(Modifier.fillMaxSize()) {
             if (channels.isNotEmpty()) {
                 SectionHeader("Live TV", "Channels", "${channels.size} found", Modifier.padding(horizontal = 64.dp))
@@ -188,6 +147,13 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
                     items(channels, key = { it.id }) { ch -> ChannelTile(ch) { onOpenChannel(ch) } }
                 }
                 Spacer(Modifier.height(22.dp))
+            }
+            if (more.isNotEmpty()) {
+                SectionHeader("Not on your service yet", "Get notified", "Open one and press Notify me", Modifier.padding(horizontal = 64.dp))
+                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp, top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    items(more, key = { it.id }) { m -> CoverTile(m, w = if (results.isEmpty()) 132.dp else 92.dp, badge = Lucide.Bell, badgeTint = if (NotifyList.has(ctx, m.id)) Amber else Blue) { onOpen(m) } }
+                }
+                Spacer(Modifier.height(18.dp))
             }
             if (results.isNotEmpty()) Box(Modifier.weight(1f)) { TitleGrid(results, null, onOpen) }
         }

@@ -214,7 +214,7 @@ object Gorilla {
     /** Focus-time enrichment (HD backdrop + trailer key) shared by tiles, hero and trailer player. */
     private val infoCache = java.util.concurrent.ConcurrentHashMap<String, Item>()
     fun cachedInfo(item: Item): Item? = infoCache[item.id]
-    suspend fun enrich(ctx: Context, item: Item): Item = infoCache[item.id] ?: if (item.type == "movie") movieInfo(ctx, item) else seriesInfo(ctx, item).first.also { infoCache[item.id] = it }
+    suspend fun enrich(ctx: Context, item: Item): Item = if (item.id.startsWith("tmdb:")) item else infoCache[item.id] ?: if (item.type == "movie") movieInfo(ctx, item) else seriesInfo(ctx, item).first.also { infoCache[item.id] = it }
 
     /** Movie details (backdrop, plot, trailer, duration) — one call, cached in memory. */
     suspend fun movieInfo(ctx: Context, item: Item): Item = withContext(Dispatchers.IO) {
