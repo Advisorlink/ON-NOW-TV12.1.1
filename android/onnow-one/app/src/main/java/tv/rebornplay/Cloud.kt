@@ -12,7 +12,7 @@ import java.net.URL
  * lists, Continue Watching and resume points against the service login, not the device.
  */
 object Cloud {
-    private val stores = listOf("reborn_library", "reborn_cw", "reborn_notify", "reborn_actors", "onnowtv_progress")
+    private val stores = listOf("reborn_library", "reborn_cw", "reborn_notify", "reborn_actors", "reborn_sets", "onnowtv_progress")
     private fun p(ctx: Context) = ctx.getSharedPreferences("reborn_cloud", Context.MODE_PRIVATE)
     private fun deviceId(ctx: Context): String = android.provider.Settings.Secure.getString(ctx.contentResolver, android.provider.Settings.Secure.ANDROID_ID).orEmpty()
 

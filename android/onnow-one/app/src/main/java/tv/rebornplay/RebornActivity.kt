@@ -145,7 +145,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
         liveReady = false; stage = "loading"
     }
 
-    Box(Modifier.fillMaxSize().background(Bg0).onPreviewKeyEvent { TitleActions.key(it) }) {
+    Box(Modifier.fillMaxSize().background(Bg0).onPreviewKeyEvent { Confirm.key(it) || TitleActions.key(it) }) {
         when (stage) {
             "login" -> LoginScreen { user, pass ->
                 signOutQuiet(ctx)   // drop anything cached under a previous account (old channels, old catalogue)
@@ -179,7 +179,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             is Route.Tab -> Box(Modifier.padding(horizontal = inset)) { TabGridScreen(cur.type) { nav.go(Route.Detail(it)) } }
                             is Route.BoxSets -> BoxSetsScreen(onOpenSet = { nav.go(Route.BoxSet(it)) })
                             is Route.Search -> Box(Modifier.padding(horizontal = inset)) { SearchScreen(onOpen = { nav.go(Route.Detail(it)) }, onOpenChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) }) }
-                            is Route.Library -> LibraryScreen(onBack = { nav.go(Route.Home) }, onResume = { resumeEntry(activity, it) }, onCalendar = { nav.go(Route.Calendar) }, onActor = { nav.go(Route.Actor(it)) }) { nav.go(Route.Detail(it)) }
+                            is Route.Library -> LibraryScreen(onBack = { nav.go(Route.Home) }, onResume = { resumeEntry(activity, it) }, onCalendar = { nav.go(Route.Calendar) }, onActor = { nav.go(Route.Actor(it)) }, onSet = { nav.go(Route.BoxSet(it)) }) { nav.go(Route.Detail(it)) }
                             is Route.Live -> LiveTvScreen(activity, onRefresh = refreshLive)
                             is Route.Settings -> Box(Modifier.padding(horizontal = inset)) { SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = refreshLive, onHomeRows = { nav.go(Route.HomeRows) }, onPickLiveCategory = { nav.go(Route.LiveCategoryPick) }, onBack = { nav.go(Route.Home) }) }
                             is Route.LiveCategoryPick -> Box(Modifier.padding(horizontal = inset)) { LiveCategoryPickScreen(onDone = { nav.go(Route.Settings) }) }
@@ -195,6 +195,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 TitleActionsSheet(activity) { nav.go(Route.Detail(it)) }
                 TrailerFullscreen()
                 NotifyHitToast { nav.go(Route.Detail(it)) }
+                ConfirmDialog()
                 // Anything saved (My List, Continue Watching, reminders, actors, profiles) is uploaded within a minute, not only when the app closes.
                 LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(45_000); Cloud.pushIfChanged(ctx) } }
             }

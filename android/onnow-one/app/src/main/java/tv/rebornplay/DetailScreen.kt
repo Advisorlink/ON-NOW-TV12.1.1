@@ -66,6 +66,8 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
     var error by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf(false) }
     var season by remember { mutableStateOf(1) }
+    // Vesper: seasons are pills; the episode list only opens once a season is clicked (clicking it again closes it and brings the cast back).
+    var shown by remember { mutableStateOf(false) }
     var inList by remember { mutableStateOf(Library.has(ctx, initial.id)) }
     var trailerBusy by remember { mutableStateOf(false) }
     val primary = remember { FocusRequester() }
@@ -82,6 +84,7 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
     }
     FocusOnShow(primary, Unit)
     BackHandler(onBack = onBack)
+    BackHandler(enabled = shown) { shown = false }
 
     fun playMovie() { val url = meta.playUrl ?: run { error = "This title has no playable file yet"; return }; launchPlayer(activity, meta, meta.name, url, meta.id) }
     fun playEpisode(e: Episode) { val url = e.url ?: run { error = "This episode has no playable file yet"; return }; launchPlayer(activity, meta, "${meta.name} · S${e.season} E${e.episode} · ${e.title}", url, e.id) }
@@ -109,7 +112,8 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
         val cfg = androidx.compose.ui.platform.LocalConfiguration.current
         val titleSp = (cfg.screenWidthDp * 0.046f).coerceIn(44f, 72f)
         val btnH = (cfg.screenWidthDp * 0.04f).dp.coerceIn(50.dp, 60.dp)
-        val pinned = !isSeries && !compact
+        val pinned = !compact && !(isSeries && shown)
+        val progress = remember(shown) { ContinueWatching.entries(ctx).associate { it.cwId to it.fraction } }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = pad, end = pad, top = if (compact) 20.dp else 40.dp, bottom = if (pinned) 0.dp else 60.dp)) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -133,10 +137,7 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                         val h = if (compact) 46.dp else btnH
                         if (external) Pill(if (notify) "We'll notify you" else "Notify me in HD", icon = if (notify) Lucide.BellRing else Lucide.Bell, primary = !notify, height = h, fontSize = 16.sp, requester = primary) { notify = NotifyList.toggle(ctx, meta) }
                         else if (!isSeries) Pill(if (!ready) "Loading…" else "Play movie", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && meta.playUrl != null) { playMovie() }
-                        else Pill(if (!ready) "Loading…" else "Play S$season E${episodes.firstOrNull { it.season == season }?.episode ?: 1}", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && episodes.isNotEmpty()) {
-                            episodes.firstOrNull { it.season == season }?.let { playEpisode(it) }
-                        }
-                        Pill(if (trailerBusy) "Loading…" else "Trailer", icon = Lucide.Clapperboard, height = h, fontSize = 15.sp) { playTrailer() }
+                        Pill(if (trailerBusy) "Loading…" else if (isSeries) "Play Trailer" else "Trailer", icon = Lucide.Clapperboard, height = h, fontSize = 15.sp, requester = if (isSeries && !external) primary else null) { playTrailer() }
                         if (!external) Pill(if (inList) "In My List" else "My List", icon = if (inList) Lucide.Check else Lucide.Plus, height = h, fontSize = 15.sp) { inList = Library.toggle(ctx, meta) }
                         if (!external && !Match.isHd(meta)) Pill(if (notify) "We'll notify you" else "Notify me in HD", icon = if (notify) Lucide.BellRing else Lucide.Bell, height = h, fontSize = 15.sp) { notify = NotifyList.toggle(ctx, meta) }
                     }
@@ -144,24 +145,26 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                     if (external) { Spacer(Modifier.height(12.dp)); Text(if (notify) "On your notify list — a pop-up appears in the top-right corner the moment this arrives on your service in HD." else "Not on your service yet. Press Notify me and we'll tell you the moment it arrives in HD.", color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 19.sp) }
                 }
             }
-            // Own row, so landing on an actor scrolls the whole cast strip into view.
-            if (!pinned) item { Spacer(Modifier.height(26.dp)); CastRow(meta, onActor = onActor) }
+            if (!pinned && !(isSeries && shown)) item { Spacer(Modifier.height(26.dp)); CastRow(meta, onActor = onActor) }
             if (isSeries && episodes.isNotEmpty()) {
                 item {
-                    Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Spacer(Modifier.height(if (compact) 16.dp else 22.dp))
+                    Mono("${seasons.size} season${if (seasons.size == 1) "" else "s"} · ${episodes.count { it.season == season }} episodes this season", 10.sp, Txt3, 0.24f, Modifier.padding(bottom = 10.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 10.dp, horizontal = 4.dp)) {
                         items(seasons) { s ->
-                            Focusable(onClick = { season = s }) { f ->
-                                val active = s == season
-                                Text(if (s == 0) "Specials" else "Season $s", color = if (f || active) Bg0 else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                                    modifier = Modifier.clip(CircleShape).background(if (f) BlueBright else if (active) Blue else Color.White.copy(alpha = 0.08f)).padding(horizontal = 16.dp, vertical = 9.dp))
+                            val active = s == season && shown
+                            Focusable(onClick = { if (shown && s == season) shown = false else { season = s; shown = true } }) { f ->
+                                Box(Modifier.height(40.dp).focusScale(f, 1.08f).pillFocus(f).clip(CircleShape).background(if (active) Blue else if (f) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f))
+                                    .border(if (f) 1.5.dp else 1.dp, if (f) BlueBright else if (active) Color.Transparent else Color.White.copy(alpha = 0.08f), CircleShape).padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
+                                    Text(if (s == 0) "Specials" else "Season $s", color = if (active) Bg0 else if (f) Txt else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                }
                             }
                         }
                     }
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(8.dp))
                 }
-                items(episodes.filter { it.season == season }, key = { it.id }) { e ->
-                    Box(Modifier.fillMaxWidth(if (compact) 1f else 0.68f).padding(bottom = 8.dp)) { EpisodeRow(e) { playEpisode(e) } }
+                if (shown) items(episodes.filter { it.season == season }, key = { it.id }) { e ->
+                    Box(Modifier.fillMaxWidth().padding(bottom = 14.dp)) { EpisodeRow(e, meta.background ?: meta.poster, progress[e.id] ?: 0f) { playEpisode(e) } }
                 }
             }
         }
@@ -171,21 +174,30 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
     }
 }
 
+/** SeriesEpisodes.jsx EpisodeCard — 16:9 still on the left (S·E badge, play disc, resume bar), title / date / overview on the right. */
 @Composable
-private fun EpisodeRow(e: Episode, onClick: () -> Unit) {
+private fun EpisodeRow(e: Episode, fallbackArt: String?, fraction: Float, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(16.dp); val ts = RoundedCornerShape(12.dp)
+    val thumbW = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.18f).dp.coerceIn(180.dp, 280.dp)
     Focusable(onClick = onClick) { f ->
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (f) Blue.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f))
-            .border(1.dp, if (f) Blue else Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.width(168.dp).height(94.dp).clip(RoundedCornerShape(8.dp)).background(Bg2)) {
-                if (e.thumb != null) AsyncImage(e.thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                Icon(Lucide.Play, null, Modifier.align(Alignment.Center).size(30.dp), tint = Color.White.copy(alpha = if (f) 1f else 0.7f))
+        Row(Modifier.fillMaxWidth().tileFocus(f, 16.dp).clip(shape).background(Color(0xFF111827).copy(alpha = if (f) 0.78f else 0.42f))
+            .border(1.dp, if (f) Blue.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.05f), shape).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(thumbW).aspectRatio(16f / 9f).clip(ts).background(Color.Black.copy(alpha = 0.5f)).border(1.dp, Color.White.copy(alpha = 0.05f), ts)) {
+                AsyncImage(e.thumb ?: fallbackArt, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = if (e.thumb == null) 0.55f else 1f)
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color(0xB306080F))))
+                Box(Modifier.align(Alignment.BottomStart).padding(8.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xC706080F)).padding(horizontal = 8.dp, vertical = 4.dp)) { Mono("S${e.season} · E${e.episode}", 9.sp, Txt, 0.18f) }
+                if (fraction >= 0.95f) Box(Modifier.align(Alignment.TopEnd).padding(8.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xF022C55E)).padding(horizontal = 8.dp, vertical = 4.dp)) { Mono("Watched", 9.sp, Color(0xFF06260F), 0.14f) }
+                else if (fraction > 0.02f) Box(Modifier.align(Alignment.BottomCenter).padding(start = 8.dp, end = 8.dp, bottom = 4.dp).fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.16f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(Blue)) }
+                if (f) Box(Modifier.align(Alignment.Center).size(52.dp).clip(CircleShape).background(Blue.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) { Icon(Lucide.Play, null, Modifier.size(22.dp), tint = Bg0) }
             }
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(20.dp))
             Column(Modifier.weight(1f)) {
-                Mono("S${e.season} · E${e.episode}${e.released?.take(10)?.let { "  ·  $it" } ?: ""}", 10.sp, Blue, 0.18f)
-                Spacer(Modifier.height(4.dp))
-                Text(e.title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (!e.overview.isNullOrBlank()) { Spacer(Modifier.height(3.dp)); Text(e.overview.trim(), color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                Text(e.title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, lineHeight = 24.sp, letterSpacing = (-0.3).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(Modifier.padding(top = 5.dp, bottom = 9.dp)) {
+                    Text("Episode ${e.episode}", color = Blue, fontFamily = Geist, fontSize = 13.sp)
+                    e.released?.take(10)?.takeIf { it.isNotBlank() }?.let { Text("   ·   ${Tmdb.niceDate(it)}", color = Txt3, fontFamily = Geist, fontSize = 13.sp) }
+                }
+                Text(e.overview?.trim().orEmpty().ifBlank { "No description for this episode." }, color = Txt2, fontFamily = Geist, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
     }

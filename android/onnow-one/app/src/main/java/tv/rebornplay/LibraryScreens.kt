@@ -80,8 +80,9 @@ private fun CoverGrid(items: List<Item>, cols: Int, badge: ImageVector? = null, 
 
 /** Library.jsx — header (back · title · Calendar · Notifications), then Continue Watching, TV Shows, Movies, Actors, Waiting for HD. Covers only. */
 @Composable
-fun LibraryScreen(onBack: () -> Unit = {}, onResume: (CwEntry) -> Unit = {}, onCalendar: () -> Unit = {}, onActor: (CastMember) -> Unit = {}, onOpen: (Item) -> Unit) {
+fun LibraryScreen(onBack: () -> Unit = {}, onResume: (CwEntry) -> Unit = {}, onCalendar: () -> Unit = {}, onActor: (CastMember) -> Unit = {}, onSet: (String) -> Unit = {}, onOpen: (Item) -> Unit) {
     val ctx = LocalContext.current
+    val sets = remember { SavedSets.items(ctx).reversed() }
     val items = remember { Library.items(ctx).reversed() }
     var cw by remember { mutableStateOf(ContinueWatching.entries(ctx)) }
     val actors = remember { SavedActors.items(ctx).reversed() }
@@ -118,6 +119,9 @@ fun LibraryScreen(onBack: () -> Unit = {}, onResume: (CwEntry) -> Unit = {}, onC
             } }
             item { LibSection("My library · Movies" + if (movies.isNotEmpty()) " · ${movies.size}" else "", "Movies", Lucide.Film) {
                 if (movies.isEmpty()) LibNote("No movies saved yet. Press My List on any film to keep it here.") else CoverGrid(movies, cols, onOpen = onOpen)
+            } }
+            if (sets.isNotEmpty()) item { LibSection("My library · Box sets · ${sets.size}", "Box Sets", Lucide.Boxes) {
+                LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) { items(sets, key = { it.slug }) { s -> CollectionTile(s, BoxSets.films[s.slug]?.size ?: -1, Modifier.width(236.dp)) { onSet(s.slug) } } }
             } }
             item { LibSection("My library · Actors" + if (actors.isNotEmpty()) " · ${actors.size}" else "", "Actors", Lucide.Users) {
                 if (actors.isEmpty()) LibNote("No actors saved yet. Open any title, pick someone from the cast and press Save actor.")

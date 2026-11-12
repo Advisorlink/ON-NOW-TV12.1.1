@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.ui.input.key.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -107,7 +108,21 @@ object BoxSets {
 @Composable
 fun CollectionTile(set: BoxSet, count: Int, modifier: Modifier = Modifier, requester: FocusRequester? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
-    Focusable(modifier, onClick = onClick, requester = requester) { f ->
+    val ctx = LocalContext.current
+    // Press and hold OK adds / removes the box set from My Library.
+    var saved by remember(set.slug) { mutableStateOf(SavedSets.has(ctx, set.slug)) }
+    var held by remember { mutableStateOf(false) }
+    val hold = Modifier.onPreviewKeyEvent { ev ->
+        if (ev.key != Key.DirectionCenter && ev.key != Key.Enter && ev.key != Key.NumPadEnter) return@onPreviewKeyEvent false
+        if (ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.repeatCount == 0) held = false
+        if (ev.type == KeyEventType.KeyDown && !held && ev.nativeKeyEvent.repeatCount >= 6) {
+            held = true
+            if (saved) Confirm.show("Remove ${set.name} from My Library?", "The box set stays in Box Sets — it just leaves your library.", "Remove", true) { saved = SavedSets.toggle(ctx, set) }
+            else Confirm.show("Add ${set.name} to My Library?", "It will appear under Box Sets in My Library on every device signed in to this account.", "Add to Library", false) { saved = SavedSets.toggle(ctx, set) }
+        }
+        if (held) { if (ev.type == KeyEventType.KeyUp) held = false; true } else false
+    }
+    Focusable(modifier.then(hold), onClick = onClick, requester = requester) { f ->
         BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(16f / 9f).focusScale(f, 1.06f).tileFocus(f, 14.dp).clip(shape)
             .background(Brush.linearGradient(listOf(Color(0xFF0B0F1A), Color(0xFF111A2C), set.accent.copy(alpha = 0.2f))))
             .border(1.dp, Color.White.copy(alpha = 0.08f), shape)) {
@@ -119,7 +134,8 @@ fun CollectionTile(set: BoxSet, count: Int, modifier: Modifier = Modifier, reque
             else Text(set.name, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 20.sp, letterSpacing = (-0.4).sp, textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center).padding(horizontal = 16.dp))
             Mono(set.name, 9.sp, Color.White.copy(alpha = 0.75f), 0.2f, Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 10.dp))
-            Mono("$count films", 9.sp, Color.White.copy(alpha = 0.55f), 0.16f, Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 10.dp))
+            if (saved) Box(Modifier.align(Alignment.TopEnd).padding(8.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Blue), contentAlignment = Alignment.Center) { androidx.compose.material3.Icon(Lucide.Check, null, Modifier.size(13.dp), tint = Bg0) }
+            if (count >= 0) Mono("$count films", 9.sp, Color.White.copy(alpha = 0.55f), 0.16f, Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 10.dp))
         }
     }
 }
@@ -141,7 +157,7 @@ fun BoxSetsScreen(onOpenSet: (String) -> Unit) {
                 Text("Box Sets", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 38.sp, lineHeight = 40.sp, letterSpacing = (-1.2).sp)
             }
             Spacer(Modifier.weight(1f))
-            Mono(if (BoxSets.ready) "${sets.size} sets · from your service" else "Matching box sets to your service…", 10.sp, Txt3, 0.22f, Modifier.padding(bottom = 8.dp))
+            Mono(if (BoxSets.ready) "${sets.size} sets · hold OK to add to My Library" else "Matching box sets to your service…", 10.sp, Txt3, 0.22f, Modifier.padding(bottom = 8.dp))
         }
         when {
             !BoxSets.ready && sets.isEmpty() -> if (BoxSets.error != null) Column { Text(BoxSets.error!!, color = Txt2, fontFamily = Geist, fontSize = 14.sp); Spacer(Modifier.height(14.dp)); Pill("Try again", requester = first) { BoxSets.reset() } } else Spinner("Building your box sets")

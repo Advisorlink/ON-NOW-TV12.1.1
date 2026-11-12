@@ -231,7 +231,8 @@ fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -
     var held by remember { mutableStateOf(false) }
     val hold = if (onRemove == null) Modifier else Modifier.onPreviewKeyEvent { ev ->
         if (ev.key != Key.DirectionCenter && ev.key != Key.Enter && ev.key != Key.NumPadEnter) return@onPreviewKeyEvent false
-        if (ev.type == KeyEventType.KeyDown && !held && ev.nativeKeyEvent.repeatCount >= 6) { held = true; onRemove() }
+        if (ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.repeatCount == 0) held = false
+        if (ev.type == KeyEventType.KeyDown && !held && ev.nativeKeyEvent.repeatCount >= 6) { held = true; Confirm.show("Remove from Continue Watching?", "${e.item.name} will disappear from this row. Your place in it is forgotten.", "Remove", true, onRemove) }
         if (held) { if (ev.type == KeyEventType.KeyUp) held = false; true } else false
     }
     Focusable(hold.zIndex(if (top) 1f else 0f), onClick = onClick, requester = req, onFocus = { top = it; onFocus?.invoke(it) }) { f ->

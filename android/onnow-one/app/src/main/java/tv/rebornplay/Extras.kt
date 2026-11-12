@@ -2,6 +2,7 @@ package tv.rebornplay
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -166,6 +167,18 @@ object SavedActors {
     fun toggle(ctx: Context, m: CastMember): Boolean {
         val cur = items(ctx); val on = cur.none { it.id == m.id }; val next = if (on) cur + m else cur.filter { it.id != m.id }
         store.write(ctx, JSONArray().apply { next.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("photo", it.photo)) } }); return on
+    }
+}
+
+/** Box sets saved to My Library (press and hold OK on a box set). */
+object SavedSets {
+    private val store = ItemList("reborn_sets")
+    fun items(ctx: Context): List<BoxSet> { val a = store.read(ctx); return (0 until a.length()).map { i -> val o = a.getJSONObject(i)
+        BoxSet(o.optString("slug"), o.optString("name"), o.optString("logo").takeIf { it.startsWith("http") }, o.optString("backdrop").takeIf { it.startsWith("http") }, o.optString("treatment"), androidx.compose.ui.graphics.Color(o.optInt("accent"))) } }
+    fun has(ctx: Context, slug: String) = items(ctx).any { it.slug == slug }
+    fun toggle(ctx: Context, s: BoxSet): Boolean {
+        val cur = items(ctx); val on = cur.none { it.slug == s.slug }; val next = if (on) cur + s else cur.filter { it.slug != s.slug }
+        store.write(ctx, JSONArray().apply { next.forEach { put(JSONObject().put("slug", it.slug).put("name", it.name).put("logo", it.logo).put("backdrop", it.backdrop).put("treatment", it.treatment).put("accent", it.accent.toArgb())) } }); return on
     }
 }
 

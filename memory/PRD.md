@@ -1218,3 +1218,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Account sync now reachable: Cloud.kt tries RebornApi.BASE (onnowhub.com, still 404 for /api/reborn/*) then falls back to https://rebrand-app-5.emergent.host (verified live: remember/recall/forget round-trip OK with the test login; push/pull round-trip OK on preview).
 - Upload every 45 s while the app is open if anything changed (plus on pause). Download happens at app start / sign-in only. Last save wins. Synced: profiles, My List, Continue Watching + resume points, reminders, saved actors.
 - Not tested on two real devices.
+
+## 3.9.22 (build 61) — TEST COPY, BUILD-VERIFIED ONLY
+- Box sets: hold OK on a box-set tile toggles it in My Library (SavedSets in Extras.kt, synced via Cloud 'reborn_sets'); tick badge on saved tiles; My Library gets a Box Sets section (only shown when non-empty).
+
+## 3.9.23 (build 62) — TEST COPY, BUILD-VERIFIED ONLY
+- Confirm.kt: port of Vesper ConfirmModal (Cancel / action, remote locked via root key handler). Hold OK on Continue Watching -> "Remove / Cancel"; hold OK on a box set -> "Add to Library / Cancel" (or Remove if already saved).
+- Series details like Vesper (SeriesEpisodes.jsx): buttons = Play Trailer + My List (no Play S1E1 button any more); season pills below; episode list hidden until a season is clicked (click again or Back closes); cast pinned at the bottom while the list is closed. Episode cards: 16:9 still (falls back to the show's backdrop), S·E badge, play disc on focus, resume bar / Watched badge, title, date, 3-line overview.
