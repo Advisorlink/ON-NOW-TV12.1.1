@@ -59,7 +59,7 @@ class RebornActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); pendingRoute = intent.getStringExtra("reborn_route") }
     override fun onResume() { super.onResume(); Lockdown.enforce(this); resumeTick++ }
-    override fun onPause() { super.onPause(); TrailerPlayer.stop() }
+    override fun onPause() { super.onPause(); TrailerPlayer.stop(); Cloud.pushIfChanged(this) }
     override fun onDestroy() { super.onDestroy(); tv.onnowtv.livetv.ReminderWatcher.detach(this); TrailerPlayer.release() }
     private var softIdx = 15
     /** Fire TV / fixed-volume boxes ignore the system slider — turn the app's own sound up/down instead. */
@@ -104,7 +104,12 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     // Boot / sign-in: channels + guide (disk fast path, else the full Live TV loader) and the Home shelves, then profiles.
     LaunchedEffect(stage, bootTick) {
         if (stage != "loading") return@LaunchedEffect
-        if (token == null) { stage = "login"; return@LaunchedEffect }
+        if (token == null) {
+            // Fresh install on a box that has signed in before: its login comes back by itself.
+            val saved = kotlinx.coroutines.withTimeoutOrNull(9000) { Cloud.recall(ctx) }
+            if (saved == null) { stage = "login"; return@LaunchedEffect }
+            RebornSession.save(ctx, "xtream", saved.first); tv.onnowtv.livetv.data.AuthStore.saveCredentials(ctx, saved.first, saved.second); token = "xtream"
+        }
         loadError = null; homeError = null
         // Check the saved login against the service first (the service answers 404 for unknown accounts).
         val auth = withContext(Dispatchers.IO) { runCatching { Gorilla.login(Gorilla.user(ctx), Gorilla.pass(ctx)) } }
@@ -113,6 +118,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 signOutQuiet(ctx); token = null; toast = e.message; stage = "login"; return@LaunchedEffect
             }
         }
+        if (auth.isSuccess) { launch { runCatching { Cloud.remember(ctx) } }; kotlinx.coroutines.withTimeoutOrNull(9000) { runCatching { Cloud.pull(ctx) } } }
         val live = launch {
             if (LiveStore.ensureLoaded(ctx)) liveReady = true
             else runCatching { LiveLoader.load(ctx) { }; LiveStore.refreshFromHolder(ctx) }.onSuccess { liveReady = true }
@@ -130,7 +136,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     }
     toast?.let { LaunchedEffect(it) { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show(); toast = null } }
 
-    val signOut = { signOutQuiet(ctx); token = null; nav.go(Route.Home); stage = "login" }
+    val signOut = { Cloud.pushIfChanged(ctx); kotlinx.coroutines.GlobalScope.launch { runCatching { Cloud.forget(ctx) } }; signOutQuiet(ctx); token = null; nav.go(Route.Home); stage = "login" }
     val refreshLive = {
         tv.onnowtv.livetv.LivePreviewSession.release()
         tv.onnowtv.livetv.BundleHolder.current = null; LiveStore.bundle.value = null; LiveStore.epg.clear()

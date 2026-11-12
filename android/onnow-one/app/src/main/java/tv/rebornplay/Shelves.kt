@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -58,8 +59,30 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     if (first) rowNav?.register(row, req)
     if (dwell > 0) TrailerDwell(item, focused, dwell)
     val trailerOn = focused && TrailerPlayer.playingId == item.id
+    // Vesper: OK while the trailer is playing puts the choices on the trailer itself (no pop-up); the D-pad moves between them.
+    var menu by remember { mutableStateOf(false) }
+    var sel by remember { mutableStateOf(0) }
+    var inList by remember(item.id) { mutableStateOf(false) }
+    if (!trailerOn && menu) menu = false
+    androidx.activity.compose.BackHandler(enabled = menu) { menu = false }
+    val keys = Modifier.onPreviewKeyEvent { e ->
+        if (!menu) return@onPreviewKeyEvent false
+        val move = when (e.key) { Key.DirectionLeft -> if (sel % 2 == 1) -1 else 0; Key.DirectionRight -> if (sel % 2 == 0) 1 else 0; Key.DirectionUp -> if (sel >= 2) -2 else 0; Key.DirectionDown -> if (sel < 2) 2 else 0; else -> return@onPreviewKeyEvent false }
+        if (e.type == KeyEventType.KeyDown) sel += move
+        true
+    }
+    val click = {
+        if (!trailerOn) onClick()
+        else if (!menu) { sel = 0; inList = Library.has(ctx, item.id); menu = true }
+        else when (sel) {
+            0 -> { menu = false; TitleActions.play(item) }
+            1 -> { menu = false; TitleActions.expand(item) }
+            2 -> inList = Library.toggle(ctx, item)
+            else -> { menu = false; TitleActions.details(item) }
+        }
+    }
     // The focused card scales past its slot, so lift it above its neighbours instead of sliding under the next cover.
-    Focusable(Modifier.zIndex(if (focused) 1f else 0f), onClick = onClick, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
+    Focusable(keys.zIndex(if (focused) 1f else 0f), onClick = click, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
         Box(Modifier.width(w).height(tileH).focusScale(focused, 1.06f).tileFocus(focused, 12.dp).clip(TileShape).background(Bg2)
             .border(1.dp, Color.White.copy(alpha = 0.05f), TileShape)) {
             if (w > posterW + 40.dp && rich.background != null)
@@ -68,6 +91,22 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
             if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
             // Vesper: every poster carries its title + year/rating on a bottom fade; the focused card gets a larger one.
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient((if (focused) 0.45f else 0.55f) to Color.Transparent, 1f to Bg0.copy(alpha = if (focused) 0.92f else 0.88f))))
+            if (menu) {
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Bg0.copy(alpha = 0.94f))))
+                Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    val labels = listOf((if (item.type == "series") "Play Show" else "Play Movie") to Lucide.Play, "Expand Trailer" to Lucide.Maximize,
+                        (if (inList) "In My List" else "Add to List") to (if (inList) Lucide.Check else Lucide.Plus), (if (item.type == "series") "Show Details" else "Movie Details") to Lucide.Info)
+                    for (r in 0..1) Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        for (c in 0..1) { val i = r * 2 + c; val on = sel == i; val cs = RoundedCornerShape(9.dp)
+                            Row(Modifier.weight(1f).height(34.dp).clip(cs).background(if (on) Blue else Bg0.copy(alpha = 0.72f)).border(1.dp, if (on) Color.White.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.16f), cs).padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                Icon(labels[i].second, null, Modifier.size(13.dp), tint = if (on) Bg0 else Txt); Spacer(Modifier.width(7.dp))
+                                Text(labels[i].first, color = if (on) Bg0 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            } else
             Column(Modifier.align(Alignment.BottomStart).padding(if (focused) 14.dp else 9.dp)) {
                 Text(item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = if (focused) 15.sp else 11.sp, lineHeight = if (focused) 18.sp else 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (item.sub.isNotBlank()) Mono(item.sub, if (focused) 9.sp else 8.sp, Txt2, 0.12f, Modifier.padding(top = 3.dp), upper = false)

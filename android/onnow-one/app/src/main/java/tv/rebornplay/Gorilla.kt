@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.JsonReader
 import android.util.JsonToken
 import android.util.Log
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -55,7 +57,7 @@ object Gorilla {
         c.connectTimeout = 15_000; c.readTimeout = 60_000; c.instanceFollowRedirects = true
         c.setRequestProperty("User-Agent", "RebornPlay/2.5 Android")
         c.setRequestProperty("Accept", "application/json, */*")
-        c.setRequestProperty("Accept-Encoding", "identity")
+        c.setRequestProperty("Accept-Encoding", "gzip")   // the movie list is ~20 MB of text; compressed it is a fraction of that
         if (relaxedTls && c is HttpsURLConnection) { c.sslSocketFactory = trustAll; c.hostnameVerifier = HostnameVerifier { _, _ -> true } }
         return c
     }
@@ -77,7 +79,8 @@ object Gorilla {
         }
         throw IllegalStateException(last?.message?.takeIf { it.isNotBlank() } ?: "Can't reach the service", last)
     }
-    private fun get(url: String): String = fetch(url) { c -> c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() } }
+    private fun body(c: HttpURLConnection): java.io.InputStream = if (c.contentEncoding?.contains("gzip", true) == true) java.util.zip.GZIPInputStream(c.inputStream, 1 shl 16) else c.inputStream
+    private fun get(url: String): String = fetch(url) { c -> body(c).bufferedReader(Charsets.UTF_8).use { it.readText() } }
 
     /** player_api auth. Throws with a human message on bad credentials. */
     fun login(user: String, pass: String): JSONObject {
@@ -96,28 +99,40 @@ object Gorilla {
     private fun cachedFile(ctx: Context, name: String, url: String, maxAgeMs: Long): File {
         val f = cacheFile(ctx, name)
         if (f.exists() && f.length() > 2 && System.currentTimeMillis() - f.lastModified() < maxAgeMs) return f
+        download(f, url); return f
+    }
+    private fun download(f: File, url: String) {
         val tmp = File(f.path + ".tmp")
         fetch(url) { c ->
-            val expected = c.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
-            c.inputStream.use { i -> tmp.outputStream().buffered(1 shl 16).use { o -> i.copyTo(o, 1 shl 16) } }
+            val zipped = c.contentEncoding?.contains("gzip", true) == true
+            val expected = if (zipped) -1L else c.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
+            body(c).use { i -> tmp.outputStream().buffered(1 shl 16).use { o -> i.copyTo(o, 1 shl 16) } }
             if (expected > 0 && tmp.length() != expected) throw IOException("Download cut short (${tmp.length()} of $expected bytes)")
             val head = tmp.inputStream().use { s -> ByteArray(64).let { b -> val n = s.read(b); String(b, 0, maxOf(n, 0), Charsets.UTF_8) } }.trimStart()
             if (!(head.startsWith("[") || head.startsWith("{"))) throw IllegalStateException("Unexpected response from service")
         }
         if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() }
-        return f
     }
     fun clearCache(ctx: Context) { ctx.filesDir.listFiles { _, n -> n.startsWith("gorilla_") }?.forEach { it.delete() }; catalog = null }
 
     suspend fun loadCatalog(ctx: Context, force: Boolean = false): Catalog = withContext(Dispatchers.IO) {
         if (!force) catalog?.let { return@withContext it }
         if (force) clearCache(ctx)
-        val ttl = 6 * 3_600_000L
+        // Anything already on the box (up to a week old) opens instantly; lists older than 6 h refresh quietly for next time.
+        val names = listOf("vod_cats" to "get_vod_categories", "series_cats" to "get_series_categories", "vod" to "get_vod_streams", "series" to "get_series")
+        val haveAll = names.all { cacheFile(ctx, it.first).let { f -> f.exists() && f.length() > 2 } }
+        val ttl = if (haveAll) 7 * 24 * 3_600_000L else 6 * 3_600_000L
         try {
-            val mc = cats(JSONArray(cachedFile(ctx, "vod_cats", api(ctx, "get_vod_categories"), ttl).readText()))
-            val sc = cats(JSONArray(cachedFile(ctx, "series_cats", api(ctx, "get_series_categories"), ttl).readText()))
-            val movies = parseList(cachedFile(ctx, "vod", api(ctx, "get_vod_streams"), ttl), "movie", mc.toMap(), ctx)
-            val series = parseList(cachedFile(ctx, "series", api(ctx, "get_series"), ttl), "series", sc.toMap(), ctx)
+            val (mc, sc, movies, series) = coroutineScope {
+                val mcD = async { cats(JSONArray(cachedFile(ctx, "vod_cats", api(ctx, "get_vod_categories"), ttl).readText())) }
+                val scD = async { cats(JSONArray(cachedFile(ctx, "series_cats", api(ctx, "get_series_categories"), ttl).readText())) }
+                // Movies and series download + parse side by side instead of one after the other.
+                val mvD = async { val f = cachedFile(ctx, "vod", api(ctx, "get_vod_streams"), ttl); parseList(f, "movie", mcD.await().toMap(), ctx) }
+                val srD = async { val f = cachedFile(ctx, "series", api(ctx, "get_series"), ttl); parseList(f, "series", scD.await().toMap(), ctx) }
+                Loaded(mcD.await(), scD.await(), mvD.await(), srD.await())
+            }
+            if (names.any { System.currentTimeMillis() - cacheFile(ctx, it.first).lastModified() > 6 * 3_600_000L } && refreshing.compareAndSet(false, true))
+                Thread { try { names.forEach { (n, a) -> runCatching { download(cacheFile(ctx, n), api(ctx, a)) } } } finally { refreshing.set(false) } }.start()
             Log.i("Reborn", "catalog: ${movies.size} movies, ${series.size} series")
             Catalog(movies, series, mc, sc).also { catalog = it }
         } catch (t: Throwable) {
@@ -128,6 +143,8 @@ object Gorilla {
         }
     }
 
+    private val refreshing = java.util.concurrent.atomic.AtomicBoolean(false)
+    private data class Loaded(val mc: List<Pair<String, String>>, val sc: List<Pair<String, String>>, val movies: List<Item>, val series: List<Item>)
     private fun cats(a: JSONArray) = (0 until a.length()).map { i -> val o = a.getJSONObject(i); o.optString("category_id") to o.optString("category_name") }
 
     private fun str(r: JsonReader): String = when (r.peek()) {

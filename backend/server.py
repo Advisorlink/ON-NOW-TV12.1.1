@@ -5411,6 +5411,10 @@ from vesper_sync import router as vesper_sync_router, configure_vesper_sync  # n
 app.include_router(vesper_sync_router)
 configure_vesper_sync(db, make_get_current_account(lambda: db))
 
+from reborn_cloud import router as reborn_cloud_router, configure_reborn_cloud  # noqa: E402
+app.include_router(reborn_cloud_router)
+configure_reborn_cloud(db)
+
 # v2.16.29 — Live-presence analytics for the launcher admin panel.
 # Every client app (Vesper movies/FTA, Live TV, Tunes, Kids, FTA
 # native) pings /api/presence/heartbeat every ~30 s while watching.
