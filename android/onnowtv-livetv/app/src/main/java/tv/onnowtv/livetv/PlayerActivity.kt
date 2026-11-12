@@ -1138,8 +1138,20 @@ open class PlayerActivity : AppCompatActivity() {
 
     /* ─────────────────── Key handling ─────────────────── */
 
+    private var softVolIdx = 15
+    private var softVolToast: android.widget.Toast? = null
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
+            // Fixed-volume boxes (Fire TV, some HDMI boxes) ignore the system slider: scale the player's own sound instead.
+            KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                val am = getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+                val p = player
+                if (!am.isVolumeFixed || p == null) return super.onKeyDown(keyCode, event)
+                softVolIdx = (softVolIdx + if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) 1 else -1).coerceIn(0, 15)
+                p.volume = softVolIdx / 15f
+                softVolToast?.cancel(); softVolToast = android.widget.Toast.makeText(this, "Volume ${softVolIdx * 100 / 15}%", android.widget.Toast.LENGTH_SHORT).also { it.show() }
+                return true
+            }
             KeyEvent.KEYCODE_BACK -> {
                 if (playerOverlay.visibility == View.VISIBLE) {
                     hideControlsBar()

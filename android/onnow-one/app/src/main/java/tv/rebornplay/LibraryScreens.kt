@@ -168,17 +168,21 @@ private fun NotifyPanel(items: List<Item>, onClose: () -> Unit, onOpen: (Item) -
 
 /* ───────────────────────────── Cast ───────────────────────────── */
 
+private val Grey = androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) })
+
+/** CastRow.jsx ActorCard — 2:3 portrait, black & white until focused, name + "as Character" on a bottom fade. */
 @Composable
 fun CastCard(m: CastMember, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
     Focusable(onClick = onClick) { f ->
-        Column(Modifier.width(104.dp).focusScale(f, 1.06f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(88.dp).pillFocus(f).clip(CircleShape).background(Bg2).border(1.dp, if (f) Blue else Color.White.copy(alpha = 0.10f), CircleShape), contentAlignment = Alignment.Center) {
-                if (m.photo != null) AsyncImage(m.photo, m.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
-                else Icon(Lucide.User, null, Modifier.size(30.dp), tint = Txt3)
+        Box(Modifier.width(124.dp).aspectRatio(2f / 3f).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(shape).background(Brush.verticalGradient(listOf(Bg2, Bg1))).border(1.dp, Color.White.copy(alpha = 0.05f), shape)) {
+            if (m.photo != null) AsyncImage(m.photo, m.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, colorFilter = if (f) null else Grey, alpha = if (f) 1f else 0.92f)
+            else Text(m.name.take(1).uppercase(), color = Blue.copy(alpha = 0.18f), fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 56.sp, modifier = Modifier.align(Alignment.Center))
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.42f).background(Brush.verticalGradient(0f to Color.Transparent, 0.78f to Color(0xED06080F), 1f to Color(0xFF06080F))))
+            Column(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
+                Text(m.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (m.character.isNotBlank()) Mono("as ${m.character}", 8.sp, Txt2, 0.16f, Modifier.padding(top = 3.dp))
             }
-            Spacer(Modifier.height(8.dp))
-            Text(m.name, color = if (f) Color.White else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-            if (m.character.isNotBlank()) Text(m.character, color = Txt3, fontFamily = Geist, fontSize = 10.sp, lineHeight = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         }
     }
 }

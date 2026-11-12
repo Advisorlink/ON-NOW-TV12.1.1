@@ -179,7 +179,7 @@ object YouTubeTrailerExtractor {
      * Returns null on any extraction failure so callers can fall
      * through to the iframe fallback.
      */
-    fun extract(videoId: String): TrailerStreams? {
+    fun extract(videoId: String, cap: Int = 1080): TrailerStreams? {
         val safe = videoId.filter { it.isLetterOrDigit() || it == '_' || it == '-' }
         if (safe.isEmpty()) return null
         // v2.12.5 — Resolution cap.  1080p is the sweet spot for
@@ -187,7 +187,7 @@ object YouTubeTrailerExtractor {
         // inside YouTube's anonymous throttle envelope).  Bump to
         // 1440 for boxes on fibre if buffering never happens; drop
         // to 720 for boxes on flaky Wi-Fi if buffering persists.
-        val maxHeight = 1080
+        val maxHeight = cap
         try {
             ensureInit()
             val service = ServiceList.YouTube

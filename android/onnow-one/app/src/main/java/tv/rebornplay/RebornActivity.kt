@@ -61,7 +61,15 @@ class RebornActivity : ComponentActivity() {
     override fun onResume() { super.onResume(); Lockdown.enforce(this); resumeTick++ }
     override fun onPause() { super.onPause(); TrailerPlayer.stop() }
     override fun onDestroy() { super.onDestroy(); tv.onnowtv.livetv.ReminderWatcher.detach(this); TrailerPlayer.release() }
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean = handleGlobalVolumeKey(this, event) || super.dispatchKeyEvent(event)
+    private var softIdx = 15
+    /** Fire TV / fixed-volume boxes ignore the system slider — turn the app's own sound up/down instead. */
+    private fun softVolume(raise: Boolean): Int {
+        softIdx = (softIdx + if (raise) 1 else -1).coerceIn(0, 15)
+        TrailerPlayer.softVolume = softIdx / 15f
+        runCatching { if (tv.onnowtv.livetv.LivePreviewSession.isAlive()) tv.onnowtv.livetv.LivePreviewSession.getOrCreate(this).volume = softIdx / 15f }
+        return softIdx * 100 / 15
+    }
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean = handleGlobalVolumeKey(this, event, ::softVolume) || super.dispatchKeyEvent(event)
 }
 
 @Composable
@@ -147,7 +155,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 val playHero: (Hero) -> Unit = { h ->
                     HomePip.close()
                     val url = h.item.playUrl
-                    if (url == null) nav.open(h.item) else launchPlayer(activity, h.item, h.item.name, url, h.item.id)
+                    if (url == null) nav.go(Route.Detail(h.item)) else launchPlayer(activity, h.item, h.item.name, url, h.item.id)
                 }
                 val cur = nav.current
                 val rowNav = remember(cur) { RowNav { if (it == 0) 0 else it + 1 }.also { it.scope = scope } }
@@ -177,6 +185,8 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             onSpeedTest = { toast = "Speed test lives in Live TV → Settings for now" }, onProfile = { stage = "profiles" })
                     } }
                 }
+                TitleActionsSheet(activity) { nav.go(Route.Detail(it)) }
+                TrailerFullscreen()
                 NotifyHitToast { nav.go(Route.Detail(it)) }
             }
         }

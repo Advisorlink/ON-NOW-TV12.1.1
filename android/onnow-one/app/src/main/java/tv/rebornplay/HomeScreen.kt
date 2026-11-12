@@ -55,7 +55,7 @@ fun allHomeRows(c: Gorilla.Catalog): List<Pair<String, Triple<String, String, Li
 
 fun loadHomeRows(c: Gorilla.Catalog): List<Triple<String, String, List<Item>>> = allHomeRows(c).map { it.second }
 
-fun Nav.open(it: Item) = go(Route.Detail(it))
+fun Nav.open(it: Item) { if (it.id.startsWith("tmdb:")) go(Route.Detail(it)) else TitleActions.item = it }
 
 @Composable
 fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (CwEntry) -> Unit = {}, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit = {}) {
@@ -160,7 +160,7 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
         var bg by remember { mutableStateOf<Item?>(null) }
         FullBleedBackdrop(bg)
         Column(Modifier.fillMaxSize()) {
-            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, onPlay = onPlayHero, onInfo = { nav.open(it.item) }, onHero = { bg = it })
+            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }, onHero = { bg = it })
             Box(Modifier.fillMaxWidth().weight(1f).padding(bottom = bottomPad), contentAlignment = Alignment.BottomStart) {
                 AnimatedContent(rowNav.page.coerceIn(0, pageCount - 1), label = "shelf", transitionSpec = {
                     val down = targetState > initialState

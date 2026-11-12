@@ -1160,3 +1160,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Actors (user choice: show their titles on the service): cast row on title page -> Route.Actor -> titles matched in the catalogue, Save actor -> My Library.
 - Tests: MatchTest (3), LockdownTest (3).
 - Known limits: scan runs only when Home loads (app start / refresh); users with a saved Home row order get Coming Soon at the end.
+
+## 3.9.9 (build 48) — trailers, cover menu, actor cards, volume (BUILD-VERIFIED ONLY)
+- Trailers: suspected cause of play-then-buffer = host throttling one open-ended download. `ChunkedDataSource` (TrailerPlayer.kt) fetches in 4 MB ranged pieces; card previews capped at 480p, full screen 720p (YouTubeTrailerExtractor.extract(cap)); LoadControl 1.5 s start / 3 s rebuffer. NOT confirmed on device.
+- Cover menu (`TitleActions.kt`): OK on a Home cover -> Play Movie/Show, Expand Trailer (TrailerFullscreen), Add to List, Movie Details. Series "Play Show" opens details (episode pick). Library covers still go straight to details.
+- Actor cards: 2:3 portrait, greyscale until focused, name + "as Character" (CastRow.jsx ActorCard).
+- Volume: on fixed-volume devices volume keys now scale the app's own players (trailer, preview, Live TV full-screen Exo player) with a "Volume NN%" toast. VLC backend in Live TV player not covered.
