@@ -61,6 +61,8 @@ android {
                 .ifBlank { "local" }
         } catch (_: Throwable) { "local" }
         val buildTs: String = System.currentTimeMillis().toString()
+        // Test copies only: sign-in boxes pre-filled (empty in normal builds).
+        buildConfigField("String", "TEST_LOGIN", "\"${(project.findProperty("testLogin") as String?) ?: ""}\"")
         buildConfigField("String", "GIT_SHA",  "\"$gitSha\"")
         buildConfigField("String", "BUILD_TS", "\"$buildTs\"")
 

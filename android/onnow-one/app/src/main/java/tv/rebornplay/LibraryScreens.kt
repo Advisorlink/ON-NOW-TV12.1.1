@@ -83,7 +83,7 @@ private fun CoverGrid(items: List<Item>, cols: Int, badge: ImageVector? = null, 
 fun LibraryScreen(onBack: () -> Unit = {}, onResume: (CwEntry) -> Unit = {}, onCalendar: () -> Unit = {}, onActor: (CastMember) -> Unit = {}, onOpen: (Item) -> Unit) {
     val ctx = LocalContext.current
     val items = remember { Library.items(ctx).reversed() }
-    val cw = remember { ContinueWatching.entries(ctx) }
+    var cw by remember { mutableStateOf(ContinueWatching.entries(ctx)) }
     val actors = remember { SavedActors.items(ctx).reversed() }
     var waiting by remember { mutableStateOf(NotifyList.items(ctx).reversed()) }
     var panel by remember { mutableStateOf(false) }
@@ -111,7 +111,7 @@ fun LibraryScreen(onBack: () -> Unit = {}, onResume: (CwEntry) -> Unit = {}, onC
             }
             item { LibSection("My library · Continue watching" + if (cw.isNotEmpty()) " · ${cw.size}" else "", "Continue Watching", Lucide.History) {
                 if (cw.isEmpty()) LibNote("Nothing in progress — anything you start shows up here with a resume bar.")
-                else LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(20.dp)) { items(cw, key = { it.cwId }) { e -> CwCard(e, 140.dp) { onResume(e) } } }
+                else LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(20.dp)) { items(cw, key = { it.cwId }) { e -> CwCard(e, 140.dp, onRemove = { ContinueWatching.remove(ctx, e.cwId); cw = ContinueWatching.entries(ctx) }) { onResume(e) } } }
             } }
             item { LibSection("My library · Series" + if (series.isNotEmpty()) " · ${series.size}" else "", "TV Shows", Lucide.Tv) {
                 if (series.isEmpty()) LibNote("No shows saved yet. Press My List on any series to keep it here — new episodes then appear in your Calendar.") else CoverGrid(series, cols, onOpen = onOpen)

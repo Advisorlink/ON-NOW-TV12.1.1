@@ -30,6 +30,9 @@ import com.composables.icons.lucide.*
 object TitleActions {
     var item: Item? by mutableStateOf(null)
     var sel by mutableStateOf(0)
+    /** Cover whose playing trailer is showing the choices. */
+    var inlineId: String? by mutableStateOf(null)
+    fun openInline(id: String) { sel = 0; armed = false; inlineId = id }
     var play: (Item) -> Unit = {}
     var details: (Item) -> Unit = {}
     internal var activate: () -> Unit = {}
@@ -46,7 +49,7 @@ object TitleActions {
     }
     /** While the card is open every remote press is handled here, so focus can never wander to the screen behind it. */
     fun key(e: KeyEvent): Boolean {
-        if (item == null) return false
+        if (item == null && inlineId == null) return false
         when (e.key) {
             Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight -> if (e.type == KeyEventType.KeyDown) sel = move(sel, e.key)
             Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> if (e.type == KeyEventType.KeyDown) armed = true else if (armed) { armed = false; activate() }

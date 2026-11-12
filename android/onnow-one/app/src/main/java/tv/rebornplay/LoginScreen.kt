@@ -41,7 +41,9 @@ import org.json.JSONObject
 /** Sign-in — the same two-column layout as LoginScreen.jsx, Reborn-branded. */
 @Composable
 fun LoginScreen(onDone: (user: String, pass: String) -> Unit) {
-    var user by remember { mutableStateOf("") }; var pass by remember { mutableStateOf("") }
+    // Test copies carry a login so the boxes arrive filled in; normal builds carry nothing.
+    val preset = remember { runCatching { String(android.util.Base64.decode(tv.vesper.app.BuildConfig.TEST_LOGIN, android.util.Base64.DEFAULT)).split("\n") }.getOrDefault(emptyList()) }
+    var user by remember { mutableStateOf(preset.getOrNull(0).orEmpty()) }; var pass by remember { mutableStateOf(preset.getOrNull(1).orEmpty()) }
     var show by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }; var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()

@@ -1189,3 +1189,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Trailer start: trailer lookup now warms during the dwell, links cached 20 min, start buffer 1 s.
 - Details page: cast strip is its own list row (scrolls fully into view), cards 112dp.
 - OPEN: user reported "App not installed" on Fire Stick for builds 50 and 51 — unresolved, no device info supplied. User is likely still looking at build <=49 (1280 canvas, bigger text).
+
+## 3.9.15 (build 54) — TEST COPY, BUILD-VERIFIED ONLY
+- !! TEST COPY: built with `TESTLOGIN=1` — sign-in boxes pre-filled from secrets REBORN_TEST_USERNAME / REBORN_TEST_PASSWORD (BuildConfig.TEST_LOGIN, base64). The usual download link currently serves this copy. Build WITHOUT TESTLOGIN=1 before giving the app to customers.
+- On-trailer choices: state moved to TitleActions.inlineId; keys handled by the root handler (parent rowNav preview handler was eating Up/Down before the tile).
+- Continue Watching: hold OK (key repeat >= 6) removes a card (Home + My Library).
+- Production deployed at https://rebrand-app-5.emergent.host; app's RebornApi.BASE is https://onnowhub.com — /api/reborn/* was still 404 there when last checked.

@@ -116,7 +116,7 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
             items(pages.size) { i ->
                 val (key, r) = pages[i]
                 when {
-                    key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, 200.dp, onResume, onChannel)
+                    key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, 200.dp, onResume, { e -> ContinueWatching.remove(ctx, e.cwId); cwTick++; android.widget.Toast.makeText(ctx, "Removed from Continue Watching", android.widget.Toast.LENGTH_SHORT).show() }, onChannel)
                     key == "live" -> LiveRow(1 + i, rowNav, 200.dp, onChannel)
                     key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, 200.dp)
                     else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav) { nav.open(it) }
@@ -125,7 +125,7 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
         }
         return
     }
-    PagedHome(d, pages, cw, liveNow, nav, rowNav, playReq, onPlayHero, onResume, onChannel)
+    PagedHome(d, pages, cw, liveNow, nav, rowNav, playReq, onPlayHero, onResume, onChannel, { e -> ContinueWatching.remove(ctx, e.cwId); cwTick++; android.widget.Toast.makeText(ctx, "Removed from Continue Watching", android.widget.Toast.LENGTH_SHORT).show() })
 }
 
 /** Live Now: favourites first, then the first channels of the first category — three tiles. */
@@ -138,7 +138,7 @@ fun liveNowChannels(ctx: android.content.Context): List<tv.onnowtv.livetv.data.C
 
 /** TV layout (Vesper): hero is static, exactly one shelf sits under it and Down/Up swaps the shelf in place. */
 @Composable
-private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, String, List<Item>>?>>, cw: List<CwEntry>, liveNow: List<tv.onnowtv.livetv.data.Channel>, nav: Nav, rowNav: RowNav, playReq: FocusRequester, onPlayHero: (Hero) -> Unit, onResume: (CwEntry) -> Unit, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit) {
+private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, String, List<Item>>?>>, cw: List<CwEntry>, liveNow: List<tv.onnowtv.livetv.data.Channel>, nav: Nav, rowNav: RowNav, playReq: FocusRequester, onPlayHero: (Hero) -> Unit, onResume: (CwEntry) -> Unit, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit, onRemoveCw: (CwEntry) -> Unit = {}) {
     val pageCount = pages.size
     rowNav.rowCount = 1 + pageCount
     if (d.rows.isEmpty()) { Column(Modifier.fillMaxSize()) { HeroBillboard(d.heroes, "New on Reborn", playReq, rowNav, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }); Spinner("No titles available on your service yet") }; return }
@@ -171,7 +171,7 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
                         val (key, r) = pages[i]
                         when {
-                            key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, tileH, onResume, onChannel)
+                            key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, tileH, onResume, onRemoveCw, onChannel)
                             key == "live" -> LiveRow(1 + i, rowNav, tileH, onChannel)
                             key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, tileH) { preview = it }
                             else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 0.dp) { nav.open(it) }

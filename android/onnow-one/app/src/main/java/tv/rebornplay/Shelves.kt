@@ -60,17 +60,23 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     if (dwell > 0) TrailerDwell(item, focused && TitleActions.item == null, dwell)
     val trailerOn = focused && TrailerPlayer.playingId == item.id
     // Vesper: OK while the trailer is playing puts the choices on the trailer itself (no pop-up); the D-pad moves between them.
-    var menu by remember { mutableStateOf(false) }
-    var sel by remember { mutableStateOf(0) }
+    val menu = TitleActions.inlineId == item.id
+    val sel = TitleActions.sel
     var inList by remember(item.id) { mutableStateOf(false) }
-    if (!trailerOn && menu) menu = false
-    androidx.activity.compose.BackHandler(enabled = menu) { menu = false }
-    val keys = Modifier.onPreviewKeyEvent { e ->
-        if (!menu) return@onPreviewKeyEvent false
-        if (e.key != Key.DirectionUp && e.key != Key.DirectionDown && e.key != Key.DirectionLeft && e.key != Key.DirectionRight) return@onPreviewKeyEvent false
-        if (e.type == KeyEventType.KeyDown) sel = TitleActions.move(sel, e.key)
-        true
+    SideEffect { if (!trailerOn && menu) TitleActions.inlineId = null }
+    androidx.activity.compose.BackHandler(enabled = menu) { TitleActions.inlineId = null }
+    // While the choices are showing, the remote is handled at the top of the app, so Up/Down can never move to another row.
+    if (menu) SideEffect {
+        TitleActions.activate = {
+            when (TitleActions.sel) {
+                0 -> { TitleActions.inlineId = null; TitleActions.play(item) }
+                1 -> { TitleActions.inlineId = null; TitleActions.expand(item) }
+                2 -> inList = Library.toggle(ctx, item)
+                else -> { TitleActions.inlineId = null; TitleActions.details(item) }
+            }
+        }
     }
+    val keys: Modifier = Modifier
     // Coming Soon titles: OK sets / clears the reminder right on the cover.
     val external = item.id.startsWith("tmdb:")
     var remind by remember(item.id) { mutableStateOf(external && NotifyList.has(ctx, item.id)) }
@@ -80,13 +86,7 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
             android.widget.Toast.makeText(ctx, if (remind) "We'll let you know when ${item.name} arrives in HD" else "Reminder removed", android.widget.Toast.LENGTH_SHORT).show()
         }
         else if (!trailerOn) onClick()
-        else if (!menu) { sel = 0; inList = Library.has(ctx, item.id); menu = true }
-        else when (sel) {
-            0 -> { menu = false; TitleActions.play(item) }
-            1 -> { menu = false; TitleActions.expand(item) }
-            2 -> inList = Library.toggle(ctx, item)
-            else -> { menu = false; TitleActions.details(item) }
-        }
+        else if (!menu) { inList = Library.has(ctx, item.id); TitleActions.openInline(item.id) }
     }
     // The focused card scales past its slot, so lift it above its neighbours instead of sliding under the next cover.
     Focusable(keys.zIndex(if (focused) 1f else 0f), onClick = click, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
@@ -192,7 +192,7 @@ fun BrandShelf(title: String, kind: String, brands: List<Brand>, row: Int = -2, 
 
 /** Row 1 of the redesigned Home: Continue Watching (landscape tiles with progress) on the left, Live Now on the right. */
 @Composable
-fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row: Int, rowNav: RowNav?, tileH: Dp, onResume: (CwEntry) -> Unit, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit) {
+fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row: Int, rowNav: RowNav?, tileH: Dp, onResume: (CwEntry) -> Unit, onRemove: (CwEntry) -> Unit = {}, onChannel: (tv.onnowtv.livetv.data.Channel) -> Unit) {
     val ctx = LocalContext.current
     val inset = safeInset()
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
@@ -200,10 +200,10 @@ fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row
     val h = (tileH * 0.84f).coerceAtMost(190.dp)
     Row(Modifier.fillMaxWidth().padding(end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         if (cw.isNotEmpty()) Column(Modifier.weight(1.4f)) {
-            SectionHeader("Pick up where you left off", "Continue Watching", "${cw.size} in progress", Modifier.padding(horizontal = inset))
+            SectionHeader("Pick up where you left off", "Continue Watching", "${cw.size} in progress · hold OK to remove", Modifier.padding(horizontal = inset))
             AnchoredRow(64.dp + inset + h * 16 / 9 + 22.dp) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(22.dp), contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp)) {
-                    itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav) { onResume(e) } }
+                    itemsIndexed(cw, key = { _, e -> e.cwId }) { i, e -> CwTile(e, h, i == 0 && row >= 0, row, rowNav, onRemove = { onRemove(e) }) { onResume(e) } }
                 }
             }
         }
@@ -217,17 +217,24 @@ fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row
 }
 
 @Composable
-private fun CwTile(e: CwEntry, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onFocus: ((Boolean) -> Unit)? = null, onClick: () -> Unit) {
+private fun CwTile(e: CwEntry, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onFocus: ((Boolean) -> Unit)? = null, onRemove: (() -> Unit)? = null, onClick: () -> Unit) {
     val req = remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
-    CwCard(e, h, req, { onFocus?.invoke(it); if (it) rowNav?.focused(row, req) }, onClick)
+    CwCard(e, h, req, { onFocus?.invoke(it); if (it) rowNav?.focused(row, req) }, onRemove, onClick)
 }
 
 /** Continue Watching card — 16:9 backdrop, title, play dot + progress bar + minutes left. */
 @Composable
-fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -> Unit)? = null, onClick: () -> Unit) {
+fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -> Unit)? = null, onRemove: (() -> Unit)? = null, onClick: () -> Unit) {
     var top by remember { mutableStateOf(false) }
-    Focusable(Modifier.zIndex(if (top) 1f else 0f), onClick = onClick, requester = req, onFocus = { top = it; onFocus?.invoke(it) }) { f ->
+    // Press and hold OK removes the card from Continue Watching.
+    var held by remember { mutableStateOf(false) }
+    val hold = if (onRemove == null) Modifier else Modifier.onPreviewKeyEvent { ev ->
+        if (ev.key != Key.DirectionCenter && ev.key != Key.Enter && ev.key != Key.NumPadEnter) return@onPreviewKeyEvent false
+        if (ev.type == KeyEventType.KeyDown && !held && ev.nativeKeyEvent.repeatCount >= 6) { held = true; onRemove() }
+        if (held) { if (ev.type == KeyEventType.KeyUp) held = false; true } else false
+    }
+    Focusable(hold.zIndex(if (top) 1f else 0f), onClick = onClick, requester = req, onFocus = { top = it; onFocus?.invoke(it) }) { f ->
         Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
             AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
