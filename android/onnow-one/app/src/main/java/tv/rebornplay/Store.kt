@@ -96,6 +96,9 @@ object Prefs {
     private var liveScaleS: androidx.compose.runtime.MutableState<Float>? = null
     fun liveScaleState(ctx: Context) = liveScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("live_scale", 1f)).also { liveScaleS = it }
     fun setLiveScale(ctx: Context, v: Float) { val c = v.coerceIn(0.8f, 1.4f); liveScaleState(ctx).value = c; p(ctx).edit().putFloat("live_scale", c).apply() }
+    private var uiScaleS: androidx.compose.runtime.MutableState<Float>? = null
+    fun uiScaleState(ctx: Context) = uiScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("ui_scale", 1f)).also { uiScaleS = it }
+    fun setUiScale(ctx: Context, v: Float) { val c = v.coerceIn(0.75f, 1.3f); uiScaleState(ctx).value = c; p(ctx).edit().putFloat("ui_scale", c).apply() }
     private var pipScaleS: androidx.compose.runtime.MutableState<Float>? = null
     fun pipScaleState(ctx: Context) = pipScaleS ?: androidx.compose.runtime.mutableStateOf(p(ctx).getFloat("pip_scale", 1f)).also { pipScaleS = it }
     fun setPipScale(ctx: Context, v: Float) { val c = v.coerceIn(0.6f, 1.6f); pipScaleState(ctx).value = c; p(ctx).edit().putFloat("pip_scale", c).apply() }
@@ -171,7 +174,9 @@ object HomeRowPrefs {
         val byKey = rows.associateBy { it.first }
         // Rows the saved order doesn't know about: Live TV goes to the top (it must be on Home), the rest keep their natural place at the end.
         val unknown = rows.filter { it.first !in order }
-        val sorted = unknown.filter { it.first == "live" } + order.mapNotNull { byKey[it] } + unknown.filter { it.first != "live" }
+        // Coming Soon joins straight after the first saved row so it is always near the top.
+        val known = order.mapNotNull { byKey[it] }; val soon = unknown.filter { it.first == "coming_soon" }
+        val sorted = unknown.filter { it.first == "live" } + known.take(1) + soon + known.drop(1) + unknown.filter { it.first != "live" && it.first != "coming_soon" }
         return if (includeHidden) sorted else sorted.filter { it.first !in hidden }
     }
 }

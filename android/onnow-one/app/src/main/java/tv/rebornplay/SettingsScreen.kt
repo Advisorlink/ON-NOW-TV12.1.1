@@ -195,6 +195,8 @@ private fun AppearanceSection() {
     var scale by Prefs.cardScaleState(ctx)
     SectionHead("Settings · Appearance", "Sizes", Lucide.Palette)
     Text("Move left / right on the slider to shrink or grow every cover on Home and Box Sets — it applies straight away, no restart. The preview below is the real card.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 14.dp))
+    val ui by Prefs.uiScaleState(ctx)
+    SliderRow("Whole app size", ui, 0.75f, 1.3f, "Makes everything — text, menus, covers, every screen — smaller or bigger to suit your TV.") { Prefs.setUiScale(ctx, it) }
     SliderRow("Cover size", scale, 0.75f, 1.25f) { Prefs.setCardScale(ctx, it) }
     val live by Prefs.liveScaleState(ctx)
     SliderRow("Live TV size", live, 0.8f, 1.4f, "Bigger = larger preview window, text and rows on the Live TV screen (fewer channels per page).") { Prefs.setLiveScale(ctx, it) }

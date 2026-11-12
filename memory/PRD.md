@@ -1172,3 +1172,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Remember device + account sync: backend `reborn_cloud.py` (/api/reborn/device/{remember,recall,forget}, /api/reborn/sync/{push,pull}); logins verified against REBORN_PROVIDER_BASE (new backend .env key), password encrypted (Fernet from JWT_SECRET), keyed by hashed ANDROID_ID. Client `Cloud.kt`: recall on boot when signed out, remember + pull after login check, push on activity pause when changed, forget on explicit sign-out; local data wiped when a different login signs in. Synced: profiles, My List, Continue Watching + resume points, notify list, saved actors. Last save wins.
 - !! NEEDS PRODUCTION DEPLOY: app talks to https://onnowhub.com which returned 404 for /api/reborn/* at build time. Only the reject path (401 for bad login) was tested on preview; success path untested (no real login available to the agent).
 - Movies slow on Fire Stick: catalogue now requested gzip-compressed, movies+series fetched/parsed in parallel, and an on-box copy up to 7 days old opens immediately while lists >6 h old refresh in the background for next launch.
+
+## 3.9.11 (build 50) — BUILD-VERIFIED ONLY
+- Coming Soon row now 2nd on Home (also for saved row orders, HomeRowPrefs.apply); OK on a Coming Soon cover toggles the reminder on the cover (bell badge + toast) instead of opening a page.
+- Every launch: if on-box lists are >30 min old they are re-downloaded in the background, swapped into Gorilla.catalog and NotifyScan runs again -> top-right pop-up. Home shelves themselves still show the list the app opened with.
+- Whole UI scale: TvCanvas default canvas 1280 -> 1600 dp wide (everything ~20 % smaller, Vesper proportions) + "Whole app size" slider (75-130 %) in Settings -> Appearance. Live TV keeps its own canvas/slider.
+- User still wants a more "Vesper-pretty, less Android" look overall: only global sizing addressed this round; no per-screen restyle done.

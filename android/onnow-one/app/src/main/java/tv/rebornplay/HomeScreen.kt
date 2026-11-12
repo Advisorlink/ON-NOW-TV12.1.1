@@ -45,7 +45,7 @@ fun allHomeRows(c: Gorilla.Catalog): List<Pair<String, Triple<String, String, Li
     rows += "live" to Triple("Live TV", "Live TV", emptyList())            // rendered by LiveRow (source/look from Settings)
     rows += "new_movies" to Triple("Movies", "New movies", newMovies.take(40))
     rows += "new_series" to Triple("Series", "New series", newSeries.take(40))
-    if (NotifyScan.coming.size >= 4) rows += "coming_soon" to Triple("Coming soon · Notify me", "Coming Soon", NotifyScan.coming)
+    if (NotifyScan.coming.size >= 3) rows.add(minOf(1, rows.size), "coming_soon" to Triple("Coming soon · Press OK to be reminded", "Coming Soon", NotifyScan.coming))
     val mRows = c.movieCats.mapNotNull { (id, name) -> val l = c.movies.filter { it.categoryId == id }; if (l.size >= 4) "mcat:$id" to Triple("Movies", name, l.sortedByDescending { it.added }.take(40)) else null }
     val sRows = c.seriesCats.mapNotNull { (id, name) -> val l = c.series.filter { it.categoryId == id }; if (l.size >= 4) "scat:$id" to Triple("Series", name, l.sortedByDescending { it.added }.take(40)) else null }
     // Alternate the service's movie and series categories so both reach the screen early.

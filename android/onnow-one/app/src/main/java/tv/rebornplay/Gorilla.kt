@@ -131,8 +131,18 @@ object Gorilla {
                 val srD = async { val f = cachedFile(ctx, "series", api(ctx, "get_series"), ttl); parseList(f, "series", scD.await().toMap(), ctx) }
                 Loaded(mcD.await(), scD.await(), mvD.await(), srD.await())
             }
-            if (names.any { System.currentTimeMillis() - cacheFile(ctx, it.first).lastModified() > 6 * 3_600_000L } && refreshing.compareAndSet(false, true))
-                Thread { try { names.forEach { (n, a) -> runCatching { download(cacheFile(ctx, n), api(ctx, a)) } } } finally { refreshing.set(false) } }.start()
+            // Every time the box opens: quietly fetch the latest lists, swap them in, and check them against the reminder list.
+            if (names.any { System.currentTimeMillis() - cacheFile(ctx, it.first).lastModified() > 30 * 60_000L } && refreshing.compareAndSet(false, true))
+                Thread {
+                    try {
+                        val app = ctx.applicationContext
+                        if (names.all { (n, a) -> runCatching { download(cacheFile(app, n), api(app, a)) }.isSuccess }) {
+                            val m2 = cats(JSONArray(cacheFile(app, "vod_cats").readText())); val s2 = cats(JSONArray(cacheFile(app, "series_cats").readText()))
+                            catalog = Catalog(parseList(cacheFile(app, "vod"), "movie", m2.toMap(), app), parseList(cacheFile(app, "series"), "series", s2.toMap(), app), m2, s2)
+                            android.os.Handler(android.os.Looper.getMainLooper()).post { NotifyScan.run(app) }
+                        }
+                    } catch (t: Throwable) { Log.w("Reborn", "background refresh failed: ${t.message}") } finally { refreshing.set(false) }
+                }.start()
             Log.i("Reborn", "catalog: ${movies.size} movies, ${series.size} series")
             Catalog(movies, series, mc, sc).also { catalog = it }
         } catch (t: Throwable) {

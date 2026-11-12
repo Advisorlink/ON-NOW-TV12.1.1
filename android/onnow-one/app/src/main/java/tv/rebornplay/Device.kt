@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -41,9 +42,12 @@ fun TvCanvas(content: @Composable () -> Unit) {
     val real = LocalDensity.current
     if (!Device.isTvClass(ctx) || cfg.screenWidthDp <= cfg.screenHeightDp) { CompositionLocalProvider(LocalOuterDensity provides real) { content() }; return }
     val widthPx = cfg.screenWidthDp * real.density
-    val d = widthPx / 1280f
+    // 1600-wide canvas = Vesper's proportions (finer text, more on screen); "Whole app size" in Settings scales it.
+    val ui by Prefs.uiScaleState(ctx)
+    val canvasW = Math.round(1600f / ui)
+    val d = widthPx / canvasW
     val canvas = remember(cfg, d) { Configuration(cfg).apply {
-        screenWidthDp = 1280; screenHeightDp = Math.round(cfg.screenHeightDp * real.density / d); smallestScreenWidthDp = screenHeightDp; densityDpi = Math.round(d * 160f); fontScale = 1f
+        screenWidthDp = canvasW; screenHeightDp = Math.round(cfg.screenHeightDp * real.density / d); smallestScreenWidthDp = screenHeightDp; densityDpi = Math.round(d * 160f); fontScale = 1f
     } }
     val density = remember(d) { Density(d, 1f) }
     CompositionLocalProvider(LocalDensity provides density, LocalConfiguration provides canvas, LocalOuterDensity provides density) { content() }

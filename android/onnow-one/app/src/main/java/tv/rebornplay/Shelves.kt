@@ -71,8 +71,15 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
         if (e.type == KeyEventType.KeyDown) sel += move
         true
     }
+    // Coming Soon titles: OK sets / clears the reminder right on the cover.
+    val external = item.id.startsWith("tmdb:")
+    var remind by remember(item.id) { mutableStateOf(external && NotifyList.has(ctx, item.id)) }
     val click = {
-        if (!trailerOn) onClick()
+        if (external) {
+            remind = NotifyList.toggle(ctx, item)
+            android.widget.Toast.makeText(ctx, if (remind) "We'll let you know when ${item.name} arrives in HD" else "Reminder removed", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        else if (!trailerOn) onClick()
         else if (!menu) { sel = 0; inList = Library.has(ctx, item.id); menu = true }
         else when (sel) {
             0 -> { menu = false; TitleActions.play(item) }
@@ -91,6 +98,10 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
             if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
             // Vesper: every poster carries its title + year/rating on a bottom fade; the focused card gets a larger one.
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient((if (focused) 0.45f else 0.55f) to Color.Transparent, 1f to Bg0.copy(alpha = if (focused) 0.92f else 0.88f))))
+            if (external) Row(Modifier.align(Alignment.TopEnd).padding(7.dp).height(22.dp).clip(CircleShape).background(if (remind) Amber else Bg0.copy(alpha = 0.82f)).border(1.dp, if (remind) Color.Transparent else Blue.copy(alpha = 0.6f), CircleShape).padding(horizontal = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (remind) Lucide.BellRing else Lucide.Bell, null, Modifier.size(11.dp), tint = if (remind) Bg0 else Blue)
+                if (focused) { Spacer(Modifier.width(5.dp)); Text(if (remind) "Reminder set" else "Remind me", color = if (remind) Bg0 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp) }
+            }
             if (menu) {
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Bg0.copy(alpha = 0.94f))))
                 Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
