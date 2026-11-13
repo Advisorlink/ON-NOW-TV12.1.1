@@ -262,6 +262,9 @@ class RowNav(val listIndexOf: (Int) -> Int = { it }) {
     var page by mutableStateOf(0)
     var focusTick by mutableStateOf(0)
     private var pendingRow = 0
+    /** Screens without rows (Library, Settings…): where Down from the menu bar should land. */
+    var inNav = false
+    var fallback: FocusRequester? = null
     fun register(row: Int, first: FocusRequester) { if (entries[row] == null) entries[row] = first }
     fun forget(row: Int) { entries.remove(row) }
     /** Row-by-row: whenever focus lands in a different row, snap that row under the menu (Vesper behaviour). */
@@ -279,6 +282,7 @@ class RowNav(val listIndexOf: (Int) -> Int = { it }) {
 
     /** Returns true when the key was handled (focus moved or a scroll+focus was scheduled). */
     fun move(dir: Int, scope: kotlinx.coroutines.CoroutineScope): Boolean {
+        if (rowCount == 0) return if (dir == 1 && inNav) fallback?.let { runCatching { it.requestFocus() }.isSuccess } ?: false else false
         val cur = current ?: return false
         val target = cur + dir
         if (target < -1 || target >= rowCount) return false
@@ -307,3 +311,4 @@ fun Modifier.rowNavKeys(nav: RowNav, scope: kotlinx.coroutines.CoroutineScope): 
 )
 
 val LocalToken = compositionLocalOf { "" }
+val LocalRowNav = compositionLocalOf<RowNav?> { null }

@@ -29,21 +29,22 @@ private data class Sec(val id: String, val label: String, val hint: String, val 
 private val SECTIONS = listOf(
     Sec("appearance", "Appearance", "Sizes, covers, trailers", Lucide.Palette),
     Sec("home", "Home screen", "Arrange your rows", Lucide.LayoutGrid),
-    Sec("playback", "Playback", "Auto play", Lucide.Play),
-    Sec("livetv", "Live TV", "Channels, guide, player", Lucide.RadioTower),
+    Sec("playback", "Playback", "Autoplay", Lucide.Play),
+    Sec("livetv", "Live TV", "Refresh channels or guide", Lucide.RadioTower),
     Sec("profiles", "Profiles", "Who's watching", Lucide.UsersRound),
-    Sec("catalogue", "Catalogue", "Movies & shows data", Lucide.Database),
+    Sec("catalogue", "Movies & shows", "Refresh the list", Lucide.Database),
     Sec("about", "About", "Version & build", Lucide.Info),
     Sec("signout", "Sign out", "End this session", Lucide.LogOut),
 )
 
 /** Settings.jsx — Back pill, sticky glass section rail on the left, compact setting cards on the right. */
 @Composable
-fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit, onHomeRows: () -> Unit = {}, onPickLiveCategory: () -> Unit = {}, onBack: () -> Unit = {}) {
+fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit, onProfiles: () -> Unit, onSignOut: () -> Unit, onRefreshLive: () -> Unit, onRefreshCatalogue: () -> Unit = {}, onHomeRows: () -> Unit = {}, onPickLiveCategory: () -> Unit = {}, onBack: () -> Unit = {}) {
     val ctx = LocalContext.current
     var section by rememberSaveable { mutableStateOf("appearance") }
     val first = remember { FocusRequester() }
     FocusOnShow(first, Unit)
+    LocalRowNav.current?.fallback = first
     val inset = safeInset()
     Column(Modifier.fillMaxSize().padding(start = 64.dp + inset, end = 48.dp + inset, top = 84.dp)) {
         Pill("Back", icon = Lucide.ArrowLeft, mono = true, height = 34.dp, onClick = onBack)
@@ -59,9 +60,8 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
                         "home" -> HomeSection(onHomeRows, onPickLiveCategory)
                         "playback" -> PlaybackSection(autoplay, onAutoplay)
                         "livetv" -> {
-                            SectionHead("Settings · Live TV", "Channels, guide and player", Lucide.RadioTower)
-                            ActionRow("Live TV settings", "Channel groups (reorder, hide, favourites), guide refresh and time offset, player engine, buffer and decoding, subtitles and audio language, interface size, parental PIN.", "Open") { LiveTvEntry.open(activity, settings = true) }
-                            ActionRow("Refresh channels and guide", "Re-downloads your channel list and the programme guide from the service.", "Refresh", onClick = onRefreshLive)
+                            SectionHead("Settings · Live TV", "Channels and guide", Lucide.RadioTower)
+                            ActionRow("Refresh Live TV", "Asks whether to refresh the channel list or the TV guide, then updates just that one. Movies and TV shows are not touched.", "Refresh", onClick = onRefreshLive)
                         }
                         "profiles" -> {
                             val user = remember { RebornSession.username(ctx) ?: "" }
@@ -71,19 +71,19 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
                             ActionRow("Profile", "Each profile keeps its own My List and Continue Watching.", profile?.name ?: "Switch", onClick = onProfiles)
                         }
                         "catalogue" -> {
-                            SectionHead("Settings · Catalogue", "Movies & shows data", Lucide.Database)
+                            SectionHead("Settings · Movies & shows", "Your movies and TV shows", Lucide.Database)
                             val c = Gorilla.catalog
-                            ActionRow("Refresh movies & shows", if (c != null) "${"%,d".format(c.movies.size)} movies · ${"%,d".format(c.series.size)} series cached on this device." else "Re-downloads the catalogue from the service.", "Refresh") { Cache.clear(); Gorilla.clearCache(ctx); BoxSets.reset() }
+                            ActionRow("Refresh movies & shows", if (c != null) "${"%,d".format(c.movies.size)} movies · ${"%,d".format(c.series.size)} TV shows saved on this device. Refresh downloads the list again from your service." else "Downloads the list again from your service.", "Refresh", onClick = onRefreshCatalogue)
                         }
                         "about" -> {
                             val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
                             SectionHead("Settings · About", "Reborn Play", Lucide.Info)
-                            ActionRow("Version", "Reborn Play $version · native build", null) {}
+                            ActionRow("Version", "Reborn Play $version", null) {}
                         }
                         "signout" -> {
                             SectionHead("Settings · Account", "Sign out", Lucide.LogOut)
                             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.04f)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp)).padding(14.dp)) {
-                                Text("Clears this device's sign-in. Your profiles and lists stay backed up in the cloud and come straight back when you sign in again.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp)
+                                Text("Signs this device out. Your profiles, lists and Continue Watching stay saved to your login and come back when you sign in again.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp)
                                 Spacer(Modifier.height(14.dp))
                                 Pill("Sign out", icon = Lucide.LogOut, height = 40.dp, fontSize = 14.sp, onClick = onSignOut)
                             }
@@ -104,8 +104,8 @@ private fun HomeSection(onHomeRows: () -> Unit, onPickLiveCategory: () -> Unit) 
 
 @Composable
 private fun PlaybackSection(autoplay: Boolean, onAutoplay: () -> Unit) {
-    SectionHead("Settings · Playback", "Auto play", Lucide.Play)
-    ToggleRow("Auto play", "Play straight away from the hero and Continue Watching; off asks first.", autoplay, onAutoplay)
+    SectionHead("Settings · Playback", "Autoplay", Lucide.Play)
+    ToggleRow("Autoplay", "On: the featured title and Continue Watching start playing straight away. Off: you are asked first.", autoplay, onAutoplay)
 }
 
 @Composable
@@ -180,7 +180,7 @@ private fun AppearanceSection(onPickLiveCategory: () -> Unit) {
     val ctx = LocalContext.current
     var scale by Prefs.cardScaleState(ctx)
     SectionHead("Settings · Appearance", "Sizes", Lucide.Palette)
-    Text("Move left / right on the slider to shrink or grow every cover on Home and Box Sets — it applies straight away, no restart. The preview below is the real card.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 14.dp))
+    Text("Move left or right on a slider to make things smaller or bigger. Changes apply straight away; the preview below shows the real cover size.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 14.dp))
     val ui by Prefs.uiScaleState(ctx)
     SliderRow("Whole app size", ui, 0.75f, 1.3f, "Makes everything — text, menus, covers, every screen — smaller or bigger to suit your TV.") { Prefs.setUiScale(ctx, it) }
     SliderRow("Cover size", scale, 0.75f, 1.25f) { Prefs.setCardScale(ctx, it) }

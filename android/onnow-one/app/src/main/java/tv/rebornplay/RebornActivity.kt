@@ -15,6 +15,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -138,6 +144,28 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     toast?.let { LaunchedEffect(it) { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show(); toast = null } }
 
     val signOut = { Cloud.pushIfChanged(ctx); kotlinx.coroutines.GlobalScope.launch { runCatching { Cloud.forget(ctx) } }; signOutQuiet(ctx); token = null; nav.go(Route.Home); stage = "login" }
+    // Live TV refresh happens in place: pick channels or guide, nothing else is reloaded.
+    var liveBusy by remember { mutableStateOf<String?>(null) }
+    fun liveJob(label: String, job: suspend () -> Unit) {
+        if (liveBusy != null) return
+        liveBusy = label
+        scope.launch {
+            val r = runCatching { job() }
+            if (r.isSuccess) { LiveStore.epg.clear(); LiveStore.refreshFromHolder(ctx) }
+            liveBusy = null
+            Toast.makeText(ctx, if (r.isSuccess) "$label — done" else "Couldn't refresh: ${r.exceptionOrNull()?.message ?: "try again"}", Toast.LENGTH_LONG).show()
+        }
+    }
+    val askRefreshLive = {
+        Confirm.choose("Refresh Live TV", "Choose what to refresh. Movies and TV shows are not touched.", listOf(
+            "Live TV channels" to { liveJob("Refreshing Live TV channels") { LiveLoader.refreshChannels(ctx) } },
+            "TV guide" to { liveJob("Refreshing the TV guide") { LiveLoader.refreshGuide(ctx) } }))
+    }
+    val askRefreshCatalogue = {
+        Confirm.show("Refresh your movies and shows?", "The full list is downloaded again from your service. This can take a minute on a Fire Stick; Live TV is not touched.", "Refresh", false) {
+            Cache.clear(); Gorilla.clearCache(ctx); BoxSets.reset(); nav.go(Route.Home); stage = "loading"
+        }
+    }
     val refreshLive = {
         tv.onnowtv.livetv.LivePreviewSession.release()
         tv.onnowtv.livetv.BundleHolder.current = null; LiveStore.bundle.value = null; LiveStore.epg.clear()
@@ -172,7 +200,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                     is Route.Actor -> key(cur.member.id) { ActorScreen(cur.member, onBack = { nav.back() }) { nav.go(Route.Detail(it)) } }
                     is Route.Calendar -> CalendarScreen(onBack = { nav.back() }) { nav.go(Route.Detail(it)) }
                     is Route.BoxSet -> BoxSetScreen(cur.id, onBack = { nav.back() }, onOpen = { nav.go(Route.Detail(it)) }, onPlay = { it.playUrl?.let { url -> launchPlayer(activity, it, it.name, url, it.id) } ?: nav.go(Route.Detail(it)) })
-                    else -> CompositionLocalProvider(LocalToken provides "xtream") { Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
+                    else -> CompositionLocalProvider(LocalToken provides "xtream") { CompositionLocalProvider(LocalRowNav provides rowNav) { Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
                         val inset = safeInset()
                         when (cur) {
                             is Route.Home -> { HomeScreen(nav, rowNav, playHero, onResume = { HomePip.close(); resumeEntry(activity, it) }, onChannel = { ch -> HomePip.open(activity, ch) }); HomePipWindow(activity) }
@@ -180,8 +208,8 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             is Route.BoxSets -> BoxSetsScreen(onOpenSet = { nav.go(Route.BoxSet(it)) })
                             is Route.Search -> Box(Modifier.padding(horizontal = inset)) { SearchScreen(onOpen = { nav.go(Route.Detail(it)) }, onOpenChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) }) }
                             is Route.Library -> LibraryScreen(onBack = { nav.go(Route.Home) }, onResume = { resumeEntry(activity, it) }, onCalendar = { nav.go(Route.Calendar) }, onActor = { nav.go(Route.Actor(it)) }, onSet = { nav.go(Route.BoxSet(it)) }) { nav.go(Route.Detail(it)) }
-                            is Route.Live -> LiveTvScreen(activity, onRefresh = refreshLive)
-                            is Route.Settings -> Box(Modifier.padding(horizontal = inset)) { SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = refreshLive, onHomeRows = { nav.go(Route.HomeRows) }, onPickLiveCategory = { nav.go(Route.LiveCategoryPick) }, onBack = { nav.go(Route.Home) }) }
+                            is Route.Live -> LiveTvScreen(activity, onLoad = refreshLive, onSettings = { nav.go(Route.Settings) }, onRefresh = askRefreshLive)
+                            is Route.Settings -> Box(Modifier.padding(horizontal = inset)) { SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = askRefreshLive, onRefreshCatalogue = askRefreshCatalogue, onHomeRows = { nav.go(Route.HomeRows) }, onPickLiveCategory = { nav.go(Route.LiveCategoryPick) }, onBack = { nav.go(Route.Home) }) }
                             is Route.LiveCategoryPick -> Box(Modifier.padding(horizontal = inset)) { LiveCategoryPickScreen(onDone = { nav.go(Route.Settings) }) }
                             is Route.HomeRows -> Box(Modifier.padding(horizontal = inset)) { HomeRowsScreen(onBack = { nav.go(Route.Settings) }) }
                             else -> {}
@@ -189,12 +217,14 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                         val activeId = when (val top = nav.stack.first()) { is Route.Home -> "home"; is Route.Tab -> if (top.type == "movie") "movies" else "tv"; is Route.HomeRows, is Route.LiveCategoryPick -> "settings"; is Route.BoxSet -> "boxsets"; else -> NAV_ITEMS.firstOrNull { it.route == top }?.id ?: "" }
                         TopNav(activeId, autoplay, rowNav, onItem = { item -> item.route?.let { nav.go(it) } },
                             onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay); toast = if (autoplay) "Auto play ON" else "Auto play OFF" }, onSpeedUp = { BoxBoost.show(activity, auto = false) },
-                            onSpeedTest = { toast = "Speed test lives in Live TV → Settings for now" }, onProfile = { stage = "profiles" })
-                    } }
+                            onSpeedTest = { toast = "Speed test is coming soon" }, onProfile = { stage = "profiles" })
+                    } } }
                 }
                 TitleActionsSheet(activity) { nav.go(Route.Detail(it)) }
                 TrailerFullscreen()
                 NotifyHitToast { nav.go(Route.Detail(it)) }
+                liveBusy?.let { b -> Box(Modifier.fillMaxSize()) { Row(Modifier.align(Alignment.TopCenter).padding(top = 84.dp).clip(androidx.compose.foundation.shape.CircleShape).background(androidx.compose.ui.graphics.Color(0xF011182A)).border(1.dp, Blue.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape).padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = Blue, strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)); Text("$b…", color = Txt, fontFamily = Geist, fontSize = 13.sp) } } }
                 ConfirmDialog()
                 // Anything saved (My List, Continue Watching, reminders, actors, profiles) is uploaded within a minute, not only when the app closes.
                 LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(45_000); Cloud.pushIfChanged(ctx) } }

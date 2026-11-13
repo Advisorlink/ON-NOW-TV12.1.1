@@ -75,7 +75,7 @@ private fun NavButton(icon: ImageVector, label: String, active: Boolean, accent:
     val req = remember { FocusRequester() }
     if (isHome) rowNav?.register(-1, req)
     Focusable(Modifier.onGloballyPositioned { cx = it.positionInRoot().x + it.size.width / 2f }, onClick = onClick, requester = req,
-        onFocus = { onHover(label, cx, it); if (it) rowNav?.focused(-1, req) }) { f ->
+        onFocus = { onHover(label, cx, it); rowNav?.inNav = it; if (it) rowNav?.focused(-1, req) }) { f ->
         val color = if (active) (if (accent) Amber else Blue) else Txt2
         Box(Modifier.size(40.dp).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape)
             .background(if (active) color.copy(alpha = 0.14f) else Color.Transparent), contentAlignment = Alignment.Center) {

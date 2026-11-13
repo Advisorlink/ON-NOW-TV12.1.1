@@ -1228,3 +1228,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.24 (build 63) — TEST COPY, BUILD-VERIFIED ONLY
 - Coming Soon row vanished for the user. Not removed in code; row was conditional: needed >=3 upcoming titles not on the service, fetched within 6 s. Backend /api/tmdb/upcoming-movies currently returns only 8 titles. Now: shows with >=1 title, 8 s timeout, last good list cached on the box (Tmdb.upcomingSaved), window 180 days. Exact cause on the user's box not confirmed. If still missing: check Settings > Home screen for a hidden 'Coming Soon' row; consider widening the backend list.
+
+## 3.9.25 (build 64) — TEST COPY, BUILD-VERIFIED ONLY
+- Down from the menu bar on Library / Settings: RowNav.fallback + inNav (LocalRowNav) sends focus to the screen's first control. Cause of the user's "can't go back down" not reproduced; fix is by reasoning.
+- Refresh Live TV (Live TV refresh icon + Settings): Confirm.choose -> "Live TV channels" / "TV guide" / Cancel; runs in place (LiveLoader.refreshChannels / refreshGuide) with a "Refreshing…" pill, no splash, movies untouched.
+- Refresh movies & shows: confirm, then clears caches and shows the Reborn loading screen until the new list is in (Live TV loads from cache there).
+- V2 UI removed from reach: Live TV gear now opens Reborn Settings; "Live TV settings" row (V2 SettingsActivity) removed. STILL V2 UI: Sports Hub button (SportsHubActivity) and the full-screen Live TV player (PlayerActivity). No longer reachable: channel-group reorder/hide, player engine/buffer, subtitle/audio language, guide time offset, parental PIN setup — need Reborn-native screens if wanted.
+- Settings wording pass (Autoplay, Movies & shows, sign-out text etc.). Speed test button still does nothing (toast "coming soon").

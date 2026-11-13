@@ -92,6 +92,7 @@ fun LibraryScreen(onBack: () -> Unit = {}, onResume: (CwEntry) -> Unit = {}, onC
     val movies = items.filter { it.type != "series" }
     val back = remember { FocusRequester() }
     FocusOnShow(back, Unit)
+    LocalRowNav.current?.fallback = back
     val inset = safeInset()
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val cols = (((maxWidth - 112.dp - inset * 2 + 18.dp) / 150.dp).toInt()).coerceAtLeast(2)

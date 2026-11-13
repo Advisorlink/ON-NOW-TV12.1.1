@@ -23,6 +23,23 @@ object LiveLoader {
         (epg ?: bundle).also { BundleHolder.current = it }
     }
 
+    /** Channel list only — the guide already on the box is kept. */
+    suspend fun refreshChannels(ctx: Context) = withContext(Dispatchers.IO) {
+        val json = try { DirectProviderFetcher.fetchBundleJson(ctx) } catch (e: DirectProviderFetcher.InvalidCredentialsException) { throw BadLogin() }
+        val fresh = XtreamRepository.parseBundleJson(json)
+        if (fresh.channels.isEmpty()) throw IllegalStateException("The service returned no channels")
+        BundleCache.saveJson(ctx, json)
+        val old = BundleHolder.current
+        val guideIds = old?.channels?.associate { it.id to it.epgChannelId }.orEmpty()
+        BundleHolder.current = fresh.copy(channels = fresh.channels.map { c -> guideIds[c.id]?.takeIf { it.isNotBlank() }?.let { c.copy(epgChannelId = it) } ?: c }, epg = old?.epg ?: fresh.epg)
+    }
+
+    /** TV guide only — the channel list is left alone. */
+    suspend fun refreshGuide(ctx: Context) = withContext(Dispatchers.IO) {
+        val b = BundleHolder.current ?: XtreamRepository.parseBundleJson(DirectProviderFetcher.fetchBundleJson(ctx))
+        BundleHolder.current = fetchGuide(ctx, b)
+    }
+
     private suspend fun fetchGuide(ctx: Context, bundle: XtreamBundle): XtreamBundle {
         val ids = bundle.channels.mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }.toSet()
         val names = bundle.channels.map { XmlTvFetcher.normaliseChannelName(it.name) }.filter { it.isNotBlank() }.toSet()

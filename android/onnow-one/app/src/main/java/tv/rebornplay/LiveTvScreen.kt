@@ -63,7 +63,7 @@ private val PanelShape = RoundedCornerShape(12.dp)
 
 /** Live TV guide in the Reborn look — hero + preview window, categories | channels | programme guide. */
 @Composable
-fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
+fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit, onRefresh: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val bundle by LiveStore.bundle
@@ -87,7 +87,7 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Eyebrow("Live TV"); Spacer(Modifier.height(10.dp))
                 Text("Your channels aren't loaded yet", color = Txt, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 26.sp)
-                Spacer(Modifier.height(18.dp)); Pill("Load channels & guide", primary = true, onClick = onRefresh)
+                Spacer(Modifier.height(18.dp)); Pill("Load channels & guide", primary = true, onClick = onLoad)
             }
         }
         return
@@ -150,7 +150,7 @@ fun LiveTvScreen(activity: Activity, onRefresh: () -> Unit) {
     val side = 10.dp + inset / 2
     Column(Modifier.fillMaxSize().background(LvBg)) {
         LiveHero(current, preview, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
-            onSettings = { LiveTvEntry.open(activity, settings = true) },
+            onSettings = onSettings,
             onSportsHub = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }) { v -> playerView = v }
         Row(Modifier.weight(1f).fillMaxWidth().padding(start = side, end = side, bottom = 10.dp + inset / 2), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             CategoryColumn(cats, catId, locked, unlocked, favCount = favs.size, total = b.channels.size, onFocus = { focusedCat = it }, onSelect = { selectCategory(it) })
