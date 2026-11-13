@@ -13,6 +13,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.input.key.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -177,16 +179,17 @@ private val Grey = androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx
 
 /** CastRow.jsx ActorCard — 2:3 portrait, black & white until focused, name + "as Character" on a bottom fade. */
 @Composable
-fun CastCard(m: CastMember, w: Dp = 120.dp, onClick: () -> Unit) {
+fun CastCard(m: CastMember, w: Dp = 120.dp, requester: FocusRequester? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
-    Focusable(onClick = onClick) { f ->
+    Focusable(onClick = onClick, requester = requester) { f ->
         Box(Modifier.width(w).aspectRatio(2f / 3f).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(shape).background(Brush.verticalGradient(listOf(Bg2, Bg1))).border(1.dp, Color.White.copy(alpha = 0.05f), shape)) {
             if (m.photo != null) AsyncImage(m.photo, m.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, colorFilter = if (f) null else Grey, alpha = if (f) 1f else 0.92f)
             else Text(m.name.take(1).uppercase(), color = Blue.copy(alpha = 0.18f), fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 56.sp, modifier = Modifier.align(Alignment.Center))
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.42f).background(Brush.verticalGradient(0f to Color.Transparent, 0.78f to Color(0xED06080F), 1f to Color(0xFF06080F))))
             Column(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
                 Text(m.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (m.character.isNotBlank()) Mono("as ${m.character}", 8.sp, Txt2, 0.16f, Modifier.padding(top = 3.dp))
+                // The second line is always there (blank if unknown) so every name sits at the same height.
+                Mono(if (m.character.isNotBlank()) "as ${m.character}" else " ", 8.sp, Txt2, 0.16f, Modifier.padding(top = 3.dp))
             }
         }
     }
@@ -194,19 +197,45 @@ fun CastCard(m: CastMember, w: Dp = 120.dp, onClick: () -> Unit) {
 
 /** Cast strip on the title page (CastRow.jsx). */
 @Composable
-fun CastRow(item: Item, side: Dp = 0.dp, onActor: (CastMember) -> Unit) {
+fun CastRow(item: Item, side: Dp = 0.dp, onActor: (CastMember) -> Unit) = TitleLanes(item, side, false, onActor) {}
+
+/** Bottom lane of the title page (Vesper): Cast, and — one press Down — similar titles that are on the service. Two dots show which lane is up. */
+@Composable
+fun TitleLanes(item: Item, side: Dp, withSimilar: Boolean, onActor: (CastMember) -> Unit, onOpen: (Item) -> Unit) {
     val ctx = LocalContext.current
     var cast by remember(item.id) { mutableStateOf<List<CastMember>>(emptyList()) }
-    LaunchedEffect(item.id) { val t = Tmdb.resolve(ctx, item) ?: return@LaunchedEffect; cast = Tmdb.cast(item.type, t).take(16) }
-    if (cast.isEmpty()) return
-    // Vesper: card width clamp(116px, 9.4vw, 172px), 14 gap, heading 18 + count.
+    var similar by remember(item.id) { mutableStateOf<List<Item>>(emptyList()) }
+    var lane by remember(item.id) { mutableStateOf(0) }
+    LaunchedEffect(item.id) {
+        val t = Tmdb.resolve(ctx, item)
+        if (t != null) cast = Tmdb.cast(item.type, t).take(16)
+        if (withSimilar) similar = Tmdb.similarOnService(item, t)
+    }
+    if (cast.isEmpty() && similar.isEmpty()) return
+    val both = cast.isNotEmpty() && similar.isNotEmpty()
+    val showing = if (cast.isEmpty()) 1 else if (similar.isEmpty()) 0 else lane
     val w = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.094f).dp.coerceIn(116.dp, 172.dp)
-    Column {
-        Row(Modifier.padding(start = side, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
-            Text("Cast", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 18.sp, letterSpacing = (-0.4).sp)
-            Spacer(Modifier.width(12.dp)); Mono("${cast.size} actors", 10.sp, Txt3, 0.22f, Modifier.padding(bottom = 3.dp))
+    val first = remember(item.id) { FocusRequester() }
+    var jump by remember { mutableStateOf(0) }
+    LaunchedEffect(jump) { if (jump > 0) { withFrameNanos { }; runCatching { first.requestFocus() } } }
+    val keys = Modifier.onPreviewKeyEvent { e ->
+        if (!both) return@onPreviewKeyEvent false
+        val go = (e.key == Key.DirectionDown && lane == 0) || (e.key == Key.DirectionUp && lane == 1)
+        if (go && e.type == KeyEventType.KeyDown) { lane = 1 - lane; jump++ }
+        go
+    }
+    Column(keys) {
+        Row(Modifier.padding(start = side, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (both) Column(Modifier.padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                for (i in 0..1) Box(Modifier.size(7.dp).clip(CircleShape).background(if (showing == i) BlueBright else Blue.copy(alpha = 0.25f)))
+            }
+            Text(if (showing == 0) "Cast" else if (item.type == "series") "Similar TV Shows" else "Similar Movies", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 18.sp, letterSpacing = (-0.4).sp)
+            Spacer(Modifier.width(12.dp))
+            Mono(if (showing == 0) "${cast.size} actors" + (if (both) " · Down for similar" else "") else "${similar.size} on your service" + (if (both) " · Up for cast" else ""), 10.sp, Txt3, 0.22f)
         }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(top = 12.dp, bottom = 14.dp, start = side, end = side)) { items(cast, key = { it.id }) { m -> CastCard(m, w) { onActor(m) } } }
+        val pad = PaddingValues(top = 12.dp, bottom = 14.dp, start = side, end = side)
+        if (showing == 0) LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = pad) { itemsIndexed(cast, key = { _, m -> m.id }) { i, m -> CastCard(m, w, if (i == 0) first else null) { onActor(m) } } }
+        else LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = pad) { itemsIndexed(similar, key = { _, m -> m.id }) { i, m -> CoverTile(m, w, requester = if (i == 0) first else null) { onOpen(m) } } }
     }
 }
 

@@ -89,7 +89,7 @@ object LiveStore {
         return when (catId) {
             ALL -> b.channels
             FAVS -> b.channels.filter { it.id in favourites.value }
-            else -> b.channels.filter { it.categoryId == catId }
+            else -> b.channels.filter { it.categoryId == catId }.let { l -> if (Settings.channelSort == "az") l.sortedBy { it.name.lowercase() } else l }
         }
     }
 

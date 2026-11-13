@@ -91,6 +91,18 @@ object Tmdb {
         }.getOrNull()
     }
 
+    /** Similar titles, only ones the service actually has: TMDB recommendations matched to the catalogue, topped up from the same category. */
+    suspend fun similarOnService(item: Item, tmdbId: Long?): List<Item> = withContext(Dispatchers.Default) {
+        val recs = if (tmdbId == null) emptyList() else runCatching {
+            val a = withContext(Dispatchers.IO) { RebornApi.obj("/api/tmdb/recommendations/${if (item.type == "series") "tv" else "movie"}/$tmdbId") }.optJSONArray("results") ?: JSONArray()
+            (0 until a.length()).mapNotNull { i -> val o = a.getJSONObject(i); Match.find(if (o.optString("media_type") == "tv") "series" else "movie", o.optString("title", o.optString("name")), o.optString("year").take(4).toIntOrNull() ?: 0) }
+        }.getOrDefault(emptyList())
+        val c = Gorilla.catalog
+        val pool = (if (item.type == "series") c?.series else c?.movies).orEmpty()
+        val same = if (item.category.isNullOrBlank()) emptyList() else pool.filter { it.category == item.category && it.poster != null }.sortedByDescending { it.added }.take(30)
+        (recs + same).filter { it.id != item.id && Match.norm(it.name) != Match.norm(item.name) }.distinctBy { it.id }.take(20)
+    }
+
     private val palette = intArrayOf(0xFF5DC8FF.toInt(), 0xFFFF6BCB.toInt(), 0xFFFFD43B.toInt(), 0xFF7DF9A4.toInt(), 0xFFFF8E6B.toInt(), 0xFFA580FF.toInt(), 0xFF5DE3D9.toInt(), 0xFFFFC36B.toInt())
 
     /** Upcoming episodes (next 120 days) for the series saved in My Library. Returns episodes + imdb → library item. */

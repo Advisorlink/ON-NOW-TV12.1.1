@@ -46,6 +46,7 @@ class RebornActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Rebrand.install(application)
         Lockdown.enforce(this)
         // Same as V2: release builds block OS screenshots / screen recording / cast mirroring (HDMI output is unaffected).
         if (!tv.vesper.app.BuildConfig.DEBUG) window.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
@@ -173,7 +174,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
         liveReady = false; stage = "loading"
     }
 
-    Box(Modifier.fillMaxSize().background(Bg0).onPreviewKeyEvent { Confirm.key(it) || TitleActions.key(it) }) {
+    Box(Modifier.fillMaxSize().background(Bg0).onPreviewKeyEvent { Confirm.key(it) || SpeedTest.key(it) || TitleActions.key(it) }) {
         when (stage) {
             "login" -> LoginScreen { user, pass ->
                 signOutQuiet(ctx)   // drop anything cached under a previous account (old channels, old catalogue)
@@ -217,7 +218,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                         val activeId = when (val top = nav.stack.first()) { is Route.Home -> "home"; is Route.Tab -> if (top.type == "movie") "movies" else "tv"; is Route.HomeRows, is Route.LiveCategoryPick -> "settings"; is Route.BoxSet -> "boxsets"; else -> NAV_ITEMS.firstOrNull { it.route == top }?.id ?: "" }
                         TopNav(activeId, autoplay, rowNav, onItem = { item -> item.route?.let { nav.go(it) } },
                             onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay); toast = if (autoplay) "Auto play ON" else "Auto play OFF" }, onSpeedUp = { BoxBoost.show(activity, auto = false) },
-                            onSpeedTest = { toast = "Speed test is coming soon" }, onProfile = { stage = "profiles" })
+                            onSpeedTest = { HomePip.close(); TrailerPlayer.stop(); SpeedTest.show() }, onProfile = { stage = "profiles" })
                     } } }
                 }
                 TitleActionsSheet(activity) { nav.go(Route.Detail(it)) }
@@ -225,6 +226,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 NotifyHitToast { nav.go(Route.Detail(it)) }
                 liveBusy?.let { b -> Box(Modifier.fillMaxSize()) { Row(Modifier.align(Alignment.TopCenter).padding(top = 84.dp).clip(androidx.compose.foundation.shape.CircleShape).background(androidx.compose.ui.graphics.Color(0xF011182A)).border(1.dp, Blue.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape).padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = Blue, strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)); Text("$b…", color = Txt, fontFamily = Geist, fontSize = 13.sp) } } }
+                SpeedTestDialog()
                 ConfirmDialog()
                 // Anything saved (My List, Continue Watching, reminders, actors, profiles) is uploaded within a minute, not only when the app closes.
                 LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(45_000); Cloud.pushIfChanged(ctx) } }

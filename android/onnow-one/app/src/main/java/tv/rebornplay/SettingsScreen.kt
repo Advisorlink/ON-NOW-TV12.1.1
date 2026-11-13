@@ -30,7 +30,7 @@ private val SECTIONS = listOf(
     Sec("appearance", "Appearance", "Sizes, covers, trailers", Lucide.Palette),
     Sec("home", "Home screen", "Arrange your rows", Lucide.LayoutGrid),
     Sec("playback", "Playback", "Autoplay", Lucide.Play),
-    Sec("livetv", "Live TV", "Refresh channels or guide", Lucide.RadioTower),
+    Sec("livetv", "Live TV", "Player, guide, groups, PIN", Lucide.RadioTower),
     Sec("profiles", "Profiles", "Who's watching", Lucide.UsersRound),
     Sec("catalogue", "Movies & shows", "Refresh the list", Lucide.Database),
     Sec("about", "About", "Version & build", Lucide.Info),
@@ -60,8 +60,9 @@ fun SettingsScreen(activity: Activity, autoplay: Boolean, onAutoplay: () -> Unit
                         "home" -> HomeSection(onHomeRows, onPickLiveCategory)
                         "playback" -> PlaybackSection(autoplay, onAutoplay)
                         "livetv" -> {
-                            SectionHead("Settings · Live TV", "Channels and guide", Lucide.RadioTower)
+                            SectionHead("Settings · Live TV", "Live TV", Lucide.RadioTower)
                             ActionRow("Refresh Live TV", "Asks whether to refresh the channel list or the TV guide, then updates just that one. Movies and TV shows are not touched.", "Refresh", onClick = onRefreshLive)
+                            LiveSettings()
                         }
                         "profiles" -> {
                             val user = remember { RebornSession.username(ctx) ?: "" }
@@ -248,6 +249,97 @@ private fun SliderRow(title: String, value: Float, min: Float, max: Float, desc:
             }
             Spacer(Modifier.height(8.dp))
             Row { Mono("Smaller", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono("Applies instantly · OK resets to 100 %", 9.sp, Txt3, 0.16f); Spacer(Modifier.weight(1f)); Mono("Bigger", 9.sp, Txt3, 0.16f) }
+        }
+    }
+}
+
+private fun <T> next(list: List<T>, cur: T): T = list[(list.indexOf(cur) + 1).mod(list.size)]
+
+/** Everything the old Live TV settings screen had that still applies, as Reborn settings. OK on a row steps to its next option. */
+@Composable
+private fun LiveSettings() {
+    val ctx = LocalContext.current
+    val S = tv.onnowtv.livetv.data.Settings
+    val Lock = tv.onnowtv.livetv.data.ParentalLock
+    var t by remember { mutableStateOf(0) }
+    fun on(b: Boolean) = if (b) "On" else "Off"
+    key(t) {
+        SubHead("Player")
+        val eng = tv.onnowtv.livetv.data.PlayerPrefs.getBackend(ctx)
+        ActionRow("Video engine", "ExoPlayer is fastest; LibVLC plays unusual streams.", if (eng.token == "exo") "ExoPlayer" else "LibVLC") { tv.onnowtv.livetv.data.PlayerPrefs.setBackend(ctx, next(tv.onnowtv.livetv.data.PlayerPrefs.Backend.values().toList(), eng)); t++ }
+        ActionRow("Buffer size", "Larger buffers survive weak Wi-Fi but take longer to start.", S.bufferSize) { S.bufferSize = next(listOf("small", "normal", "large"), S.bufferSize); t++ }
+        ActionRow("Decoding", "Try Software if the picture is green, black or stuttering.", if (S.softwareDecoding) "Software" else "Hardware") { S.softwareDecoding = !S.softwareDecoding; t++ }
+        val langs = S.audioLanguages
+        ActionRow("Preferred audio language", "", langs.firstOrNull { it.first == S.audioLanguage }?.second ?: "English") { S.audioLanguage = next(langs.map { it.first }, S.audioLanguage); t++ }
+        ToggleRow("Subtitles", "Turn subtitles on by default when a channel has them.", S.subtitlesOn) { S.subtitlesOn = !S.subtitlesOn; t++ }
+        val subs = langs.filter { it.first != "any" && it.first != "off" }
+        ActionRow("Subtitle language", "", subs.firstOrNull { it.first == S.subtitleLanguage }?.second ?: "English") { S.subtitleLanguage = next(subs.map { it.first }, S.subtitleLanguage); t++ }
+        val aspects = listOf("Fit", "Zoom", "Fill", "16:9")
+        ActionRow("Default picture shape", "How the picture fills the screen when a channel starts.", aspects[S.defaultAspect.coerceIn(0, 3)]) { S.defaultAspect = (S.defaultAspect + 1) % 4; t++ }
+        ActionRow("Up / Down while watching", "", if (S.playerUpDown == "channels") "Channel up / down" else "Up = channel, Down = controls") { S.playerUpDown = if (S.playerUpDown == "channels") "mixed" else "channels"; t++ }
+
+        SubHead("Guide")
+        ActionRow("Guide auto-update", "How often the TV guide refreshes on its own.", "Every ${S.epgIntervalHours} h") { S.epgIntervalHours = next(listOf(3, 6, 12, 24), S.epgIntervalHours); t++ }
+        val offs = listOf(-120, -90, -60, -30, 0, 30, 60, 90, 120)
+        ActionRow("Guide time offset", "Shift guide times if programmes show at the wrong hour. Applies after the guide is next refreshed.", S.epgOffsetMinutes.let { if (it == 0) "None" else "${if (it > 0) "+" else ""}$it min" }) { S.epgOffsetMinutes = next(offs, S.epgOffsetMinutes); t++ }
+        ActionRow("Clock format", "", if (S.clock24) "24-hour" else "12-hour") { S.clock24 = !S.clock24; t++ }
+
+        SubHead("Channel names")
+        ActionRow("Channel order inside a group", "", if (S.channelSort == "az") "A – Z" else "Playlist order") { S.channelSort = if (S.channelSort == "az") "playlist" else "az"; t++ }
+        ToggleRow("Clean up channel names", "Removes prefixes such as \"UK|\" or \"HD:\" from every channel. Example: \"UK| BBC One HD\" becomes \"${S.cleanName(ctx, "UK| BBC One HD")}\".", S.nameCleanup) { S.nameCleanup = !S.nameCleanup; t++ }
+
+        SubHead("Parental control")
+        var pinDialog by remember { mutableStateOf(false) }
+        ActionRow(if (Lock.hasPin(ctx)) "Change parental PIN" else "Set parental PIN", "A 4-digit PIN that opens locked groups.", if (Lock.hasPin(ctx)) "Change" else "Set") { pinDialog = true }
+        if (pinDialog) PinSetDialog(onClose = { pinDialog = false }) { Lock.setPin(ctx, it); pinDialog = false; t++ }
+
+        SubHead("Channel groups")
+        Text("Move a group up or down, hide it from Live TV, or lock it behind the parental PIN. Changes show the next time Live TV opens.", color = Txt2, fontFamily = Geist, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 12.dp))
+        val b = LiveStore.bundle.value
+        if (b == null) Text("Live TV hasn't loaded yet.", color = Txt3, fontFamily = Geist, fontSize = 13.sp)
+        else {
+            val hidden = S.hiddenGroups(ctx); val locked = Lock.lockedIds(ctx); val order = S.groupOrder(ctx)
+            val cats = b.categories.let { c -> if (order.isEmpty()) c else c.sortedBy { order.indexOf(it.id).let { i -> if (i < 0) Int.MAX_VALUE else i } } }
+            fun move(i: Int, d: Int) { val ids = cats.map { it.id }.toMutableList(); val j = i + d; if (j !in ids.indices) return; ids[i] = ids[j].also { ids[j] = ids[i] }; S.setGroupOrder(ctx, ids); t++ }
+            cats.forEachIndexed { i, c ->
+                val hid = c.id in hidden; val lk = c.id in locked; val shape = RoundedCornerShape(10.dp)
+                Row(Modifier.fillMaxWidth().padding(bottom = 6.dp).clip(shape).background(Color.White.copy(alpha = 0.04f)).border(1.dp, Color.White.copy(alpha = 0.08f), shape).padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(c.name, color = if (hid) Txt3 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                    if (hid) Mono("Hidden", 9.sp, Txt3, 0.16f, Modifier.padding(end = 10.dp))
+                    if (lk) Mono("Locked", 9.sp, Amber, 0.16f, Modifier.padding(end = 10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CircleBtn(Lucide.ChevronUp, "Move up", size = 32.dp) { move(i, -1) }
+                        CircleBtn(Lucide.ChevronDown, "Move down", size = 32.dp) { move(i, 1) }
+                        CircleBtn(if (hid) Lucide.EyeOff else Lucide.Eye, if (hid) "Show" else "Hide", size = 32.dp) { S.setHiddenGroups(ctx, if (hid) hidden - c.id else hidden + c.id); t++ }
+                        CircleBtn(if (lk) Lucide.Lock else Lucide.LockOpen, if (lk) "Unlock" else "Lock", size = 32.dp) {
+                            if (!Lock.hasPin(ctx)) android.widget.Toast.makeText(ctx, "Set a parental PIN first", android.widget.Toast.LENGTH_SHORT).show()
+                            else { if (lk) Lock.unlock(ctx, c.id) else Lock.lock(ctx, c.id); t++ }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PinSetDialog(onClose: () -> Unit, onSet: (String) -> Unit) {
+    var a by remember { mutableStateOf("") }; var b by remember { mutableStateOf("") }; var err by remember { mutableStateOf<String?>(null) }
+    val req = remember { FocusRequester() }
+    FocusOnShow(req, Unit)
+    fun save() { if (!a.matches(Regex("\\d{4}"))) err = "The PIN must be 4 digits" else if (a != b) err = "The two PINs don't match" else onSet(a) }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Column(Modifier.width(420.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF11182A)).border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(16.dp)).padding(24.dp)) {
+            Mono("Parental control", 10.sp, Blue, 0.28f)
+            Text("Set a 4-digit PIN", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp, bottom = 14.dp))
+            Field(a, { if (it.length <= 4 && it.all { c -> c.isDigit() }) { a = it; err = null } }, "New PIN", Lucide.Lock, password = true, requester = req)
+            Spacer(Modifier.height(10.dp))
+            Field(b, { if (it.length <= 4 && it.all { c -> c.isDigit() }) { b = it; err = null } }, "Enter it again", Lucide.Lock, password = true, onDone = { save() })
+            err?.let { Text(it, color = Color(0xFFFF8A8A), fontFamily = Geist, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)) }
+            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Pill("Save PIN", primary = true, height = 42.dp, fontSize = 14.sp) { save() }
+                Pill("Cancel", height = 42.dp, fontSize = 14.sp, onClick = onClose)
+            }
         }
     }
 }

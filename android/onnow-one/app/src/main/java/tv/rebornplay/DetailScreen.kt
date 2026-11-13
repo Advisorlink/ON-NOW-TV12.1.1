@@ -133,13 +133,26 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                     Spacer(Modifier.height(12.dp))
                     Text(meta.description.orEmpty(), color = Txt2, fontFamily = Geist, fontSize = if (compact) 13.sp else 16.sp, lineHeight = if (compact) 18.sp else 25.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 560.dp))
                     Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp, horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         val h = if (compact) 46.dp else btnH
                         if (external) Pill(if (notify) "We'll notify you" else "Notify me in HD", icon = if (notify) Lucide.BellRing else Lucide.Bell, primary = !notify, height = h, fontSize = 16.sp, requester = primary) { notify = NotifyList.toggle(ctx, meta) }
                         else if (!isSeries) Pill(if (!ready) "Loading…" else "Play movie", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && meta.playUrl != null) { playMovie() }
                         Pill(if (trailerBusy) "Loading…" else if (isSeries) "Play Trailer" else "Trailer", icon = Lucide.Clapperboard, height = h, fontSize = 15.sp, requester = if (isSeries && !external) primary else null) { playTrailer() }
                         if (!external) Pill(if (inList) "In My List" else "My List", icon = if (inList) Lucide.Check else Lucide.Plus, height = h, fontSize = 15.sp) { inList = Library.toggle(ctx, meta) }
                         if (!external && !Match.isHd(meta)) Pill(if (notify) "We'll notify you" else "Notify me in HD", icon = if (notify) Lucide.BellRing else Lucide.Bell, height = h, fontSize = 15.sp) { notify = NotifyList.toggle(ctx, meta) }
+                        // Vesper: the seasons start on the same line as the buttons.
+                        if (isSeries && episodes.isNotEmpty()) {
+                            Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(28.dp).background(Color.White.copy(alpha = 0.14f)))
+                            seasons.forEach { s ->
+                                val active = s == season && shown
+                                Focusable(onClick = { if (shown && s == season) shown = false else { season = s; shown = true } }) { f ->
+                                    Box(Modifier.height(40.dp).focusScale(f, 1.08f).pillFocus(f).clip(CircleShape).background(if (active) Blue else if (f) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f))
+                                        .border(if (f) 1.5.dp else 1.dp, if (f) BlueBright else if (active) Color.Transparent else Color.White.copy(alpha = 0.08f), CircleShape).padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+                                        Text(if (s == 0) "Specials" else "Season $s", color = if (active) Bg0 else if (f) Txt else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                    }
+                                }
+                            }
+                        }
                     }
                     if (error != null) { Spacer(Modifier.height(12.dp)); Text(error!!, color = Color(0xFFFF8A8A), fontFamily = Geist, fontSize = 13.sp) }
                     if (external) { Spacer(Modifier.height(12.dp)); Text(if (notify) "On your notify list — a pop-up appears in the top-right corner the moment this arrives on your service in HD." else "Not on your service yet. Press Notify me and we'll tell you the moment it arrives in HD.", color = Txt2, fontFamily = Geist, fontSize = 13.sp, lineHeight = 19.sp) }
@@ -147,29 +160,14 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
             }
             if (!pinned && !(isSeries && shown)) item { Spacer(Modifier.height(26.dp)); CastRow(meta, onActor = onActor) }
             if (isSeries && episodes.isNotEmpty()) {
-                item {
-                    Spacer(Modifier.height(if (compact) 16.dp else 22.dp))
-                    Mono("${seasons.size} season${if (seasons.size == 1) "" else "s"} · ${episodes.count { it.season == season }} episodes this season", 10.sp, Txt3, 0.24f, Modifier.padding(bottom = 10.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 10.dp, horizontal = 4.dp)) {
-                        items(seasons) { s ->
-                            val active = s == season && shown
-                            Focusable(onClick = { if (shown && s == season) shown = false else { season = s; shown = true } }) { f ->
-                                Box(Modifier.height(40.dp).focusScale(f, 1.08f).pillFocus(f).clip(CircleShape).background(if (active) Blue else if (f) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f))
-                                    .border(if (f) 1.5.dp else 1.dp, if (f) BlueBright else if (active) Color.Transparent else Color.White.copy(alpha = 0.08f), CircleShape).padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
-                                    Text(if (s == 0) "Specials" else "Season $s", color = if (active) Bg0 else if (f) Txt else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
+                if (shown) item { Mono("Season $season · ${episodes.count { it.season == season }} episodes", 10.sp, Txt3, 0.24f, Modifier.padding(top = 20.dp, bottom = 12.dp)) }
                 if (shown) items(episodes.filter { it.season == season }, key = { it.id }) { e ->
                     Box(Modifier.fillMaxWidth().padding(bottom = 14.dp)) { EpisodeRow(e, meta.background ?: meta.poster, progress[e.id] ?: 0f) { playEpisode(e) } }
                 }
             }
         }
         if (pinned) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(0f to Color.Transparent, 0.7f to Bg0.copy(alpha = 0.7f), 1f to Bg0.copy(alpha = 0.9f))).padding(top = 40.dp, bottom = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.05f).dp - 14.dp)) {
-            CastRow(meta, side = 80.dp, onActor = onActor)
+            TitleLanes(meta, 80.dp, withSimilar = !external, onActor = onActor) { TitleActions.details(it) }
         }
     }
 }
