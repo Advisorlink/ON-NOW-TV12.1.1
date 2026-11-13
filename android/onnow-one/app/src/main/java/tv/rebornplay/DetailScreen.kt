@@ -132,8 +132,8 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
                     MetaLine(meta, if (compact) 14.sp else 18.sp)
                     Spacer(Modifier.height(12.dp))
                     Text(meta.description.orEmpty(), color = Txt2, fontFamily = Geist, fontSize = if (compact) 13.sp else 16.sp, lineHeight = if (compact) 18.sp else 25.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 560.dp))
-                    Spacer(Modifier.height(if (compact) 16.dp else 26.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp, horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(Modifier.height(if (compact) 8.dp else 18.dp))
+                    Row(Modifier.offset(x = (-22).dp, y = (-10).dp).horizontalScroll(rememberScrollState()).padding(vertical = 18.dp, horizontal = 22.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         val h = if (compact) 46.dp else btnH
                         if (external) Pill(if (notify) "We'll notify you" else "Notify me in HD", icon = if (notify) Lucide.BellRing else Lucide.Bell, primary = !notify, height = h, fontSize = 16.sp, requester = primary) { notify = NotifyList.toggle(ctx, meta) }
                         else if (!isSeries) Pill(if (!ready) "Loading…" else "Play movie", icon = Lucide.Play, primary = true, height = h, fontSize = 16.sp, requester = primary, enabled = ready && meta.playUrl != null) { playMovie() }

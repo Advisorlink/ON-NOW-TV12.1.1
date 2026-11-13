@@ -189,7 +189,7 @@ fun CastCard(m: CastMember, w: Dp = 120.dp, requester: FocusRequester? = null, o
             Column(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
                 Text(m.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 // The second line is always there (blank if unknown) so every name sits at the same height.
-                Mono(if (m.character.isNotBlank()) "as ${m.character}" else " ", 8.sp, Txt2, 0.16f, Modifier.padding(top = 3.dp))
+                Text(if (m.character.isNotBlank()) "AS ${m.character.uppercase()}" else " ", color = Txt2, fontFamily = GeistMono, fontSize = 8.sp, lineHeight = 11.sp, letterSpacing = 1.2.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
             }
         }
     }

@@ -1242,3 +1242,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Rebrand.kt: activity-lifecycle + layout listener rewrites old brand wording ("ON NOW TV [V2] [Live TV]", "Vesper") to "Reborn Play" in any classic-View screen (players, Sports Hub) — shared V2 sources untouched. Does not reach AlertDialogs/toasts/notifications. RebrandTest (2).
 - Title page: actor names on one line with a reserved character line (aligned); TitleLanes = Cast lane + Down -> Similar Movies / TV Shows (TMDB recommendations matched to the catalogue, topped up from the same category; service titles only), two dots show the lane. Series: season pills moved onto the button row.
 - Build env is wiped on pod reset: run scripts/setup-vesper-build-env.sh, then write /android-sdk/licenses/android-sdk-license.
+
+## 3.9.28 (build 67) — TEST COPY, BUILD-VERIFIED ONLY
+- From user photos: actor 'AS CHARACTER' line wrapped to 2 lines and pushed names up -> now one line with ellipsis. Play button glow clipped by the scrolling button row -> row padded 22/18dp (offset back so buttons don't move).
