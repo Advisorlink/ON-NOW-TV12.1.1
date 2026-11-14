@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import tv.onnowtv.livetv.BundleHolder
 import tv.onnowtv.livetv.data.*
 
@@ -36,8 +37,12 @@ object LiveLoader {
 
     /** TV guide only — the channel list is left alone. */
     suspend fun refreshGuide(ctx: Context) = withContext(Dispatchers.IO) {
-        val b = BundleHolder.current ?: XtreamRepository.parseBundleJson(DirectProviderFetcher.fetchBundleJson(ctx))
-        BundleHolder.current = fetchGuide(ctx, b)
+        guideLock.lock()
+        try {
+            val b = BundleHolder.current ?: XtreamRepository.parseBundleJson(DirectProviderFetcher.fetchBundleJson(ctx))
+            val fresh = fetchGuide(ctx, b)
+            BundleHolder.current = fresh
+        } finally { guideLock.unlock() }
     }
 
     private suspend fun fetchGuide(ctx: Context, bundle: XtreamBundle): XtreamBundle {
@@ -54,7 +59,31 @@ object LiveLoader {
             val xmlId = nameMap[XmlTvFetcher.normaliseChannelName(ch.name)]
             if (xmlId == null || !EpgCache.channelExists(ctx, xmlId)) ch else ch.copy(epgChannelId = xmlId)
         }
-        val epg = EpgCache.loadAllChannels(ctx, channels.asSequence().mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }.distinct().take(250).toList())
-        return bundle.copy(channels = channels, epg = epg)
+        hydrated = true
+        return bundle.copy(channels = channels, epg = fullGuide(ctx, channels))
+    }
+
+    @Volatile var hydrated = false
+    /** The whole saved guide (every channel that has one), trimmed to the useful window so it stays light in memory. */
+    fun fullGuide(ctx: Context, channels: List<Channel>): Map<String, List<Programme>> {
+        val now = System.currentTimeMillis()
+        return EpgCache.loadAllChannels(ctx, channels.asSequence().mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }.distinct().toList())
+            .mapValues { (_, l) -> l.filter { it.stopMs > now - 6 * 3_600_000L && it.startMs < now + 72 * 3_600_000L } }.filterValues { it.isNotEmpty() }
+    }
+
+    private val guideLock = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var keeping = false
+    /** Keeps the guide current while the app is open: fetched when missing or older than 4 hours, re-checked every 20 minutes. */
+    fun keepFresh(ctx: Context, onUpdated: () -> Unit) {
+        if (keeping) return; keeping = true
+        val app = ctx.applicationContext
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            while (true) {
+                if (AuthStore.isSignedIn(app) && BundleHolder.current != null && (!EpgCache.exists(app) || EpgCache.xmltvAgeMs(app) > 4 * 3_600_000L || BundleHolder.current?.epg.isNullOrEmpty())) {
+                    runCatching { refreshGuide(app) }.onSuccess { withContext(Dispatchers.Main) { onUpdated() } }.onFailure { Log.w("LiveLoader", "keepFresh: ${it.message}") }
+                }
+                kotlinx.coroutines.delay(20 * 60_000L)
+            }
+        }
     }
 }

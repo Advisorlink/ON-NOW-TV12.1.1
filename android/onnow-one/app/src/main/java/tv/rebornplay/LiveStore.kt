@@ -23,7 +23,13 @@ object LiveStore {
 
     /** True when channels are ready in memory (disk fast path); false means the full loader must run. */
     suspend fun ensureLoaded(ctx: Context): Boolean = withContext(Dispatchers.IO) {
-        val b = BundleHolder.current?.takeIf { it.channels.isNotEmpty() } ?: FastBundle.load(ctx)
+        val base = BundleHolder.current?.takeIf { it.channels.isNotEmpty() } ?: FastBundle.load(ctx)
+        // The disk fast path only reads the first 250 channels' guide; Sports Hub / What's On Live need every channel.
+        val b = if (base != null && !LiveLoader.hydrated) {
+            LiveLoader.hydrated = true
+            val full = runCatching { LiveLoader.fullGuide(ctx, base.channels) }.getOrDefault(emptyMap())
+            if (full.isNotEmpty()) base.copy(epg = full).also { BundleHolder.current = it } else base
+        } else base
         if (b != null) { bundle.value = b; epg.putAll(b.epg); favourites.value = FavouritesStore.load(ctx) }
         b != null
     }

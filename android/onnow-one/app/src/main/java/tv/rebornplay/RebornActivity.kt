@@ -139,6 +139,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
             if (homeError == null) launch(Dispatchers.IO) { runCatching { BoxSets.ensure(ctx) } }
         }
         live.join(); home.join()
+        LiveLoader.keepFresh(ctx) { LiveStore.refreshFromHolder(ctx) }
         if (loadError != null) { signOutQuiet(ctx); token = null; stage = "login" }
         else if (homeError == null) stage = "profiles"   // else: stay here and show the reason + Try again
     }
@@ -169,7 +170,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     }
     val refreshLive = {
         tv.onnowtv.livetv.LivePreviewSession.release()
-        tv.onnowtv.livetv.BundleHolder.current = null; LiveStore.bundle.value = null; LiveStore.epg.clear()
+        tv.onnowtv.livetv.BundleHolder.current = null; LiveLoader.hydrated = false; LiveStore.bundle.value = null; LiveStore.epg.clear()
         tv.onnowtv.livetv.data.BundleCache.delete(ctx)
         liveReady = false; stage = "loading"
     }
@@ -302,7 +303,7 @@ fun signOutQuiet(ctx: android.content.Context) {
     tv.onnowtv.livetv.LivePreviewSession.release()
     RebornSession.clear(ctx); Profiles.setActive(ctx, null)
     tv.onnowtv.livetv.data.AuthStore.signOut(ctx)
-    tv.onnowtv.livetv.BundleHolder.current = null; LiveStore.bundle.value = null; LiveStore.epg.clear()
+    tv.onnowtv.livetv.BundleHolder.current = null; LiveLoader.hydrated = false; LiveStore.bundle.value = null; LiveStore.epg.clear()
     runCatching { tv.onnowtv.livetv.data.BundleCache.delete(ctx) }
     Cache.clear(); Gorilla.clearCache(ctx)
 }

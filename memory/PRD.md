@@ -1255,3 +1255,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Reborn: "Possible broadcast" / unconfirmed channel matches removed from score cards and the match centre (confirmed only).
 - V2 wording removed from the hub: wordmark = REBORN PLAY / SPORTS HUB, eyebrow, dock badge; Rebrand.kt also strips "V2 " before Sports Hub / Replay / Live.
 - Depends on the provider's EPG being loaded (BundleHolder.current); if the guide is empty the tile says "TV guide loading…".
+
+## 3.9.31 (build 70) — TEST COPY; guide logic checked against the real provider feed, NOT run on a device
+- Root cause of empty What's On Live / Sports Hub: Reborn only put the first 250 channels' guide in memory (LiveLoader.fetchGuide + FastBundle take(250)); the hub reads bundle.epg only (V2 hydrates the rest in EpgActivity). Provider XMLTV has guide for 512 channel ids; most sports ones were outside the first 250. Also the guide was never re-fetched after first login.
+- Fix: LiveLoader.fullGuide loads every channel's saved guide (window -6h..+72h) at start (LiveStore.ensureLoaded) and after each guide fetch; LiveLoader.keepFresh re-downloads the guide when missing / older than 4h (checked every 20 min while open). Hub falls back to FastBundle if opened with no bundle.
+- Verified with the test login from the build box: xmltv.php OK (5.7 MB gz, 94k programmes); classifier found 18 live events on 29 channels at test time (temporary probe test, removed).
+- SportsSportIdentity: A-League -> football (was baseball via "Mariners"); Sheffield Shield / Big Bash / WBBL / "2nd Test" -> cricket.
+- Not covered: provider "event" channels with no guide (e.g. 'FA Cup | Wolves vs Shrewsbury 12:15 10/01') are not read as live events.

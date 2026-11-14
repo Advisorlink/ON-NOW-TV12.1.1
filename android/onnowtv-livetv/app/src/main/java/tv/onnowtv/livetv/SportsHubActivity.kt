@@ -296,7 +296,7 @@ class SportsHubActivity : AppCompatActivity() {
         if (!quiet) { message = if (sports.isEmpty()) "Loading sports…" else "Fetching scores…"; failed = false; render() }
         fetch = lifecycleScope.launch {
             // Guide channels are available even if ESPN is slow, offline, or does not cover this sport.
-            val guideBundle = BundleHolder.current
+            val guideBundle = BundleHolder.current ?: if (reborn) withContext(Dispatchers.IO) { tv.onnowtv.livetv.data.FastBundle.load(applicationContext) } else null
             val bucket = sports.getOrNull(sportIdx)?.optString("bucket")
             val live = withContext(Dispatchers.Default) { if (guideBundle == null || dayOffset != 0) emptyList() else SportsLiveGuide.current(guideBundle, bucket) }
             if (generation != requestId || !isActive) return@launch
