@@ -1,5 +1,7 @@
 package tv.rebornplay
 
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.launch
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
@@ -27,12 +29,18 @@ object Cache {
 }
 
 /** Home is built purely from the service catalogue: newest movies/series, then the service's own categories. */
-suspend fun loadHome(ctx: android.content.Context): HomeData {
+private val homeLock = kotlinx.coroutines.sync.Mutex()
+suspend fun loadHome(ctx: android.content.Context): HomeData = homeLock.withLock { Cache.home ?: buildHome(ctx).also { Cache.home = it } }
+
+private suspend fun buildHome(ctx: android.content.Context): HomeData {
     val c = Gorilla.loadCatalog(ctx)
     val heroItems = c.movies.sortedByDescending { it.added }.filter { it.poster != null }.take(6)
     val heroes = withContext(Dispatchers.IO) { heroItems.map { async { Hero(runCatching { Gorilla.movieInfo(ctx, it) }.getOrDefault(it), 0L) } }.awaitAll() }
     // Coming Soon: upcoming releases the service doesn't have in HD yet; then check the notify list against the fresh catalogue.
-    NotifyScan.coming = (kotlinx.coroutines.withTimeoutOrNull(8000) { Tmdb.upcoming(ctx) } ?: Tmdb.upcomingSaved(ctx)).filter { it.poster != null && Match.find(it, hdOnly = true) == null }
+    // A saved list is used straight away (and refreshed quietly) so opening the app never waits on it.
+    val savedSoon = Tmdb.upcomingSaved(ctx)
+    if (savedSoon.isNotEmpty()) kotlinx.coroutines.GlobalScope.launch { runCatching { Tmdb.upcoming(ctx) } }
+    NotifyScan.coming = (savedSoon.ifEmpty { kotlinx.coroutines.withTimeoutOrNull(8000) { Tmdb.upcoming(ctx) } ?: emptyList() }).filter { it.poster != null && Match.find(it, hdOnly = true) == null }
     NotifyScan.run(ctx)
     return HomeData(heroes, HomeRowPrefs.apply(ctx, allHomeRows(c)))
 }

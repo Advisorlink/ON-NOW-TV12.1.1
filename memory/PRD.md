@@ -1282,3 +1282,16 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## 3.9.35 (build 74) — TEST COPY, BUILD-VERIFIED ONLY
 - Search results are now one scrolling grid (Grids.kt SearchScreen): Channels row, "Not on your service yet" row and an "On your service" header are full-width items above the covers, so covers are no longer squeezed under the taller channel cards.
 - Home: new "Coming Up" row right after Continue Watching (ComingUp.kt: ComingUp object + ComingUpShelf/ComingUpCard). Source = Tmdb.calendar for series in My Library (same as Library calendar), today onwards, max 24, refreshed on Home resume (30 min throttle). Wide 2.5:1 cards: backdrop art, colour bar, big date block, show, season/episode, Today/Tomorrow/In N days chip. OK opens the show. Row is hidden when the library has no shows with scheduled episodes. Not in the Settings home-row customiser.
+
+## 3.9.36 (build 75) — TEST COPY, BUILD-VERIFIED ONLY
+- Coming Up row: only episodes airing today..+7 days; cards smaller (h = tileH*0.72 max 164dp, 2.4:1).
+- Sports Hub What's On Live: picking a channel for a sport in SportsPlayback.statsSports shows "Watch with Live Stats" / "Watch Fullscreen" (ActionSheetDialog). Stats = the existing split-screen StatsPlayerActivity (/api/livestats/board by sport + programme title), same screen the guide used. StatsPlayerActivity got EXTRA_STOP_ON_EXIT (releases player on Back) and restarts the channel if the shared player was released.
+- Live channel start delay: NOT root-caused (no code change found in player since 2 Nov). Mitigations: Reborn start buffer 2s -> 1s (TiviMateProfile.loadControl), and LiveLoader.keepFresh no longer re-downloads a stale guide while a channel is playing.
+
+## 3.9.37 (build 76) — TEST COPY, BUILD-VERIFIED ONLY
+- Reverted at user's request: Reborn 1s start buffer (back to 2s) and the "no guide download while playing" rule. Player/guide timing is as in build 74. Slow channel start remains NOT root-caused; user does not want player timing changed.
+
+## 3.9.38 (build 77) — TEST COPY, BUILD-VERIFIED ONLY
+- Instant open: when the catalogue cache (Gorilla.hasCache) and channel cache (BundleCache.exists) are on the box, RebornActivity skips the loading stage and goes straight to profiles; login check, Cloud pull, channels/guide from disk, home preload and keepFresh all run in background (scope.launch). Wrong/expired login found in background -> signed out to login screen. Loading screen now only appears on first sign-in, after "Refresh movies and shows", or after a Live TV channel refresh.
+- loadHome is mutex-guarded + returns Cache.home; Coming Soon uses the saved list immediately and refreshes in background (no 8 s wait).
+- New first-time set-up screen (LoadingScreen/LoadStep/Boot in RebornActivity.kt): big % ring with glow + orbiting marker, headline per phase, three cards with live numbers (channels found; guide programmes saved + channels read; MB downloaded -> movies/shows count). Totals are unknown in advance so the percentages are estimates that snap to 100 % when each step finishes; the counts are real.

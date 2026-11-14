@@ -49,7 +49,8 @@ object ComingUp {
         if (series.isEmpty()) { eps.value = emptyList(); sig = s; at = System.currentTimeMillis(); return }
         runCatching { Tmdb.calendar(ctx, series) }.onSuccess { (e, m) ->
             val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
-            byImdb = m; eps.value = e.filter { it.date >= today }.take(24); sig = s; at = System.currentTimeMillis()
+            val until = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date(System.currentTimeMillis() + 7 * 86_400_000L))
+            byImdb = m; eps.value = e.filter { it.date >= today && it.date <= until }.take(24); sig = s; at = System.currentTimeMillis()
         }
     }
     /** "Today" / "Tomorrow" / "In 4 days" + parsed date. */
@@ -67,10 +68,10 @@ fun ComingUpShelf(eps: List<CalEpisode>, row: Int, rowNav: RowNav?, tileH: Dp, o
     if (eps.isEmpty()) return
     val inset = safeInset()
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
-    val h = (tileH * 0.84f).coerceAtMost(190.dp)
-    val w = h * 2.5f
+    val h = (tileH * 0.72f).coerceAtMost(164.dp)
+    val w = h * 2.4f
     Column {
-        SectionHeader("From your calendar", "Coming Up", "${eps.size} new episodes on the way", Modifier.padding(horizontal = inset))
+        SectionHeader("From your calendar", "Coming Up", "Next 7 days · ${eps.size} new episode${if (eps.size == 1) "" else "s"}", Modifier.padding(horizontal = inset))
         AnchoredRow(64.dp + inset + w + 22.dp) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(22.dp), contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset)) {
                 itemsIndexed(eps, key = { i, e -> "${e.imdbId}-${e.season}-${e.episode}-$i" }) { i, e -> ComingUpCard(e, w, h, i == 0 && row >= 0, row, rowNav) { ComingUp.byImdb[e.imdbId]?.let(onOpen) } }
@@ -102,7 +103,7 @@ private fun ComingUpCard(e: CalEpisode, w: Dp, h: Dp, first: Boolean, row: Int, 
                 }
                 Box(Modifier.padding(vertical = 18.dp).width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.12f)))
                 Column(Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 14.dp), verticalArrangement = Arrangement.Bottom) {
-                    Text(e.showName, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(e.showName, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(4.dp))
                     Text("Season ${e.season} · Episode ${e.episode}" + if (e.name.isNotBlank()) "  —  ${e.name}" else "", color = Txt2, fontFamily = Geist, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (e.network != null) Mono(e.network, 8.5.sp, Txt3, 0.14f, Modifier.padding(top = 6.dp))

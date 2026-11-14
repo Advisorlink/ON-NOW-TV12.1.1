@@ -25,10 +25,10 @@ object SportsLiveChannelsDialog {
         val dialog = AlertDialog.Builder(ctx).setView(ScrollView(ctx).apply { addView(body) }).setNegativeButton("Back", null).create()
         event.sources.forEach { entry ->
             val label = listOfNotNull(entry.channel.lcn, entry.channel.name).joinToString(" · ")
-            val button = UI.identify(UI.pill(ctx, "▶ $label") {
+            val button = UI.identify(UI.pill(ctx, if (entry.bucket in SportsPlayback.statsSports) "▶ $label   ·   stats available" else "▶ $label") {
                 val current = BundleHolder.current?.channels?.firstOrNull { it.id == entry.channel.id && it.streamUrl == entry.channel.streamUrl }
                 if (current != null && entry.programme.isLiveAt(System.currentTimeMillis())) {
-                    dialog.dismiss(); SportsPlayback.open(ctx, current, subtitle = event.title)
+                    dialog.dismiss(); SportsPlayback.offer(ctx, current, entry.programme.title, entry.bucket, subtitle = event.title)
                 } else Toast.makeText(ctx, "This broadcast ended or the guide account changed", Toast.LENGTH_SHORT).show()
             }, "live-event-channel-${entry.channel.id}").apply { setSingleLine(false); maxLines = 3; setHorizontallyScrolling(false) }
             body.addView(button, LinearLayout.LayoutParams(-1, -2))

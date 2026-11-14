@@ -33,6 +33,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.graphics.Color as C
+import androidx.compose.animation.core.animateFloat
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.vesper.app.BoxBoost
@@ -119,6 +121,24 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
             RebornSession.save(ctx, "xtream", saved.first); tv.onnowtv.livetv.data.AuthStore.saveCredentials(ctx, saved.first, saved.second); token = "xtream"
         }
         loadError = null; homeError = null
+        // Already set up on this box: open straight away and do every check and refresh behind the scenes.
+        if (Gorilla.hasCache(ctx) && tv.onnowtv.livetv.data.BundleCache.exists(ctx)) {
+            scope.launch {
+                launch {
+                    if (LiveStore.ensureLoaded(ctx)) liveReady = true
+                    else runCatching { LiveLoader.load(ctx) { }; LiveStore.refreshFromHolder(ctx) }.onFailure { if (it is LiveLoader.BadLogin) { signOutQuiet(ctx); token = null; toast = it.message; stage = "login" } }
+                    liveReady = true
+                    LiveLoader.keepFresh(ctx) { LiveStore.refreshFromHolder(ctx) }
+                }
+                launch { runCatching { loadHome(ctx) }.onFailure { android.util.Log.e("Reborn", "preload home failed", it) }; homeReady = true; launch(Dispatchers.IO) { runCatching { BoxSets.ensure(ctx) } } }
+                val check = withContext(Dispatchers.IO) { runCatching { Gorilla.login(Gorilla.user(ctx), Gorilla.pass(ctx)) } }
+                val msg = check.exceptionOrNull()?.message
+                if (msg?.startsWith("Wrong") == true || msg?.startsWith("Account") == true) { signOutQuiet(ctx); token = null; toast = msg; stage = "login" }
+                else if (check.isSuccess) { runCatching { Cloud.remember(ctx) }; runCatching { Cloud.pull(ctx) } }
+            }
+            stage = "profiles"; return@LaunchedEffect
+        }
+        Boot.reset()
         // Check the saved login against the service first (the service answers 404 for unknown accounts).
         val auth = withContext(Dispatchers.IO) { runCatching { Gorilla.login(Gorilla.user(ctx), Gorilla.pass(ctx)) } }
         auth.exceptionOrNull()?.let { e ->
@@ -236,38 +256,78 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     }
 }
 
+/** Live numbers for the first-time set-up screen. */
+object Boot {
+    val bytes = mutableStateOf(0L)
+    val channels = mutableStateOf(0)
+    val guideChannels = mutableStateOf(0)
+    val guideProgrammes = mutableStateOf(0)
+    private val counter = java.util.concurrent.atomic.AtomicLong()
+    fun addBytes(n: Int) { val t = counter.addAndGet(n.toLong()); if (t - bytes.value > 200_000) bytes.value = t }
+    fun reset() { counter.set(0); bytes.value = 0; channels.value = 0; guideChannels.value = 0; guideProgrammes.value = 0 }
+}
+
 @Composable
 fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = null, onRetry: () -> Unit = {}, onContinue: () -> Unit = {}) {
     val compact = isCompact()
     val ctx = LocalContext.current
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
     val cat = Gorilla.catalog
-    val channels = LiveStore.bundle.value?.channels?.size ?: 0
     val failed = homeError != null && homeReady
-    val done = (if (homeReady && !failed) 1 else 0) + (if (liveReady) 2 else 0)
-    val progress by androidx.compose.animation.core.animateFloatAsState(done / 3f, androidx.compose.animation.core.tween(600), label = "p")
+    val bytes = Boot.bytes.value
+    val chans = maxOf(Boot.channels.value, LiveStore.bundle.value?.channels?.size ?: 0)
+    val gCh = Boot.guideChannels.value; val gPr = Boot.guideProgrammes.value
+    val channelsDone = liveReady || chans > 0
+    // Real counts drive each bar; totals aren't known ahead of time, so a bar approaches full and snaps to 100 % when its step finishes.
+    val catF = if (homeReady && !failed) 1f else (bytes / (bytes + 6_000_000f)) * 0.92f
+    val chF = if (channelsDone) 1f else 0.08f
+    val gF = if (liveReady) 1f else if (!channelsDone) 0f else maxOf(gPr / (gPr + 25_000f), gCh / (gCh + 2_500f)) * 0.95f
+    val overall by androidx.compose.animation.core.animateFloatAsState(0.35f * catF + 0.15f * chF + 0.5f * gF, androidx.compose.animation.core.tween(500), label = "p")
+    val spin = androidx.compose.animation.core.rememberInfiniteTransition(label = "spin")
+    val angle by spin.animateFloat(0f, 360f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "a")
+    val pulse by spin.animateFloat(0.55f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1300), androidx.compose.animation.core.RepeatMode.Reverse), label = "g")
+    val headline = when {
+        failed -> "Couldn't load your movies & TV shows"
+        !channelsDone -> "Finding your channels"
+        !liveReady -> "Building your TV guide"
+        !homeReady -> "Loading your movies & TV shows"
+        else -> "All set"
+    }
     Box(Modifier.fillMaxSize()) {
         ScreenBackdrop()
-        Column(Modifier.align(Alignment.Center).width(if (compact) 340.dp else 520.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(Modifier.size(if (compact) 360.dp else 620.dp, if (compact) 150.dp else 220.dp).background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Blue.copy(alpha = 0.24f), androidx.compose.ui.graphics.Color.Transparent))))
-                BrandLogo(if (compact) 76.dp else 116.dp)
-            }
-            Spacer(Modifier.height(if (compact) 10.dp else 18.dp))
-            Text(if (failed) "Couldn't load your movies & TV shows" else "Getting everything ready…", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-            Spacer(Modifier.height(16.dp))
-            Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 12.dp)) {
-                LoadStep(Lucide.Film, "Movies & TV shows", when {
-                    failed -> homeError.orEmpty()
-                    homeReady && cat != null -> "${"%,d".format(cat.movies.size)} movies · ${"%,d".format(cat.series.size)} series"
-                    else -> "Downloading your catalogue"
-                }, homeReady && !failed, failed)
-                LoadStep(Lucide.Tv, "Live TV channels", if (liveReady) "${"%,d".format(channels)} channels ready" else "Fetching channels", liveReady, false)
-                LoadStep(Lucide.CalendarDays, "TV guide", if (liveReady) "Programme guide ready" else "Loading today's schedule", liveReady, false)
-                Spacer(Modifier.height(10.dp))
-                Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f))) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceAtLeast(0.04f)).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Blue, BlueBright))))
+        Box(Modifier.align(Alignment.Center).size(if (compact) 420.dp else 760.dp).background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Blue.copy(alpha = 0.16f * pulse), C.Transparent))))
+        BrandLogo(if (compact) 34.dp else 46.dp, Modifier.align(Alignment.TopStart).padding(start = 48.dp + safeInset(), top = 34.dp + safeInset()))
+        Column(Modifier.align(Alignment.Center).padding(horizontal = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            val ring = if (compact) 120.dp else 190.dp
+            Box(Modifier.size(ring), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    val w = size.minDimension * 0.062f
+                    val inset = w * 1.6f
+                    val arc = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2)
+                    val tl = androidx.compose.ui.geometry.Offset(inset, inset)
+                    drawArc(C.White.copy(alpha = 0.07f), 0f, 360f, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+                    // soft glow, then the crisp arc on top
+                    drawArc(Blue.copy(alpha = 0.22f * pulse), -90f, 360f * overall, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(w * 2.6f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawArc(androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Blue, BlueBright, C.White, Blue)), -90f, 360f * overall, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    // orbiting marker shows work is under way even between count updates
+                    if (!failed && overall < 0.999f) drawArc(BlueBright.copy(alpha = 0.55f), angle, 26f, false, androidx.compose.ui.geometry.Offset(w * 0.3f, w * 0.3f), androidx.compose.ui.geometry.Size(size.width - w * 0.6f, size.height - w * 0.6f), style = androidx.compose.ui.graphics.drawscope.Stroke(w * 0.28f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
                 }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("${(overall * 100).toInt()}", color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = if (compact) 34.sp else 56.sp, letterSpacing = (-2).sp)
+                    Text("%", color = BlueBright, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = if (compact) 14.sp else 20.sp, modifier = Modifier.padding(bottom = if (compact) 6.dp else 11.dp, start = 2.dp))
+                }
+            }
+            Spacer(Modifier.height(if (compact) 10.dp else 22.dp))
+            Mono(if (failed) "Something went wrong" else "First-time set-up · only happens once", 10.sp, if (failed) Amber else BlueBright, 0.22f)
+            Spacer(Modifier.height(6.dp))
+            Text(headline, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = if (compact) 18.sp else 26.sp, letterSpacing = (-0.4).sp)
+            Spacer(Modifier.height(if (compact) 12.dp else 26.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                val cw = if (compact) 190.dp else 268.dp
+                LoadStep(cw, Lucide.Tv, "Live TV channels", if (channelsDone) "%,d".format(chans) else "…", if (channelsDone) "channels found" else "asking your service", chF, channelsDone, false)
+                LoadStep(cw, Lucide.CalendarDays, "TV guide", if (liveReady && gPr == 0) "Ready" else "%,d".format(gPr), when { liveReady && gPr == 0 -> "loaded from this box"; liveReady -> "programmes saved"; !channelsDone -> "waiting for channels"; else -> "programmes · ${"%,d".format(gCh)} channels read" }, gF, liveReady, false)
+                LoadStep(cw, Lucide.Film, "Movies & TV shows", when { failed -> "!"; homeReady && cat != null -> "%,d".format(cat.movies.size + cat.series.size); bytes > 0 -> "%.1f MB".format(bytes / 1_000_000f); else -> "…" },
+                    when { failed -> homeError.orEmpty(); homeReady && cat != null -> "${"%,d".format(cat.movies.size)} movies · ${"%,d".format(cat.series.size)} shows"; bytes > 0 -> "downloaded so far"; else -> "starting download" }, catF, homeReady && !failed, failed)
             }
             if (failed) {
                 Spacer(Modifier.height(22.dp))
@@ -276,6 +336,9 @@ fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = n
                     Pill("Try again", white = true, requester = retryReq, onClick = onRetry)
                     Pill("Continue to Live TV", onClick = onContinue)
                 }
+            } else {
+                Spacer(Modifier.height(if (compact) 10.dp else 22.dp))
+                Text("Next time Reborn Play opens straight away and keeps itself up to date in the background.", color = Txt3, fontFamily = Geist, fontSize = 12.5.sp)
             }
         }
         Mono("Reborn Play v$version", 10.sp, Txt3, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 28.dp + safeInset(), bottom = 20.dp + safeInset()))
@@ -283,19 +346,27 @@ fun LoadingScreen(homeReady: Boolean, liveReady: Boolean, homeError: String? = n
 }
 
 @Composable
-private fun LoadStep(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, detail: String, done: Boolean, failed: Boolean) {
-    androidx.compose.foundation.layout.Row(Modifier.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(34.dp).clip(CircleShape).background(if (done) Blue.copy(alpha = 0.18f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.06f)), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Icon(icon, null, Modifier.size(17.dp), tint = if (done) BlueBright else if (failed) Amber else Txt2)
+private fun LoadStep(width: androidx.compose.ui.unit.Dp, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, big: String, detail: String, fraction: Float, done: Boolean, failed: Boolean) {
+    val f by androidx.compose.animation.core.animateFloatAsState(fraction.coerceIn(0f, 1f), androidx.compose.animation.core.tween(500), label = "s")
+    val shape = RoundedCornerShape(18.dp)
+    Column(Modifier.width(width).clip(shape).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(C(0xFF16233F), C(0xFF0D1629)))).border(1.dp, if (done) Blue.copy(alpha = 0.55f) else if (failed) Amber.copy(alpha = 0.6f) else C.White.copy(alpha = 0.08f), shape).padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(32.dp).clip(CircleShape).background(if (done) Blue.copy(alpha = 0.2f) else C.White.copy(alpha = 0.06f)), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Icon(icon, null, Modifier.size(16.dp), tint = if (done) BlueBright else if (failed) Amber else Txt2)
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(label, color = if (done) Txt else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1)
+            if (done) androidx.compose.material3.Icon(Lucide.CircleCheck, null, Modifier.size(17.dp), tint = BlueBright)
+            else if (failed) androidx.compose.material3.Icon(Lucide.CircleAlert, null, Modifier.size(17.dp), tint = Amber)
+            else Mono("${(f * 100).toInt()}%", 10.sp, BlueBright)
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(label, color = if (done) Txt else Txt2, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Mono(detail, 9.sp, if (failed) Amber else Txt3, 0.08f, upper = false)
+        Spacer(Modifier.height(12.dp))
+        Text(big, color = Txt, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 26.sp, letterSpacing = (-0.8).sp, maxLines = 1)
+        Text(detail, color = if (failed) Amber else Txt3, fontFamily = Geist, fontSize = 11.5.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Spacer(Modifier.height(12.dp))
+        Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(C.White.copy(alpha = 0.08f))) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(f.coerceAtLeast(0.03f)).clip(CircleShape).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Blue, BlueBright))))
         }
-        if (done) androidx.compose.material3.Icon(Lucide.CircleCheck, null, Modifier.size(18.dp), tint = BlueBright)
-        else if (failed) androidx.compose.material3.Icon(Lucide.CircleAlert, null, Modifier.size(18.dp), tint = Amber)
-        else androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
     }
 }
 

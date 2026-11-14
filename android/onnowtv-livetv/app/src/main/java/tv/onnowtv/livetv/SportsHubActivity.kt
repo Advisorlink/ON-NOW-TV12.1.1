@@ -224,7 +224,7 @@ class SportsHubActivity : AppCompatActivity() {
         val fixture = event.fixtureJson?.let { runCatching { JSONObject(it) }.getOrNull() }?.takeIf { tv.onnowtv.livetv.data.SportsLiveNavigation.hasFixture(it) }
         val only = event.sources.singleOrNull()
         val current = only?.let { e -> BundleHolder.current?.channels?.firstOrNull { it.id == e.channel.id && it.streamUrl == e.channel.streamUrl } }
-        if (fixture == null && current != null && only.programme.isLiveAt(System.currentTimeMillis())) SportsPlayback.open(this, current, subtitle = event.title)
+        if (fixture == null && current != null && only.programme.isLiveAt(System.currentTimeMillis())) SportsPlayback.offer(this, current, only.programme.title, only.bucket, subtitle = event.title)
         else tv.onnowtv.livetv.ui.SportsLiveChannelsDialog.show(this, event) { openGame(it) }
     }
     private fun buildMap() {

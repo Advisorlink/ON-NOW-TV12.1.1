@@ -95,6 +95,8 @@ object Gorilla {
 
     // ---- disk cache for instant boot --------------------------------------------------------
     private fun cacheFile(ctx: Context, name: String) = File(ctx.filesDir, "gorilla_$name.json")
+    /** Movies & shows already saved on this box (so the app can open without the set-up screen). */
+    fun hasCache(ctx: Context) = listOf("vod_cats", "series_cats", "vod", "series").all { cacheFile(ctx, it).let { f -> f.exists() && f.length() > 2 } }
     /** Streams the response straight to disk (never holds the 20 MB catalogue as a String). */
     private fun cachedFile(ctx: Context, name: String, url: String, maxAgeMs: Long): File {
         val f = cacheFile(ctx, name)
@@ -106,7 +108,7 @@ object Gorilla {
         fetch(url) { c ->
             val zipped = c.contentEncoding?.contains("gzip", true) == true
             val expected = if (zipped) -1L else c.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
-            body(c).use { i -> tmp.outputStream().buffered(1 shl 16).use { o -> i.copyTo(o, 1 shl 16) } }
+            body(c).use { i -> tmp.outputStream().buffered(1 shl 16).use { o -> val buf = ByteArray(1 shl 16); while (true) { val n = i.read(buf); if (n < 0) break; o.write(buf, 0, n); Boot.addBytes(n) } } }
             if (expected > 0 && tmp.length() != expected) throw IOException("Download cut short (${tmp.length()} of $expected bytes)")
             val head = tmp.inputStream().use { s -> ByteArray(64).let { b -> val n = s.read(b); String(b, 0, maxOf(n, 0), Charsets.UTF_8) } }.trimStart()
             if (!(head.startsWith("[") || head.startsWith("{"))) throw IllegalStateException("Unexpected response from service")

@@ -65,6 +65,7 @@ class StatsPlayerActivity : AppCompatActivity() {
         const val EXTRA_CHANNEL_NAME = "extra_channel_name"
         const val EXTRA_PROGRAMME_TITLE = "extra_programme_title"
         const val EXTRA_SPORT = "extra_sport"
+        const val EXTRA_STOP_ON_EXIT = "extra_stop_on_exit"
 
         private const val DEFAULT_HOME = 0xFF5DC8FF.toInt()
         private const val DEFAULT_AWAY = 0xFFFF7A4D.toInt()
@@ -211,8 +212,15 @@ class StatsPlayerActivity : AppCompatActivity() {
         sportTag.visibility = View.GONE
     }
 
+    override fun onDestroy() {
+        // Opened from the Sports Hub: leaving the stats screen stops the channel instead of leaving sound running.
+        if (isFinishing && intent.getBooleanExtra(EXTRA_STOP_ON_EXIT, false)) LivePreviewSession.release()
+        super.onDestroy()
+    }
+
     override fun onResume() {
         super.onResume()
+        if (!LivePreviewSession.isAlive()) intent.getStringExtra(EXTRA_CHANNEL_ID)?.let { id -> BundleHolder.current?.channels?.firstOrNull { it.id == id }?.let { LivePreviewSession.setChannel(this, it) } }
         LivePreviewSession.attachTo(playerView)
         attachBufferListenerOnce()
         startPolling()

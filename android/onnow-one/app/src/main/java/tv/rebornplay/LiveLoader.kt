@@ -19,6 +19,7 @@ object LiveLoader {
         if (bundle.channels.isEmpty()) throw IllegalStateException("The service returned no channels")
         BundleCache.saveJson(ctx, json)
         BundleHolder.current = bundle
+        Boot.channels.value = bundle.channels.size
         onStep("TV guide")
         val epg = runCatching { fetchGuide(ctx, bundle) }.onFailure { Log.w("LiveLoader", "guide: ${it.message}") }.getOrNull()
         (epg ?: bundle).also { BundleHolder.current = it }
@@ -49,7 +50,7 @@ object LiveLoader {
         val ids = bundle.channels.mapNotNull { it.epgChannelId?.takeIf { s -> s.isNotBlank() } }.toSet()
         val names = bundle.channels.map { XmlTvFetcher.normaliseChannelName(it.name) }.filter { it.isNotBlank() }.toSet()
         val writer = EpgCache.openStreamingWriter(ctx)
-        val result = try { XmlTvFetcher.fetchEpgForChannels(ctx, ids, names, writer) { _, _ -> } } catch (t: Throwable) { writer.abort(); throw t }
+        val result = try { XmlTvFetcher.fetchEpgForChannels(ctx, ids, names, writer) { seen, kept -> Boot.guideChannels.value = seen; Boot.guideProgrammes.value = kept } } catch (t: Throwable) { writer.abort(); throw t }
         writer.finish(result.displayNameToEpgId)
         val nameMap = result.displayNameToEpgId
         if (nameMap.isNotEmpty()) EpgCache.saveNameMap(ctx, nameMap)
