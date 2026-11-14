@@ -1278,3 +1278,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Verified: temp JVM test fed real channels + real XMLTV times through SportsLiveGuide.current + SportsLiveEvents.group -> 512 guide channels, 28 live entries, 17 events. NOT verified: the Android pull-parser + disk cache path on a box.
 - Hub: empty guide now reads "TV guide loading… / still downloading" and re-checks every 5 s; keepFresh re-downloads when fewer than 20 guide channels are in memory.
 - Lesson: the build-70 "verified" probe bypassed the parser; always test through the app's own functions.
+
+## 3.9.35 (build 74) — TEST COPY, BUILD-VERIFIED ONLY
+- Search results are now one scrolling grid (Grids.kt SearchScreen): Channels row, "Not on your service yet" row and an "On your service" header are full-width items above the covers, so covers are no longer squeezed under the taller channel cards.
+- Home: new "Coming Up" row right after Continue Watching (ComingUp.kt: ComingUp object + ComingUpShelf/ComingUpCard). Source = Tmdb.calendar for series in My Library (same as Library calendar), today onwards, max 24, refreshed on Home resume (30 min throttle). Wide 2.5:1 cards: backdrop art, colour bar, big date block, show, season/episode, Today/Tomorrow/In N days chip. OK opens the show. Row is hidden when the library has no shows with scheduled episodes. Not in the Settings home-row customiser.

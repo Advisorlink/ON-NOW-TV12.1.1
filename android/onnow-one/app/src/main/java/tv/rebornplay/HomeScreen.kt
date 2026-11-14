@@ -82,6 +82,8 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
         owner.lifecycle.addObserver(obs); onDispose { owner.lifecycle.removeObserver(obs) }
     }
     val cw = remember(data, cwTick) { ContinueWatching.entries(ctx) }
+    LaunchedEffect(cwTick) { ComingUp.refresh(ctx) }
+    val coming = ComingUp.eps.value
     val liveNow = emptyList<tv.onnowtv.livetv.data.Channel>()
     val d = data ?: run {
         val err = error
@@ -96,11 +98,12 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
         return
     }
     // Page order: Live TV row (when it leads), Continue Watching, then the catalogue shelves.
-    val pages: List<Pair<String, Triple<String, String, List<Item>>?>> = remember(d, cw) {
+    val pages: List<Pair<String, Triple<String, String, List<Item>>?>> = remember(d, cw, coming) {
         buildList {
             val liveFirst = d.rows.firstOrNull()?.first == "live"
             if (liveFirst) add(d.rows[0])
             if (cw.isNotEmpty()) add("cw" to null)
+            if (coming.isNotEmpty()) add("calendar" to null)
             d.rows.forEachIndexed { i, r -> if (!(liveFirst && i == 0)) add(r) }
         }
     }
@@ -118,6 +121,7 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
                 when {
                     key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, 200.dp, onResume, { e -> ContinueWatching.remove(ctx, e.cwId); cwTick++; android.widget.Toast.makeText(ctx, "Removed from Continue Watching", android.widget.Toast.LENGTH_SHORT).show() }, onChannel)
                     key == "live" -> LiveRow(1 + i, rowNav, 200.dp, onChannel)
+                    key == "calendar" -> ComingUpShelf(coming, 1 + i, rowNav, 200.dp) { nav.open(it) }
                     key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, 200.dp)
                     else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav) { nav.open(it) }
                 }
@@ -173,6 +177,7 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
                         when {
                             key == "cw" -> CwLiveRow(cw, liveNow, 1 + i, rowNav, tileH, onResume, onRemoveCw, onChannel)
                             key == "live" -> LiveRow(1 + i, rowNav, tileH, onChannel)
+                            key == "calendar" -> ComingUpShelf(ComingUp.eps.value, 1 + i, rowNav, tileH) { nav.open(it) }
                             key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, tileH) { preview = it }
                             else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 0.dp) { nav.open(it) }
                         }

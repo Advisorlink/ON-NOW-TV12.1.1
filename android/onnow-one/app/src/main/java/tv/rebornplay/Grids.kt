@@ -141,22 +141,33 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
         }
         if (t.length < 2) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Start typing to search movies, TV shows and live channels", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
         else if (results.isEmpty() && channels.isEmpty() && more.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nothing matches “${q.trim()}”", color = Txt3, fontFamily = Geist, fontSize = 15.sp) }
-        else Column(Modifier.fillMaxSize()) {
-            if (channels.isNotEmpty()) {
-                SectionHeader("Live TV", "Channels", "${channels.size} found", Modifier.padding(horizontal = 64.dp))
-                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(channels, key = { it.id }) { ch -> ChannelTile(ch) { onOpenChannel(ch) } }
+        else {
+            // One scrolling page: channels, then "not on your service yet", then every cover — nothing is squeezed off screen.
+            val shown = remember(results) { results.distinctBy { it.id } }
+            val full: androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope.() -> androidx.compose.foundation.lazy.grid.GridItemSpan = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }
+            LazyVerticalGrid(GridCells.Adaptive(160.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 64.dp, end = 48.dp, top = 6.dp, bottom = 60.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                if (channels.isNotEmpty()) item(key = "hdr-channels", span = full) {
+                    Column {
+                        SectionHeader("Live TV", "Channels", "${channels.size} found", Modifier.offset(x = (-64).dp))
+                        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(start = 6.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(channels, key = { it.id }) { ch -> ChannelTile(ch) { onOpenChannel(ch) } }
+                        }
+                    }
                 }
-                Spacer(Modifier.height(22.dp))
-            }
-            if (more.isNotEmpty()) {
-                SectionHeader("Not on your service yet", "Get notified", "Open one and press Notify me", Modifier.padding(horizontal = 64.dp))
-                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp, top = 6.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(more, key = { it.id }) { m -> CoverTile(m, w = if (results.isEmpty()) 132.dp else 92.dp, badge = Lucide.Bell, badgeTint = if (NotifyList.has(ctx, m.id)) Amber else Blue) { onOpen(m) } }
+                if (more.isNotEmpty()) item(key = "hdr-more", span = full) {
+                    Column {
+                        SectionHeader("Not on your service yet", "Get notified", "Open one and press Notify me", Modifier.offset(x = (-64).dp))
+                        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(start = 6.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            items(more, key = { it.id }) { m -> CoverTile(m, w = 132.dp, badge = Lucide.Bell, badgeTint = if (NotifyList.has(ctx, m.id)) Amber else Blue) { onOpen(m) } }
+                        }
+                    }
                 }
-                Spacer(Modifier.height(18.dp))
+                if (shown.isNotEmpty()) {
+                    item(key = "hdr-titles", span = full) { SectionHeader("On your service", "Movies & TV shows", "${shown.size} found", Modifier.offset(x = (-64).dp)) }
+                    items(shown, key = { it.id }) { it -> GridTile(it, null) { onOpen(it) } }
+                }
             }
-            if (results.isNotEmpty()) Box(Modifier.weight(1f)) { TitleGrid(results, null, onOpen) }
         }
     }
 }
