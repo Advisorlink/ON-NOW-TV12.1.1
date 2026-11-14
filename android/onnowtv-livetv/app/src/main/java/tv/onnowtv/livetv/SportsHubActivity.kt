@@ -183,7 +183,12 @@ class SportsHubActivity : AppCompatActivity() {
     private fun renderMenu() {
         val pickSport: (Int) -> Unit = { i -> sportIdx = i; leagueIdx = 0; games = emptyList(); renderFilters(); renderMenu(); refresh() }
         val pickMode: (Mode) -> Unit = { m -> mode = m; renderMenu(); render() }
-        menu.render(listOf(
+        // Reborn Play: What's On Live sits at the very top of the hub menu and opens the live-sports guide (pick a sport, pick a game, Play live / Play with stats).
+        val liveNow = if (packageName != "tv.onnowtv.one") emptyList() else listOf("Live now" to listOf(
+            SportsHubSideMenu.Entry("hub-whats-on-live", "What's On Live", R.drawable.whatson_live_dot, false, true) {
+                startActivity(Intent(this, EpgActivity::class.java).putExtra(EpgActivity.EXTRA_INITIAL_CATEGORY_ID, "__whatson__"))
+            }))
+        menu.render(liveNow + listOf(
             "Sports" to SportsHubSideMenu.sportEntries(sports, sportIdx, pickSport),
             "View" to listOf(
                 SportsHubSideMenu.Entry("hub-mode-scores", "Scores", R.drawable.ic_hub_scores, true, mode == Mode.SCORES) { pickMode(Mode.SCORES) },

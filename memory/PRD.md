@@ -1245,3 +1245,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.28 (build 67) — TEST COPY, BUILD-VERIFIED ONLY
 - From user photos: actor 'AS CHARACTER' line wrapped to 2 lines and pushed names up -> now one line with ellipsis. Play button glow clipped by the scrolling button row -> row padded 22/18dp (offset back so buttons don't move).
+
+## 3.9.29 (build 68) — TEST COPY, BUILD-VERIFIED ONLY
+- Sports Hub: new top menu section 'Live now' > 'What's On Live' (Reborn package only, SportsHubActivity) opens the V2 live-sports guide (EpgActivity with EXTRA_INITIAL_CATEGORY_ID=__whatson__): sport chips -> games -> play / stats, unchanged V2 behaviour. Not run on device; whether the bundle/EPG is ready when opened from Reborn is unverified.
