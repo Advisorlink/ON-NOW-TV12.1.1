@@ -21,7 +21,7 @@ object SportsLiveChannelsDialog {
         body.addView(UI.identify(UI.text(ctx, event.title, 25f, bold = true), "live-event-title"))
         val fixture = event.fixtureJson?.let(::JSONObject)
         body.addView(UI.identify(UI.text(ctx, SportsEventMetadata.eventLabel(fixture), 13f, UI.ACCENT), "live-event-date"))
-        body.addView(UI.identify(UI.text(ctx, "${event.sources.size} channel choices", 14f, UI.DIM), "live-event-channel-count"))
+        body.addView(UI.identify(UI.text(ctx, if (event.sources.size == 1) "Live now on 1 channel" else "Live now on ${event.sources.size} channels · choose one", 14f, UI.DIM), "live-event-channel-count"))
         val dialog = AlertDialog.Builder(ctx).setView(ScrollView(ctx).apply { addView(body) }).setNegativeButton("Back", null).create()
         event.sources.forEach { entry ->
             val label = listOfNotNull(entry.channel.lcn, entry.channel.name).joinToString(" · ")
@@ -33,7 +33,7 @@ object SportsLiveChannelsDialog {
             }, "live-event-channel-${entry.channel.id}").apply { setSingleLine(false); maxLines = 3; setHorizontallyScrolling(false) }
             body.addView(button, LinearLayout.LayoutParams(-1, -2))
         }
-        if (fixture != null) body.addView(UI.identify(UI.pill(ctx, "Match centre  ›") { dialog.dismiss(); openMatch(fixture) }, "live-event-match-centre"))
+        if (fixture != null) body.addView(UI.identify(UI.pill(ctx, "Live stats & match centre  ›") { dialog.dismiss(); openMatch(fixture) }, "live-event-match-centre"))
         dialog.show(); UI.identify(dialog.getButton(AlertDialog.BUTTON_NEGATIVE), "live-event-channels-back")
         dialog.window?.setLayout((ctx.resources.displayMetrics.widthPixels * .88f).toInt().coerceAtMost(UI.dp(ctx, 720f)), -2)
     }

@@ -10,10 +10,10 @@ import android.widget.TextView
 
 /** Every screen inside this app is Reborn Play: any older brand wording left in shared player / Live TV screens is rewritten as it appears. */
 object Rebrand {
-    private val brand = Regex("\\bon\\s+now\\s+tv(\\s*·?\\s*v2)?(\\s*·?\\s*live(\\s+tv)?)?|\\bon\\s+now\\s*·?\\s*v2(\\s+live\\s+tv)?|\\binside\\s+on\\s+now\\b|\\bvesper\\b", RegexOption.IGNORE_CASE)
+    private val brand = Regex("\\bon\\s+now\\s+tv(\\s*·?\\s*v2)?(\\s*·?\\s*live(\\s+tv)?)?|\\bon\\s+now\\s*·?\\s*v2(\\s+live\\s+tv)?|\\binside\\s+on\\s+now\\b|\\bvesper\\b|\\bv2\\s+(?=sports hub|replay|live\\b)", RegexOption.IGNORE_CASE)
     fun fix(s: CharSequence): String? {
         if (!brand.containsMatchIn(s)) return null
-        return brand.replace(s) { m -> val t = m.value; if (t.startsWith("inside", true)) "inside Reborn Play" else if (t == t.uppercase() && s.toString() == s.toString().uppercase()) "REBORN PLAY" else "Reborn Play" }
+        return brand.replace(s) { m -> val t = m.value; if (t.startsWith("v2", true)) "" else if (t.startsWith("inside", true)) "inside Reborn Play" else if (t == t.uppercase() && s.toString() == s.toString().uppercase()) "REBORN PLAY" else "Reborn Play" }
     }
     private fun walk(v: View) {
         if (v is TextView) { fix(v.text ?: "")?.let { v.text = it } }

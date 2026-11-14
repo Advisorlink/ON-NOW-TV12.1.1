@@ -315,7 +315,7 @@ class GameActivity : AppCompatActivity() {
         if (bundle == null) { channelMatches = emptyList(); checkingChannels = false; renderBroadcast(); return }
         val fixture = game
         matchesJob = lifecycleScope.launch {
-            val matches = withContext(Dispatchers.Default) { GameChannelMatcher.find(fixture, bundle) }
+            val matches = withContext(Dispatchers.Default) { GameChannelMatcher.find(fixture, bundle).filter { it.confirmed || packageName != "tv.onnowtv.one" } }
             if (game !== fixture || BundleHolder.current !== bundle) return@launch
             channelMatches = matches; checkingChannels = false; renderBroadcast()
         }

@@ -1248,3 +1248,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.29 (build 68) — TEST COPY, BUILD-VERIFIED ONLY
 - Sports Hub: new top menu section 'Live now' > 'What's On Live' (Reborn package only, SportsHubActivity) opens the V2 live-sports guide (EpgActivity with EXTRA_INITIAL_CATEGORY_ID=__whatson__): sport chips -> games -> play / stats, unchanged V2 behaviour. Not run on device; whether the bundle/EPG is ready when opened from Reborn is unverified.
+
+## 3.9.30 (build 69) — TEST COPY, BUILD-VERIFIED ONLY (not run on a device)
+- Sports Hub (Reborn package only): large red "What's On Live" tile at the top of the side menu, above All sports (SportsHubSideMenu.setHero), with pulsing dot + live count. Old small 'Live now' menu entry and the jump into the V2 guide (EpgActivity __whatson__) removed.
+- Tile opens a new in-hub view (Mode.LIVE in SportsHubActivity): only (a) live score-feed fixtures whose channel is guide-confirmed AND on air right now, shown with scores, and (b) other live sports programmes found in the provider guide. Anything without a confirmed channel is hidden. OK on an event -> channel picker (SportsLiveChannelsDialog) + "Live stats & match centre" when a fixture is matched; single-channel guide-only event plays straight away.
+- Reborn: "Possible broadcast" / unconfirmed channel matches removed from score cards and the match centre (confirmed only).
+- V2 wording removed from the hub: wordmark = REBORN PLAY / SPORTS HUB, eyebrow, dock badge; Rebrand.kt also strips "V2 " before Sports Hub / Replay / Live.
+- Depends on the provider's EPG being loaded (BundleHolder.current); if the guide is empty the tile says "TV guide loading…".

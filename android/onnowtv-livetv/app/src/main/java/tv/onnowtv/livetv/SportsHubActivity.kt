@@ -49,7 +49,11 @@ import tv.onnowtv.livetv.ui.SportsSpotlight
 class SportsHubActivity : AppCompatActivity() {
     override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(tv.onnowtv.livetv.data.Settings.wrap(newBase))
 
-    private enum class Mode { SCORES, MAP, FOLLOWING }
+    private enum class Mode { SCORES, MAP, FOLLOWING, LIVE }
+    private val reborn by lazy { packageName == "tv.onnowtv.one" }
+    private var channelMatches: Map<String, List<GameChannelMatcher.Match>> = emptyMap()
+    private var liveTotal = -1
+    private lateinit var datesRow: LinearLayout
     private lateinit var menu: SportsHubSideMenu
     private lateinit var hubLayout: SportsHubLayout
     private lateinit var heading: TextView
@@ -68,7 +72,7 @@ class SportsHubActivity : AppCompatActivity() {
     private lateinit var notice: TextView
     private lateinit var retry: TextView
     private lateinit var empty: TextView
-    private val scores = SportsScoreAdapter(this) { openGame(it) }
+    private val scores = SportsScoreAdapter(this) { if (mode == Mode.LIVE) pickChannel(it) else openGame(it) }
     private val mapRows = SportsMapAdapter({ map.selectGame(Data.key(it)) }, { openGame(it) })
     private var sports: List<JSONObject> = SportsCategories.catalogue(emptyList())
     private var catalogueLoaded = false
@@ -95,7 +99,7 @@ class SportsHubActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        scores.openLiveEvent = { event -> startActivity(tv.onnowtv.livetv.data.SportsLiveNavigation.intent(this, event)) }
+        scores.openLiveEvent = { event -> if (mode == Mode.LIVE) watch(event) else startActivity(tv.onnowtv.livetv.data.SportsLiveNavigation.intent(this, event)) }
         SportsWindow.apply(this)
         handset = !SportsWindow.television(this)
         restoredListState = savedInstanceState?.getParcelable("scoresScroll")
@@ -129,7 +133,7 @@ class SportsHubActivity : AppCompatActivity() {
         fun scroller(row: LinearLayout) = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f), dp(ctx, 3f)); addView(row) }
         filters = UI.col(ctx, dp(ctx, 4f))
         leagueScroll = scroller(leaguesRow); filters.addView(leagueScroll)
-        val dates = UI.row(ctx, dp(ctx, 4f))
+        val dates = UI.row(ctx, dp(ctx, 4f)); datesRow = dates
         fun day(delta: Int) { dayOffset = (dayOffset + delta).coerceIn(-14, 7); updateDateLabel(); games = emptyList(); refresh() }
         dates.addView(tab("‹", false, "hub-previous-day") { day(-1) })
         calendar = UI.row(ctx, dp(ctx, 4f))
@@ -181,15 +185,14 @@ class SportsHubActivity : AppCompatActivity() {
         paint(false); setOnFocusChangeListener { _, has -> paint(has) }; setOnClickListener { onClick() }
     }
     private fun renderMenu() {
-        val pickSport: (Int) -> Unit = { i -> sportIdx = i; leagueIdx = 0; games = emptyList(); renderFilters(); renderMenu(); refresh() }
+        val pickSport: (Int) -> Unit = { i -> if (mode == Mode.LIVE) mode = Mode.SCORES; sportIdx = i; leagueIdx = 0; games = emptyList(); renderFilters(); renderMenu(); refresh() }
         val pickMode: (Mode) -> Unit = { m -> mode = m; renderMenu(); render() }
-        // Reborn Play: What's On Live sits at the very top of the hub menu and opens the live-sports guide (pick a sport, pick a game, Play live / Play with stats).
-        val liveNow = if (packageName != "tv.onnowtv.one") emptyList() else listOf("Live now" to listOf(
-            SportsHubSideMenu.Entry("hub-whats-on-live", "What's On Live", R.drawable.whatson_live_dot, false, true) {
-                startActivity(Intent(this, EpgActivity::class.java).putExtra(EpgActivity.EXTRA_INITIAL_CATEGORY_ID, "__whatson__"))
-            }))
-        menu.render(liveNow + listOf(
-            "Sports" to SportsHubSideMenu.sportEntries(sports, sportIdx, pickSport),
+        // Reborn Play: big What's On Live tile above All sports; shows only events confirmed live on the provider's channels.
+        if (reborn) menu.setHero(liveLabel(), mode == Mode.LIVE) {
+            mode = Mode.LIVE; sportIdx = -1; leagueIdx = 0; dayOffset = 0; games = emptyList(); updateDateLabel(); renderFilters(); renderMenu(); refresh()
+        }
+        menu.render(listOf(
+            "Sports" to SportsHubSideMenu.sportEntries(sports, if (mode == Mode.LIVE) -2 else sportIdx, pickSport),
             "View" to listOf(
                 SportsHubSideMenu.Entry("hub-mode-scores", "Scores", R.drawable.ic_hub_scores, true, mode == Mode.SCORES) { pickMode(Mode.SCORES) },
                 SportsHubSideMenu.Entry("hub-mode-map", "World map", R.drawable.ic_hub_globe, true, mode == Mode.MAP) { pickMode(Mode.MAP) },
@@ -202,8 +205,26 @@ class SportsHubActivity : AppCompatActivity() {
                 SportsHubSideMenu.Entry("hub-back-guide", "Back to guide", R.drawable.ic_exit, true) { finish() }),
         ))
         val sport = sports.getOrNull(sportIdx)
-        heading.text = sport?.optString("sport") ?: "All sports"
-        eyebrow.text = "V2 SPORTS HUB  ·  " + when (mode) { Mode.SCORES -> "SCORES"; Mode.MAP -> "WORLD MAP"; Mode.FOLLOWING -> "FOLLOWING" }
+        heading.text = if (mode == Mode.LIVE) "What's On Live" else sport?.optString("sport") ?: "All sports"
+        eyebrow.text = (if (reborn) "REBORN PLAY SPORTS HUB  ·  " else "V2 SPORTS HUB  ·  ") + when (mode) { Mode.SCORES -> "SCORES"; Mode.MAP -> "WORLD MAP"; Mode.FOLLOWING -> "FOLLOWING"; Mode.LIVE -> "LIVE ON YOUR CHANNELS" }
+    }
+    private fun liveLabel() = when { BundleHolder.current == null -> "TV guide loading…"; liveTotal < 0 -> "Checking your channels…"; liveTotal == 0 -> "Nothing live right now"; liveTotal == 1 -> "1 event live now"; else -> "$liveTotal events live now" }
+    /** Channels whose guide confirms this fixture is on air right now. */
+    private fun liveSources(g: JSONObject): List<SportsLiveGuide.Entry> {
+        val now = System.currentTimeMillis()
+        return channelMatches[Data.key(g)].orEmpty().mapNotNull { m -> m.programme?.takeIf { m.confirmed && it.isLiveAt(now) }?.let { SportsLiveGuide.Entry(m.channel, it, SportsCategories.bucket(g), g.toString()) } }
+    }
+    private fun pickChannel(g: JSONObject) {
+        val sources = liveSources(g)
+        if (sources.isEmpty()) { Toast.makeText(this, "This broadcast has just ended", Toast.LENGTH_SHORT).show(); refresh(quiet = true); return }
+        watch(tv.onnowtv.livetv.data.SportsLiveEvents.Event("fixture-${Data.key(g)}", Data.value(g, "name"), SportsCategories.bucket(g), sources, g.toString()))
+    }
+    private fun watch(event: tv.onnowtv.livetv.data.SportsLiveEvents.Event) {
+        val fixture = event.fixtureJson?.let { runCatching { JSONObject(it) }.getOrNull() }?.takeIf { tv.onnowtv.livetv.data.SportsLiveNavigation.hasFixture(it) }
+        val only = event.sources.singleOrNull()
+        val current = only?.let { e -> BundleHolder.current?.channels?.firstOrNull { it.id == e.channel.id && it.streamUrl == e.channel.streamUrl } }
+        if (fixture == null && current != null && only.programme.isLiveAt(System.currentTimeMillis())) SportsPlayback.open(this, current, subtitle = event.title)
+        else tv.onnowtv.livetv.ui.SportsLiveChannelsDialog.show(this, event) { openGame(it) }
     }
     private fun buildMap() {
         val ctx = this
@@ -280,6 +301,10 @@ class SportsHubActivity : AppCompatActivity() {
             val live = withContext(Dispatchers.Default) { if (guideBundle == null || dayOffset != 0) emptyList() else SportsLiveGuide.current(guideBundle, bucket) }
             if (generation != requestId || !isActive) return@launch
             programmes = if (BundleHolder.current === guideBundle) live else emptyList()
+            if (reborn && guideBundle != null) {
+                liveTotal = withContext(Dispatchers.Default) { tv.onnowtv.livetv.data.SportsLiveEvents.group(if (bucket == null && dayOffset == 0) live else SportsLiveGuide.current(guideBundle)).size }
+                menu.setHero(liveLabel(), mode == Mode.LIVE)
+            }
             render()
             if (!catalogueLoaded) {
                 val meta = SportsHubApi.leagues()
@@ -308,7 +333,8 @@ class SportsHubActivity : AppCompatActivity() {
                 }
                 val channels = withContext(Dispatchers.Default) { if (bundle == null) emptyMap() else fresh.associate { Data.key(it) to GameChannelMatcher.find(it, bundle) } }
                 if (generation != requestId || !isActive) return@launch
-                games = fresh; scores.setChannelMatches(channels)
+                channelMatches = if (reborn) channels.mapValues { (_, found) -> found.filter { it.confirmed } } else channels
+                games = fresh; scores.setChannelMatches(channelMatches)
                 if (!prefetched) { prefetched = true; prefetchLeagues() }
             }
             message = when { failed -> if (games.isEmpty()) "Scores are temporarily unavailable. Please retry." else "Connection interrupted · showing the last scores."; response?.optString("status") == "partial" -> "Some leagues are temporarily unavailable."; else -> "" }
@@ -327,19 +353,29 @@ class SportsHubActivity : AppCompatActivity() {
         if (!::map.isInitialized) return
         loadingBand.show(if (loadingScores) "Loading teams & scores…" else null)
         val followed = SportsFollowStore.all(this).map { it.key }.toSet()
-        val visible = if (mode == Mode.FOLLOWING) games.filter { followed.contains(Data.teamKey(it, "home")) || followed.contains(Data.teamKey(it, "away")) } else games
+        val liveMode = mode == Mode.LIVE
+        val visible = when (mode) {
+            Mode.FOLLOWING -> games.filter { followed.contains(Data.teamKey(it, "home")) || followed.contains(Data.teamKey(it, "away")) }
+            Mode.LIVE -> games.filter { it.optString("state") == "in" && liveSources(it).isNotEmpty() }
+            else -> games
+        }
+        leagueScroll.visibility = if (liveMode || leaguesRow.childCount == 0) View.GONE else View.VISIBLE
+        datesRow.visibility = if (liveMode) View.GONE else View.VISIBLE
+        spotlight.visibility = if (liveMode) View.GONE else View.VISIBLE
+        (spotlight.layoutParams as? LinearLayout.LayoutParams)?.let { lp -> val h = if (liveMode) 0 else dp(this, if (handset) 196f else 222f); if (lp.height != h) { lp.height = h; spotlight.layoutParams = lp } }
         val bucket = sports.getOrNull(sportIdx)?.optString("bucket")
-        val liveProgrammes = if (mode == Mode.SCORES && dayOffset == 0) programmes.filter { bucket == null || it.bucket == bucket } else emptyList()
+        val liveProgrammes = if ((mode == Mode.SCORES || liveMode) && dayOffset == 0) programmes.filter { bucket == null || it.bucket == bucket } else emptyList()
         val events = tv.onnowtv.livetv.data.SportsLiveEvents.group(liveProgrammes)
         val liveKeys = visible.filter { it.optString("state") == "in" }.map { "fixture-${Data.key(it)}" }.toSet() + events.map { it.key }
         liveBadge.text = "● ${liveKeys.size} LIVE"
+        if (liveMode && reborn && !loadingScores && BundleHolder.current != null && liveTotal != liveKeys.size) { liveTotal = liveKeys.size; menu.setHero(liveLabel(), true) }
 
         notice.text = message; notice.visibility = if (message.isEmpty()) View.GONE else View.VISIBLE
         retry.visibility = if (failed || message.startsWith("Some leagues")) View.VISIBLE else View.GONE
         mapPanel.visibility = if (mode == Mode.MAP) View.VISIBLE else View.GONE
         list.visibility = if (mode == Mode.MAP) View.GONE else View.VISIBLE
         empty.visibility = if (mode != Mode.MAP && visible.isEmpty() && liveProgrammes.isEmpty() && message.isEmpty()) View.VISIBLE else View.GONE
-        empty.text = if (mode == Mode.FOLLOWING) { if (followed.isEmpty()) "No teams followed yet.\nOpen a match and choose Follow." else "No games for your followed teams in this selection." } else "No live programmes or games in this selection."
+        empty.text = if (mode == Mode.FOLLOWING) { if (followed.isEmpty()) "No teams followed yet.\nOpen a match and choose Follow." else "No games for your followed teams in this selection." } else if (liveMode) { if (BundleHolder.current == null) "The TV guide is still loading. Open Live TV once, then come back." else "Nothing is live on your channels right now." } else "No live programmes or games in this selection."
         if (mode != Mode.MAP) spotlight.show(visible, followed)
         if (mode == Mode.MAP) { map.setGames(visible); mapRows.show(map.mappedGames()) } else scores.show(visible, liveProgrammes) {
             if (visible.isNotEmpty() || liveProgrammes.isNotEmpty()) restoredListState?.let { list.layoutManager?.onRestoreInstanceState(it); restoredListState = null }

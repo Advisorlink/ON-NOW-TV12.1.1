@@ -91,6 +91,11 @@ object SportsUi {
     fun divider(ctx: Context) = View(ctx).apply { setBackgroundColor(BORDER); layoutParams = LinearLayout.LayoutParams(-1, dp(ctx, 1f)) }
     fun singleLine(v: TextView): TextView = v.apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
     fun wordmark(ctx: Context, compact: Boolean = false): View = identify(row(ctx, dp(ctx, 10f)), "v2-sports-hub-brand").apply {
+        if (ctx.packageName == "tv.onnowtv.one") {
+            contentDescription = "Reborn Play Sports Hub"
+            addView(col(ctx, dp(ctx, 3f)).apply { addView(eyebrow(ctx, "REBORN PLAY", ACCENT).apply { letterSpacing = .22f }); addView(text(ctx, "SPORTS HUB", if (compact) 23f else 28f, bold = true)) })
+            return@apply
+        }
         contentDescription = "V2 Sports Hub"
         addView(text(ctx, "V2", if (compact) 21f else 25f, bold = true).apply {
             gravity = Gravity.CENTER; background = bg(BRAND, dp(ctx, 8f).toFloat())
