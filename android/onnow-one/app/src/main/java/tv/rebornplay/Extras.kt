@@ -51,7 +51,7 @@ object Tmdb {
     }
 
     suspend fun search(q: String): List<Item> = withContext(Dispatchers.IO) {
-        runCatching { val a = RebornApi.obj("/api/tmdb/search?q=${enc(q)}&limit=24").optJSONArray("data") ?: JSONArray(); (0 until a.length()).map { item(a.getJSONObject(it)) } }.getOrDefault(emptyList())
+        runCatching { val a = RebornApi.obj("/api/tmdb/search?q=${enc(q)}&limit=24").optJSONArray("data") ?: JSONArray(); (0 until a.length()).map { a.getJSONObject(it) }.filter { it.optLong("tmdb_id") > 0 && it.optString("type", it.optString("media_type")) != "person" }.map { item(it) }.distinctBy { it.id } }.getOrDefault(emptyList())
     }
 
     /** TMDB id for one of the service's titles (matched by name + year, remembered on the device). */

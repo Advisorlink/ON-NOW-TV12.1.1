@@ -73,6 +73,18 @@ class Device(BaseModel):
     device_id: str = Field(min_length=8, max_length=128)
 
 
+class CrashReport(BaseModel):
+    version: str = Field(default="", max_length=60)
+    device: str = Field(default="", max_length=200)
+    trace: str = Field(min_length=1, max_length=14000)
+
+
+@router.post("/crash")
+async def crash(body: CrashReport):
+    await _db().reborn_crashes.insert_one({"ts": time.time(), "version": body.version, "device": body.device, "trace": body.trace})
+    return {"ok": True}
+
+
 class Push(Login):
     data: Dict[str, Any]
 

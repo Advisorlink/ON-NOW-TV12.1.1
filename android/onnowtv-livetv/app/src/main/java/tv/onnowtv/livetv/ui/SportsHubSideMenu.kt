@@ -38,10 +38,12 @@ class SportsHubSideMenu(private val act: AppCompatActivity, private val style: S
         val radius = dp(if (dock) 16f else 18f).toFloat()
         fun paint(v: View) {
             val has = v.hasFocus()
-            v.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(0xFFFF3B4A.toInt(), 0xFFB3122B.toInt(), 0xFF3A1238.toInt())).apply {
+            v.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                if (has) intArrayOf(0xFF27477A.toInt(), 0xFF142650.toInt()) else intArrayOf(0xFF1A2B4B.toInt(), 0xFF0F1A31.toInt())).apply {
                 cornerRadius = radius
-                if (has) setStroke(dp(3f), Color.WHITE) else if (heroSelected) setStroke(dp(2f), style.accent) else setStroke(dp(1f), 0x55FFFFFF)
+                if (has) setStroke(dp(2.5f), 0xFF8DE0FF.toInt()) else if (heroSelected) setStroke(dp(2f), style.accent) else setStroke(dp(1f), 0x405DC8FF)
             }
+            if (android.os.Build.VERSION.SDK_INT >= 28) { v.outlineSpotShadowColor = style.accent; v.outlineAmbientShadowColor = style.accent }
             v.scaleX = if (has) 1.04f else 1f; v.scaleY = v.scaleX
             if (android.os.Build.VERSION.SDK_INT >= 21) v.elevation = if (has) dp(10f).toFloat() else 0f
         }
@@ -55,15 +57,25 @@ class SportsHubSideMenu(private val act: AppCompatActivity, private val style: S
                 t.addView(UI.text(act, "LIVE", 10f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER })
                 heroSlot.addView(t, LayoutParams(-1, dp(58f)).apply { topMargin = dp(8f) })
             } else {
-                t.setPadding(dp(16f), dp(14f), dp(14f), dp(14f))
-                t.addView(UI.row(act, dp(7f)).apply {
+                t.setPadding(dp(12f), dp(14f), dp(10f), dp(14f))
+                val badge = FrameLayout(act).apply {
+                    background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(0xFFFF5265.toInt(), 0xFFC2183A.toInt())).apply { shape = android.graphics.drawable.GradientDrawable.OVAL }
+                    addView(ImageView(act).apply { setImageResource(R.drawable.ic_nav_tv); setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN) }, LayoutParams(dp(20f), dp(20f), Gravity.CENTER))
+                }
+                val words = UI.col(act, dp(3f)).apply {
+                    addView(UI.row(act, dp(5f)).apply {
+                        gravity = Gravity.CENTER_VERTICAL
+                        addView(dot, LinearLayout.LayoutParams(dp(11f), dp(11f)))
+                        addView(UI.text(act, "LIVE NOW", 9f, 0xFFFF7D8B.toInt(), bold = true, mono = true).apply { letterSpacing = .2f })
+                    })
+                    addView(UI.singleLine(UI.text(act, "What's On Live", 16f, Color.WHITE, bold = true)))
+                    heroSub = UI.identify(UI.singleLine(UI.text(act, "", 11f, style.accent)), "hub-whats-on-live-count").also { addView(it) }
+                }
+                t.addView(UI.row(act, dp(11f)).apply {
                     gravity = Gravity.CENTER_VERTICAL
-                    addView(dot, LinearLayout.LayoutParams(dp(14f), dp(14f)))
-                    addView(UI.text(act, "LIVE NOW", 10f, Color.WHITE, bold = true, mono = true).apply { letterSpacing = .22f }, LinearLayout.LayoutParams(0, -2, 1f))
-                    addView(UI.text(act, "›", 20f, Color.WHITE, bold = true))
+                    addView(badge, LinearLayout.LayoutParams(dp(42f), dp(42f)))
+                    addView(words, LinearLayout.LayoutParams(0, -2, 1f))
                 })
-                t.addView(UI.singleLine(UI.text(act, "What's On Live", 19f, Color.WHITE, bold = true)))
-                heroSub = UI.identify(UI.singleLine(UI.text(act, "", 11.5f, 0xFFFFE3E6.toInt())), "hub-whats-on-live-count").also { t.addView(it) }
                 heroSlot.addView(t, LayoutParams(-1, -2).apply { setMargins(dp(2f), dp(10f), dp(2f), dp(4f)) })
             }
             t.isFocusable = true; t.isClickable = true

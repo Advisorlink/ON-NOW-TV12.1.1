@@ -1262,3 +1262,13 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Verified with the test login from the build box: xmltv.php OK (5.7 MB gz, 94k programmes); classifier found 18 live events on 29 channels at test time (temporary probe test, removed).
 - SportsSportIdentity: A-League -> football (was baseball via "Mariners"); Sheffield Shield / Big Bash / WBBL / "2nd Test" -> cricket.
 - Not covered: provider "event" channels with no guide (e.g. 'FA Cup | Wolves vs Shrewsbury 12:15 10/01') are not read as live events.
+
+## 3.9.32 (build 71) — TEST COPY, BUILD-VERIFIED ONLY
+- Search crash ("kayo"): /api/tmdb/search returns people with no tmdb_id -> several items with id "tmdb:0" -> duplicate LazyRow keys crash the "Not on your service yet" row ~0.7 s after typing. Tmdb.search now drops people / id 0 and de-dupes; search rows de-duped too. CORRECTION: people have no poster so they were already filtered out before that row; this is NOT confirmed as the cause of the crash.
+- Search channel tiles: wider card with logo + name, "On now" time range + title, progress bar, "Next" line (LiveStore.loadRow / epg).
+- What's On Live tile restyled: midnight-blue glass card, red round TV badge, LIVE NOW dot, cyan count, cyan glow border on focus (SportsHubSideMenu.setHero).
+
+## 3.9.33 (build 72) — TEST COPY, BUILD-VERIFIED ONLY
+- Search crash still NOT root-caused (no device/logcat). Second suspect fixed: the keyboard action key on the search field was ImeAction.Next (Compose moveFocus(Next) into lazy rows); now Done -> just hides the keyboard.
+- Crash.kt: uncaught exceptions are saved to files/last_crash.txt and POSTed on next start to /api/reborn/crash (preview URL from BuildConfig.DL_BASE, then emergent.host which does not have the route until redeployed). Stored in Mongo `reborn_crashes` (ts, version, device, trace; no login data). Read with: mongosh / python against db.reborn_crashes sorted by ts desc. A 'selftest' row exists from curl.
+- Build number 71 (3.9.32) had the search tiles + restyled What's On Live tile; 72 supersedes it.

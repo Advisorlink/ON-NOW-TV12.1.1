@@ -114,13 +114,14 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
     val cat = Gorilla.catalog
     val live = LiveStore.bundle.value
     val req = remember { FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     FocusOnShow(req, Unit)
     val t = q.trim().lowercase()
     val results = remember(q, cat) {
         if (t.length < 2 || cat == null) emptyList() else (cat.movies + cat.series).filter { it.name.lowercase().contains(t) }.sortedByDescending { it.added }.take(200)
     }
     val channels = remember(q, live) {
-        if (t.length < 2 || live == null) emptyList() else live.channels.filter { it.name.lowercase().contains(t) }.take(30)
+        if (t.length < 2 || live == null) emptyList() else live.channels.filter { it.name.lowercase().contains(t) }.distinctBy { it.id }.take(30)
     }
     // Titles the service doesn't have (in HD) yet — open one to press Notify me.
     var more by remember { mutableStateOf<List<Item>>(emptyList()) }
@@ -128,13 +129,13 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
         more = emptyList()
         if (t.length < 3) return@LaunchedEffect
         kotlinx.coroutines.delay(700)
-        more = Tmdb.search(q.trim()).filter { it.poster != null && Match.find(it, hdOnly = true) == null }.take(14)
+        more = Tmdb.search(q.trim()).filter { it.poster != null && Match.find(it, hdOnly = true) == null }.distinctBy { it.id }.take(14)
     }
     Column(Modifier.fillMaxSize().padding(top = 80.dp)) {
         Row(Modifier.padding(start = 64.dp, end = 48.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column { Eyebrow("Search"); Text("Find anything", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 26.sp) }
             Spacer(Modifier.width(30.dp))
-            Box(Modifier.width(520.dp)) { Field(q, { q = it }, "Movies, shows, live channels…", Lucide.Search, requester = req) }
+            Box(Modifier.width(520.dp)) { Field(q, { q = it }, "Movies, shows, live channels…", Lucide.Search, requester = req, onDone = { keyboard?.hide() }) }
             Spacer(Modifier.width(18.dp))
             Mono(if (results.isNotEmpty() || channels.isNotEmpty()) "${results.size} titles · ${channels.size} channels" else "", 10.sp, Txt3)
         }
@@ -143,7 +144,7 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
         else Column(Modifier.fillMaxSize()) {
             if (channels.isNotEmpty()) {
                 SectionHeader("Live TV", "Channels", "${channels.size} found", Modifier.padding(horizontal = 64.dp))
-                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(start = 64.dp, end = 48.dp, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(channels, key = { it.id }) { ch -> ChannelTile(ch) { onOpenChannel(ch) } }
                 }
                 Spacer(Modifier.height(22.dp))
@@ -162,17 +163,34 @@ fun SearchScreen(onOpen: (Item) -> Unit, onOpenChannel: (tv.onnowtv.livetv.data.
 
 @Composable
 private fun ChannelTile(ch: tv.onnowtv.livetv.data.Channel, onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    LaunchedEffect(ch.id) { runCatching { LiveStore.loadRow(ctx, ch) } }
+    val list = LiveStore.epg[LiveStore.key(ch)]
+    val now = System.currentTimeMillis()
+    val cur = list?.firstOrNull { it.isLiveAt(now) }
+    val next = list?.firstOrNull { it.startMs >= (cur?.stopMs ?: now) }
+    val fmt = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()) }
     Focusable(onClick = onClick) { f ->
-        Column(Modifier.width(150.dp).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.05f), TileShape).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
-                if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                else Icon(Lucide.RadioTower, null, Modifier.size(28.dp), tint = Txt3)
+        Column(Modifier.width(230.dp).focusScale(f, 1.05f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.05f), TileShape).padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(width = 62.dp, height = 44.dp), contentAlignment = Alignment.Center) {
+                    if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    else Icon(Lucide.RadioTower, null, Modifier.size(24.dp), tint = Txt3)
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            Spacer(Modifier.height(8.dp))
-            Text(ch.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Mono("Live", 9.sp, if (f) Blue else Txt3, 0.2f)
+            Spacer(Modifier.height(10.dp))
+            Mono(if (cur != null) "On now · ${fmt.format(java.util.Date(cur.startMs))} – ${fmt.format(java.util.Date(cur.stopMs))}" else "Live", 8.5.sp, if (f) Blue else Txt3, 0.12f)
+            Spacer(Modifier.height(3.dp))
+            Text(cur?.title ?: "No guide information", color = if (cur != null) Txt else Txt3, fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(7.dp))
+            val frac = if (cur != null && cur.stopMs > cur.startMs) ((now - cur.startMs).toFloat() / (cur.stopMs - cur.startMs)).coerceIn(0f, 1f) else 0f
+            Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f))) {
+                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Blue))
+            }
+            Spacer(Modifier.height(7.dp))
+            Text(if (next != null) "Next ${fmt.format(java.util.Date(next.startMs))} · ${next.title}" else " ", color = Txt3, fontFamily = Geist, fontSize = 10.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
-
-
