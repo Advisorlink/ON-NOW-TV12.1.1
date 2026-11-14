@@ -79,7 +79,7 @@ object LiveLoader {
         val app = ctx.applicationContext
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
             while (true) {
-                if (AuthStore.isSignedIn(app) && BundleHolder.current != null && (!EpgCache.exists(app) || EpgCache.xmltvAgeMs(app) > 4 * 3_600_000L || BundleHolder.current?.epg.isNullOrEmpty())) {
+                if (AuthStore.isSignedIn(app) && BundleHolder.current != null && (!EpgCache.exists(app) || EpgCache.xmltvAgeMs(app) > 4 * 3_600_000L || (BundleHolder.current?.epg?.size ?: 0) < 20)) {
                     runCatching { refreshGuide(app) }.onSuccess { withContext(Dispatchers.Main) { onUpdated() } }.onFailure { Log.w("LiveLoader", "keepFresh: ${it.message}") }
                 }
                 kotlinx.coroutines.delay(20 * 60_000L)

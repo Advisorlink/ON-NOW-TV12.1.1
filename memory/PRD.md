@@ -1272,3 +1272,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Search crash still NOT root-caused (no device/logcat). Second suspect fixed: the keyboard action key on the search field was ImeAction.Next (Compose moveFocus(Next) into lazy rows); now Done -> just hides the keyboard.
 - Crash.kt: uncaught exceptions are saved to files/last_crash.txt and POSTed on next start to /api/reborn/crash (preview URL from BuildConfig.DL_BASE, then emergent.host which does not have the route until redeployed). Stored in Mongo `reborn_crashes` (ts, version, device, trace; no login data). Read with: mongosh / python against db.reborn_crashes sorted by ts desc. A 'selftest' row exists from curl.
 - Build number 71 (3.9.32) had the search tiles + restyled What's On Live tile; 72 supersedes it.
+
+## 3.9.34 (build 73) — TEST COPY; hub listing verified on JVM with real provider data, NOT run on a device
+- REAL root cause of empty What's On Live / empty saved guide: XmlTvFetcher.parseXmlTv only read `start_timestamp`/`stop_timestamp` attributes; this provider's xmltv.php has only standard `start="YYYYMMDDHHMMSS +ZZZZ"`, so every programme was dropped (startTs 0) and the on-disk guide was empty (Live TV rows only worked via per-channel short EPG). Added XmlTvFetcher.xmltvSeconds fallback.
+- Verified: temp JVM test fed real channels + real XMLTV times through SportsLiveGuide.current + SportsLiveEvents.group -> 512 guide channels, 28 live entries, 17 events. NOT verified: the Android pull-parser + disk cache path on a box.
+- Hub: empty guide now reads "TV guide loading… / still downloading" and re-checks every 5 s; keepFresh re-downloads when fewer than 20 guide channels are in memory.
+- Lesson: the build-70 "verified" probe bypassed the parser; always test through the app's own functions.

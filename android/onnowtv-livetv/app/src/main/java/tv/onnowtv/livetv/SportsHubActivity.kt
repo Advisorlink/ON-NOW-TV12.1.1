@@ -208,7 +208,8 @@ class SportsHubActivity : AppCompatActivity() {
         heading.text = if (mode == Mode.LIVE) "What's On Live" else sport?.optString("sport") ?: "All sports"
         eyebrow.text = (if (reborn) "REBORN PLAY SPORTS HUB  ·  " else "V2 SPORTS HUB  ·  ") + when (mode) { Mode.SCORES -> "SCORES"; Mode.MAP -> "WORLD MAP"; Mode.FOLLOWING -> "FOLLOWING"; Mode.LIVE -> "LIVE ON YOUR CHANNELS" }
     }
-    private fun liveLabel() = when { BundleHolder.current == null -> "TV guide loading…"; liveTotal < 0 -> "Checking your channels…"; liveTotal == 0 -> "Nothing live right now"; liveTotal == 1 -> "1 event live now"; else -> "$liveTotal events live now" }
+    private fun guideEmpty() = BundleHolder.current?.let { tv.onnowtv.livetv.data.SharedSportsGuide.rows(it).isEmpty() } ?: true
+    private fun liveLabel() = when { guideEmpty() -> "TV guide loading…"; liveTotal < 0 -> "Checking your channels…"; liveTotal == 0 -> "Nothing live right now"; liveTotal == 1 -> "1 event live now"; else -> "$liveTotal events live now" }
     /** Channels whose guide confirms this fixture is on air right now. */
     private fun liveSources(g: JSONObject): List<SportsLiveGuide.Entry> {
         val now = System.currentTimeMillis()
@@ -258,7 +259,7 @@ class SportsHubActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume(); openingMatch = false; if (::map.isInitialized) render()
         refresh(quiet = games.isNotEmpty()); poll?.cancel()
-        poll = lifecycleScope.launch { while (isActive) { delay(30_000); if (fetch?.isActive != true) refresh(quiet = true) } }
+        poll = lifecycleScope.launch { while (isActive) { delay(if (reborn && guideEmpty()) 5_000 else 30_000); if (fetch?.isActive != true) refresh(quiet = true) } }
     }
     override fun onPause() { poll?.cancel(); fetch?.cancel(); requestId++; super.onPause() }
     override fun onSaveInstanceState(out: Bundle) { out.putInt("mode", mode.ordinal); out.putInt("sport", sportIdx); out.putInt("league", leagueIdx); out.putInt("day", dayOffset); out.putParcelable("scoresScroll", list.layoutManager?.onSaveInstanceState()); super.onSaveInstanceState(out) }
@@ -375,7 +376,7 @@ class SportsHubActivity : AppCompatActivity() {
         mapPanel.visibility = if (mode == Mode.MAP) View.VISIBLE else View.GONE
         list.visibility = if (mode == Mode.MAP) View.GONE else View.VISIBLE
         empty.visibility = if (mode != Mode.MAP && visible.isEmpty() && liveProgrammes.isEmpty() && message.isEmpty()) View.VISIBLE else View.GONE
-        empty.text = if (mode == Mode.FOLLOWING) { if (followed.isEmpty()) "No teams followed yet.\nOpen a match and choose Follow." else "No games for your followed teams in this selection." } else if (liveMode) { if (BundleHolder.current == null) "The TV guide is still loading. Open Live TV once, then come back." else "Nothing is live on your channels right now." } else "No live programmes or games in this selection."
+        empty.text = if (mode == Mode.FOLLOWING) { if (followed.isEmpty()) "No teams followed yet.\nOpen a match and choose Follow." else "No games for your followed teams in this selection." } else if (liveMode) { if (guideEmpty()) "The TV guide is still downloading.\nThis takes about a minute the first time and then fills in by itself." else "Nothing is live on your channels right now." } else "No live programmes or games in this selection."
         if (mode != Mode.MAP) spotlight.show(visible, followed)
         if (mode == Mode.MAP) { map.setGames(visible); mapRows.show(map.mappedGames()) } else scores.show(visible, liveProgrammes) {
             if (visible.isNotEmpty() || liveProgrammes.isNotEmpty()) restoredListState?.let { list.layoutManager?.onRestoreInstanceState(it); restoredListState = null }

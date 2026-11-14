@@ -142,6 +142,26 @@ object XmlTvFetcher {
      * EVERY channel in the file, regardless of [wantedChannelIds],
      * so the caller can run name-based fallback matching.
      */
+    /** Standard XMLTV time ("20261107060000 +0100") as epoch seconds; 0 when unreadable. */
+    fun xmltvSeconds(raw: String?): Long {
+        val s = raw?.trim() ?: return 0L
+        if (s.length < 14) return 0L
+        fun n(from: Int, to: Int): Int { var v = 0; for (i in from until to) { val c = s[i]; if (c !in '0'..'9') return -1; v = v * 10 + (c - '0') }; return v }
+        val y = n(0, 4); val mo = n(4, 6); val d = n(6, 8); val h = n(8, 10); val mi = n(10, 12); val se = n(12, 14)
+        if (y < 1970 || mo !in 1..12 || d !in 1..31 || h !in 0..23 || mi !in 0..59 || se !in 0..60) return 0L
+        val yy = if (mo <= 2) y - 1 else y
+        val era = yy / 400; val yoe = yy - era * 400
+        val doy = (153 * (mo + (if (mo > 2) -3 else 9)) + 2) / 5 + d - 1
+        val days = era * 146097L + (yoe * 365 + yoe / 4 - yoe / 100 + doy) - 719468L
+        var offset = 0
+        val z = s.substring(14).trim()
+        if (z.length >= 5 && (z[0] == '+' || z[0] == '-')) {
+            val oh = z.substring(1, 3).toIntOrNull() ?: 0; val om = z.substring(3, 5).toIntOrNull() ?: 0
+            offset = (oh * 3600 + om * 60) * (if (z[0] == '-') -1 else 1)
+        }
+        return days * 86400L + h * 3600L + mi * 60L + se - offset
+    }
+
     private fun parseXmlTv(
         stream: java.io.InputStream,
         initialWantedChannelIds: Set<String>,
@@ -214,10 +234,10 @@ object XmlTvFetcher {
                             if (ch != null && wantedChannelIds.contains(ch)) {
                                 inProgramme = true
                                 curChannel = ch
-                                curStartTs = parser.getAttributeValue(null, "start_timestamp")
-                                    ?.toLongOrNull() ?: 0L
-                                curStopTs = parser.getAttributeValue(null, "stop_timestamp")
-                                    ?.toLongOrNull() ?: 0L
+                                curStartTs = parser.getAttributeValue(null, "start_timestamp")?.toLongOrNull()
+                                    ?: xmltvSeconds(parser.getAttributeValue(null, "start"))
+                                curStopTs = parser.getAttributeValue(null, "stop_timestamp")?.toLongOrNull()
+                                    ?: xmltvSeconds(parser.getAttributeValue(null, "stop"))
                                 curTitle = null
                                 curDesc = null
                                 curLive = false
