@@ -1318,3 +1318,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.43 (build 82) — TEST COPY, BUILD-VERIFIED ONLY
 - Live TV: Sports Hub + Catch Up moved out of the top-right stack into the channel panel header bar, left of Search (BarPill, same style as Search; hidden while the search field is open). Top-right keeps only Favourite / Refresh / Settings.
+
+## 3.9.44 (build 83) — TEST COPY, BUILD-VERIFIED ONLY
+- Live TV header bar (left of Search): Live Sport (orange, count badge of live events) · Sports Hub (blue) · Catch Up (green) — BarPill(tint,count).
+- Live Sport = in-screen mode (LiveTvScreen sportMode/sport): chip row of sports (All + each sport with the V2 3D icons, "LIVE · N") above the channel list; landing on a chip filters the list to channels showing that sport live now (LiveStore.whatsOnLive -> SportsLiveEvents). Picking any category exits the mode. Badge counts events; chips count events; list shows channels.
+- Fresh install: unchanged logic — full set-up screen runs whenever the catalogue/channel caches are absent (always true after a fresh install; allowBackup=false), instant open otherwise.

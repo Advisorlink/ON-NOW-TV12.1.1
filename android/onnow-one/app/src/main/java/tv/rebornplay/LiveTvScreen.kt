@@ -94,8 +94,17 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
     }
     val cats = remember(b, tick) { LiveStore.categories(ctx) }
     val locked = remember(cats) { ParentalLock.lockedIds(ctx) }
-    val channels = remember(b, catId, favs, query) {
-        val base = LiveStore.channelsIn(catId)
+    // Live Sport: sports on air right now from the guide, grouped by sport (same detection as the Sports Hub).
+    var sportMode by remember { mutableStateOf(false) }
+    var sport by remember { mutableStateOf<String?>(null) }
+    var liveEvents by remember { mutableStateOf<List<tv.onnowtv.livetv.data.SportsLiveEvents.Event>>(emptyList()) }
+    LaunchedEffect(b, tick) { liveEvents = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LiveStore.whatsOnLive() } }
+    val sportChips = remember(liveEvents) { liveEvents.groupBy { it.bucket }.map { (k, v) -> k to v.size }.sortedByDescending { it.second } }
+    val channels = remember(b, catId, favs, query, sportMode, sport, liveEvents) {
+        val base = if (!sportMode) LiveStore.channelsIn(catId) else {
+            val byId = b.channels.associateBy { it.id }
+            liveEvents.filter { sport == null || it.bucket == sport }.flatMap { it.sources }.mapNotNull { byId[it.channel.id] }.distinctBy { it.id }
+        }
         if (query.isBlank()) base else base.filter { it.name.contains(query, ignoreCase = true) }
     }
     // Rows highlight instantly; the hero + guide (art, programme info) follow once the D-pad settles — keeps scrolling at V2 speed.
@@ -132,12 +141,12 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
         owner.lifecycle.addObserver(obs)
         onDispose { owner.lifecycle.removeObserver(obs); LivePreviewSession.release() }
     }
-    if (channels.isNotEmpty()) FocusOnShow(firstRow, catId)
+    if (channels.isNotEmpty() && !sportMode) FocusOnShow(firstRow, catId)
 
     fun selectCategory(c: Category?) {
         val id = c?.id ?: LiveStore.ALL
         if (c != null && id in locked && id !in unlocked) { gate = c; return }
-        catId = id; focused = null; Settings.prefs(ctx).edit().putString("reborn_last_cat", id).apply()
+        sportMode = false; catId = id; focused = null; Settings.prefs(ctx).edit().putString("reborn_last_cat", id).apply()
     }
 
     val compact = isCompact()
@@ -157,20 +166,22 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
             CategoryColumn(cats, catId, locked, unlocked, favCount = favs.size, total = b.channels.size, onFocus = { focusedCat = it }, onSelect = { selectCategory(it) })
             Column(Modifier.weight(1f).fillMaxHeight().panel().padding(start = 10.dp, end = 10.dp, top = 8.dp)) {
                 Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    LvMono(when (catId) { LiveStore.ALL -> "All channels"; LiveStore.FAVS -> "Favourites"; else -> cats.firstOrNull { it.id == catId }?.name ?: "Channels" }, 10.sp, LvAccent, 0.3f)
+                    LvMono(if (sportMode) "Live sport" + (sport?.let { " · " + tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(it) } ?: "") else when (catId) { LiveStore.ALL -> "All channels"; LiveStore.FAVS -> "Favourites"; else -> cats.firstOrNull { it.id == catId }?.name ?: "Channels" }, 10.sp, if (sportMode) SportOrange else LvAccent, 0.3f)
                     Spacer(Modifier.width(16.dp)); LvMono("${channels.size} channels", 9.sp, LvDim, 0.2f)
                     Spacer(Modifier.weight(1f))
                     if (!searchOpen) {
                         val goSports = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }
                         val goCatchUp = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.CatchUpActivity::class.java)) }
-                        BarPill(Lucide.Trophy, "Sports Hub", goSports); Spacer(Modifier.width(7.dp))
+                        BarPill(Lucide.Radio, "Live Sport", { sportMode = true; sport = null; focused = null }, SportOrange, liveEvents.size.toString(), sportMode); Spacer(Modifier.width(7.dp))
+                        BarPill(Lucide.Trophy, "Sports Hub", goSports, LvAccent); Spacer(Modifier.width(7.dp))
                         if (remember(b) { b.channels.any { it.archiveEnabled } }) {
                             LaunchedEffect(b) { tv.onnowtv.livetv.BundleHolder.current?.let { cur -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tv.onnowtv.livetv.data.CatchUpIndex.prewarm(ctx.applicationContext, cur) } } }
-                            BarPill(Lucide.History, "Catch Up", goCatchUp); Spacer(Modifier.width(7.dp))
+                            BarPill(Lucide.History, "Catch Up", goCatchUp, CatchGreen); Spacer(Modifier.width(7.dp))
                         }
                     }
                     SearchBox(query, searchOpen, onOpen = { searchOpen = true }, onClose = { query = ""; searchOpen = false }) { query = it }
                 }
+                if (sportMode) SportChips(sportChips, liveEvents.size, sport) { sport = it; focused = null }
                 ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { openChannel(it, channels) })
             }
             if (!compact) GuideColumn(current, fmt, tick)
@@ -322,11 +333,50 @@ private fun ProgressBar(p: Programme, modifier: Modifier, height: androidx.compo
 
 /** Same look as the collapsed Search button, for the shortcuts beside it. */
 @Composable
-private fun BarPill(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun BarPill(icon: ImageVector, label: String, onClick: () -> Unit, tint: Color, count: String? = null, active: Boolean = false) {
     Focusable(onClick = onClick) { f ->
-        Row(Modifier.height(26.dp).pillFocus(f).clip(CircleShape).background(LvCard).border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape).padding(horizontal = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, Modifier.size(12.dp), tint = LvAccent); Spacer(Modifier.width(8.dp))
+        Row(Modifier.height(26.dp).pillFocus(f).clip(CircleShape).background(tint.copy(alpha = if (active) 0.34f else 0.16f)).border(1.dp, tint.copy(alpha = if (active || f) 1f else 0.6f), CircleShape).padding(start = 11.dp, end = if (count != null) 5.dp else 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, Modifier.size(12.dp), tint = tint); Spacer(Modifier.width(7.dp))
             LvMono(label, 8.5.sp, Color.White, 0.1f)
+            if (count != null) {
+                Spacer(Modifier.width(7.dp))
+                Box(Modifier.height(17.dp).widthIn(min = 17.dp).clip(CircleShape).background(tint).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
+                    Text(count, color = Color(0xFF1A0E00), fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 9.5.sp, lineHeight = 10.sp)
+                }
+            }
+        }
+    }
+}
+
+private val SportOrange = Color(0xFFFF8A1F)
+private val CatchGreen = Color(0xFF34D399)
+
+/** Sport icons under the Live Sport button: landing on one lists every channel showing that sport live right now. */
+@Composable
+private fun SportChips(chips: List<Pair<String, Int>>, total: Int, active: String?, onPick: (String?) -> Unit) {
+    val first = remember { FocusRequester() }
+    FocusOnShow(first, Unit)
+    if (total == 0) { Box(Modifier.fillMaxWidth().padding(vertical = 14.dp), contentAlignment = Alignment.Center) { LvMono("No live sport on your channels right now", 10.sp, LvDimmer, upper = false) }; return }
+    androidx.compose.foundation.lazy.LazyRow(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+        item(key = "__all__") { SportChip(null, "All", total, active == null, first, onPick) }
+        items(chips.size, key = { chips[it].first }) { i -> SportChip(chips[i].first, tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(chips[i].first), chips[i].second, active == chips[i].first, null, onPick) }
+    }
+}
+
+@Composable
+private fun SportChip(id: String?, label: String, count: Int, active: Boolean, requester: FocusRequester?, onPick: (String?) -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Focusable(requester = requester, onFocus = { if (it) onPick(id) }, onClick = { onPick(id) }) { f ->
+        Row(Modifier.height(52.dp).pillFocus(f).clip(shape).background(if (active) SportOrange.copy(alpha = 0.18f) else LvCard).border(if (f) 2.dp else 1.dp, if (f || active) SportOrange else Color.White.copy(alpha = 0.12f), shape).padding(start = 7.dp, end = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0B2447)), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(if (id == null) tv.onnowtv.livetv.R.drawable.img_sport_trophy else tv.onnowtv.livetv.data.LiveSportsClassifier.iconOf(id)), label, Modifier.size(30.dp))
+            }
+            Spacer(Modifier.width(9.dp))
+            Column {
+                Text(label.uppercase(), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 10.5.sp, lineHeight = 12.sp, letterSpacing = 0.6.sp, maxLines = 1)
+                Spacer(Modifier.height(2.dp))
+                LvMono("Live · $count", 8.sp, SportOrange, 0.1f)
+            }
         }
     }
 }
