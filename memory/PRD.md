@@ -1315,3 +1315,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## 3.9.42 (build 81) — TEST COPY, BUILD-VERIFIED ONLY
 - Mini player (HomePip) is now a global overlay in the main stage (RebornActivity, after route content), same position on every page except Live TV (closed on entering Live). Focusable/OK-to-fullscreen only on Home; on other pages it is display-only. Back closes it only on Home (stack size 1). Closed by launchPlayer (movie/episode). No longer closed by Expand Trailer / opening details.
 - Sound: HomePip.mute while TrailerPlayer.playingId/fullscreen is set, and for the detail-page full-screen trailer; unmuted when the trailer ends / on resume (LivePreviewSession.player() accessor added).
+
+## 3.9.43 (build 82) — TEST COPY, BUILD-VERIFIED ONLY
+- Live TV: Sports Hub + Catch Up moved out of the top-right stack into the channel panel header bar, left of Search (BarPill, same style as Search; hidden while the search field is open). Top-right keeps only Favourite / Refresh / Settings.

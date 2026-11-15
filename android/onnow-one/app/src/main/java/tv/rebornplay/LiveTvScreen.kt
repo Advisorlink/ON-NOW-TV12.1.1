@@ -160,6 +160,15 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
                     LvMono(when (catId) { LiveStore.ALL -> "All channels"; LiveStore.FAVS -> "Favourites"; else -> cats.firstOrNull { it.id == catId }?.name ?: "Channels" }, 10.sp, LvAccent, 0.3f)
                     Spacer(Modifier.width(16.dp)); LvMono("${channels.size} channels", 9.sp, LvDim, 0.2f)
                     Spacer(Modifier.weight(1f))
+                    if (!searchOpen) {
+                        val goSports = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }
+                        val goCatchUp = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.CatchUpActivity::class.java)) }
+                        BarPill(Lucide.Trophy, "Sports Hub", goSports); Spacer(Modifier.width(7.dp))
+                        if (remember(b) { b.channels.any { it.archiveEnabled } }) {
+                            LaunchedEffect(b) { tv.onnowtv.livetv.BundleHolder.current?.let { cur -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tv.onnowtv.livetv.data.CatchUpIndex.prewarm(ctx.applicationContext, cur) } } }
+                            BarPill(Lucide.History, "Catch Up", goCatchUp); Spacer(Modifier.width(7.dp))
+                        }
+                    }
                     SearchBox(query, searchOpen, onOpen = { searchOpen = true }, onClose = { query = ""; searchOpen = false }) { query = it }
                 }
                 ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { openChannel(it, channels) })
@@ -265,14 +274,6 @@ private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: 
                 HeroIcon(Lucide.RefreshCw, "Refresh", null, onRefresh)
                 HeroIcon(Lucide.Settings, "Live TV settings", null, onSettings)
             }
-            // Same width as the three icons above so the stack lines up.
-            HeroPill(Lucide.Trophy, "Sports Hub", onSportsHub, Modifier.width(116.dp))
-            val hasCatchUp = remember(LiveStore.bundle.value) { LiveStore.bundle.value?.channels?.any { it.archiveEnabled } == true }
-            if (hasCatchUp) {
-                val ctxCu = LocalContext.current
-                LaunchedEffect(LiveStore.bundle.value) { tv.onnowtv.livetv.BundleHolder.current?.let { b -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tv.onnowtv.livetv.data.CatchUpIndex.prewarm(ctxCu.applicationContext, b) } } }
-                HeroPill(Lucide.History, "Catch Up", onCatchUp, Modifier.width(116.dp))
-            }
         }
         }
     }
@@ -317,6 +318,17 @@ private fun ProgressBar(p: Programme, modifier: Modifier, height: androidx.compo
     val now = System.currentTimeMillis()
     val frac = ((now - p.startMs).toFloat() / (p.stopMs - p.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
     Box(modifier.height(height).clip(CircleShape).background(Color.White.copy(alpha = 0.12f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).clip(CircleShape).background(LvAccent)) }
+}
+
+/** Same look as the collapsed Search button, for the shortcuts beside it. */
+@Composable
+private fun BarPill(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Focusable(onClick = onClick) { f ->
+        Row(Modifier.height(26.dp).pillFocus(f).clip(CircleShape).background(LvCard).border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape).padding(horizontal = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, Modifier.size(12.dp), tint = LvAccent); Spacer(Modifier.width(8.dp))
+            LvMono(label, 8.5.sp, Color.White, 0.1f)
+        }
+    }
 }
 
 /** Collapsed to a plain "Search" button so passing over it with the D-pad never pops the keyboard; OK expands it and focuses the field. */
