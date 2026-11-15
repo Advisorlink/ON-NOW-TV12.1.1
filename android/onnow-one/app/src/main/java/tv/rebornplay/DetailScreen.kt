@@ -40,6 +40,7 @@ import tv.vesper.app.WebAppInterface
 import tv.vesper.app.YouTubeTrailerExtractor
 
 fun launchPlayer(activity: Activity, meta: Item, title: String, url: String, cwId: String, startAtMs: Long = 0L) {
+    TrailerPlayer.halt()
     ContinueWatching.record(activity, cwId, meta, title.substringAfter(" · ", "").ifBlank { meta.runtime ?: "" }, url)
     val one = JSONArray().put(JSONObject().put("url", url).put("label", "Reborn").put("addonSource", "Reborn").put("quality", "").put("pmCached", true).put("isEnglish", true).put("size", "")).toString()
     WebAppInterface(activity).playInternalRichV2(url, title, null, meta.poster, meta.background, meta.description, meta.year, meta.rating, meta.runtime,
@@ -83,6 +84,8 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
         ready = true
     }
     FocusOnShow(primary, Unit)
+    LaunchedEffect(initial.id) { TrailerPlayer.stop() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     BackHandler(onBack = onBack)
     BackHandler(enabled = shown) { shown = false }
 
@@ -96,7 +99,7 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
             val key = meta.trailerYt
             val ts = key?.let { k -> withContext(Dispatchers.IO) { runCatching { YouTubeTrailerExtractor.extract(k) ?: YouTubeTrailerExtractor.extractMuxed(k) }.getOrNull() } }
             trailerBusy = false
-            if (ts == null) error = "No trailer available" else WebAppInterface(activity).playTrailerFullscreen(ts.videoUrl, ts.audioUrl ?: "", "${meta.name} — Trailer")
+            if (ts == null) error = "No trailer available" else { TrailerPlayer.halt(); WebAppInterface(activity).playTrailerFullscreen(ts.videoUrl, ts.audioUrl ?: "", "${meta.name} — Trailer") }
         }
     }
 
@@ -167,7 +170,7 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
             }
         }
         if (pinned) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(0f to Color.Transparent, 0.7f to Bg0.copy(alpha = 0.7f), 1f to Bg0.copy(alpha = 0.9f))).padding(top = 40.dp, bottom = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.05f).dp - 14.dp)) {
-            TitleLanes(meta, 80.dp, withSimilar = !external, onActor = onActor) { TitleActions.details(it) }
+            TitleLanes(meta, 80.dp, withSimilar = !external, onActor = onActor, onUp = { if (runCatching { primary.requestFocus() }.isFailure) focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Up) }) { TitleActions.details(it) }
         }
     }
 }

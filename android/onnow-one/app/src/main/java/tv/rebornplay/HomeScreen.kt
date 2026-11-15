@@ -51,9 +51,10 @@ fun allHomeRows(c: Gorilla.Catalog): List<Pair<String, Triple<String, String, Li
     val newSeries = c.series.sortedByDescending { it.added }
     val rows = ArrayList<Pair<String, Triple<String, String, List<Item>>>>()
     rows += "live" to Triple("Live TV", "Live TV", emptyList())            // rendered by LiveRow (source/look from Settings)
+    rows += "calendar" to Triple("From your calendar", "Coming Up", emptyList())   // rendered by ComingUpShelf; only shows when something airs in the next 7 days
     rows += "new_movies" to Triple("Movies", "New movies", newMovies.take(40))
     rows += "new_series" to Triple("Series", "New series", newSeries.take(40))
-    if (NotifyScan.coming.isNotEmpty()) rows.add(minOf(1, rows.size), "coming_soon" to Triple("Coming soon · Press OK to be reminded", "Coming Soon", NotifyScan.coming))
+    if (NotifyScan.coming.isNotEmpty()) rows.add(minOf(2, rows.size), "coming_soon" to Triple("Coming soon · Press OK to be reminded", "Coming Soon", NotifyScan.coming))
     val mRows = c.movieCats.mapNotNull { (id, name) -> val l = c.movies.filter { it.categoryId == id }; if (l.size >= 4) "mcat:$id" to Triple("Movies", name, l.sortedByDescending { it.added }.take(40)) else null }
     val sRows = c.seriesCats.mapNotNull { (id, name) -> val l = c.series.filter { it.categoryId == id }; if (l.size >= 4) "scat:$id" to Triple("Series", name, l.sortedByDescending { it.added }.take(40)) else null }
     // Alternate the service's movie and series categories so both reach the screen early.
@@ -111,8 +112,7 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
             val liveFirst = d.rows.firstOrNull()?.first == "live"
             if (liveFirst) add(d.rows[0])
             if (cw.isNotEmpty()) add("cw" to null)
-            if (coming.isNotEmpty()) add("calendar" to null)
-            d.rows.forEachIndexed { i, r -> if (!(liveFirst && i == 0)) add(r) }
+            d.rows.forEachIndexed { i, r -> if (!(liveFirst && i == 0) && !(r.first == "calendar" && coming.isEmpty())) add(r) }
         }
     }
     rowNav.rowCount = 1 + pages.size

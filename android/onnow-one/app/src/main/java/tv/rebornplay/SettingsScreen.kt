@@ -211,7 +211,9 @@ private fun AppearanceSection(onPickLiveCategory: () -> Unit) {
     ToggleRow("Pop-out preview", "Resting on a cover slides it open into a wide card with its backdrop and trailer. Off = covers only, no wide card, no trailers.", !covers) { covers = !covers; Prefs.setCoversOnly(ctx, covers) }
     var delay by remember { mutableStateOf(Prefs.trailerDelayMs(ctx)) }
     var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
-    ActionRow("Trailer delay", "How long you rest on a title before its trailer starts playing in the cover.", Prefs.trailerDelayLabel(delay)) { delay = Prefs.cycleTrailerDelay(ctx) }
+    var pop by remember { mutableStateOf(Prefs.popDelayMs(ctx)) }
+    ActionRow("Pop-out delay", "How long you rest on a cover before it slides open. Scroll past covers faster than this and they stay as plain covers.", Prefs.popDelayLabel(pop)) { pop = Prefs.cyclePopDelay(ctx) }
+    ActionRow("Trailer delay", "How long you rest on a title before its trailer starts playing in the cover (never before the cover has opened).", Prefs.trailerDelayLabel(delay)) { delay = Prefs.cycleTrailerDelay(ctx) }
     ActionRow("Pop-out speed", "How quickly a focused cover slides open into its wide card.", Prefs.expandLabel(speed)) { speed = Prefs.cycleExpandMs(ctx) }
     SubHead("Live TV row on Home")
     var src by remember { mutableStateOf(LiveRowPrefs.source(ctx)) }

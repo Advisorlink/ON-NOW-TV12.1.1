@@ -79,8 +79,13 @@ object Prefs {
     fun autoplay(ctx: Context) = p(ctx).getBoolean("autoplay", true)
     fun setAutoplay(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("autoplay", v).apply()
     /** How long you rest on a tile before its trailer starts (0 = trailers off). */
-    val TRAILER_DELAYS = listOf(500L, 1000L, 1800L, 3000L, 0L)
-    fun trailerDelayMs(ctx: Context) = p(ctx).getLong("trailer_delay", 1800L)
+    val TRAILER_DELAYS = listOf(1800L, 3000L, 5000L, 8000L, 0L)
+    fun trailerDelayMs(ctx: Context) = p(ctx).getLong("trailer_delay", 3000L)
+    /** How long you rest on a cover before it slides open (0 = straight away). */
+    val POP_DELAYS = listOf(0L, 500L, 1000L, 1500L, 2500L)
+    fun popDelayMs(ctx: Context) = p(ctx).getLong("pop_delay", 1000L)
+    fun cyclePopDelay(ctx: Context): Long { val i = POP_DELAYS.indexOf(popDelayMs(ctx)); val v = POP_DELAYS[(i + 1) % POP_DELAYS.size]; p(ctx).edit().putLong("pop_delay", v).apply(); return v }
+    fun popDelayLabel(ms: Long) = if (ms == 0L) "Straight away" else "${"%.1f".format(ms / 1000.0).removeSuffix(".0")} s"
     fun cycleTrailerDelay(ctx: Context): Long { val i = TRAILER_DELAYS.indexOf(trailerDelayMs(ctx)); val v = TRAILER_DELAYS[(i + 1) % TRAILER_DELAYS.size]; p(ctx).edit().putLong("trailer_delay", v).apply(); return v }
     fun trailerDelayLabel(ms: Long) = if (ms == 0L) "Off" else "${"%.1f".format(ms / 1000.0).removeSuffix(".0")} s"
     /** Tile expand animation duration. */
@@ -176,7 +181,7 @@ object HomeRowPrefs {
         val unknown = rows.filter { it.first !in order }
         // Coming Soon joins straight after the first saved row so it is always near the top.
         val known = order.mapNotNull { byKey[it] }; val soon = unknown.filter { it.first == "coming_soon" }
-        val sorted = unknown.filter { it.first == "live" } + known.take(1) + soon + known.drop(1) + unknown.filter { it.first != "live" && it.first != "coming_soon" }
+        val sorted = unknown.filter { it.first == "live" } + unknown.filter { it.first == "calendar" } + known.take(1) + soon + known.drop(1) + unknown.filter { it.first != "live" && it.first != "coming_soon" && it.first != "calendar" }
         return if (includeHidden) sorted else sorted.filter { it.first !in hidden }
     }
 }

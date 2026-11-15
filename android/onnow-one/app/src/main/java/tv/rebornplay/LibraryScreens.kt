@@ -201,7 +201,7 @@ fun CastRow(item: Item, side: Dp = 0.dp, onActor: (CastMember) -> Unit) = TitleL
 
 /** Bottom lane of the title page (Vesper): Cast, and — one press Down — similar titles that are on the service. Two dots show which lane is up. */
 @Composable
-fun TitleLanes(item: Item, side: Dp, withSimilar: Boolean, onActor: (CastMember) -> Unit, onOpen: (Item) -> Unit) {
+fun TitleLanes(item: Item, side: Dp, withSimilar: Boolean, onActor: (CastMember) -> Unit, onUp: (() -> Unit)? = null, onOpen: (Item) -> Unit) {
     val ctx = LocalContext.current
     var cast by remember(item.id) { mutableStateOf<List<CastMember>>(emptyList()) }
     var similar by remember(item.id) { mutableStateOf<List<Item>>(emptyList()) }
@@ -219,10 +219,12 @@ fun TitleLanes(item: Item, side: Dp, withSimilar: Boolean, onActor: (CastMember)
     var jump by remember { mutableStateOf(0) }
     LaunchedEffect(jump) { if (jump > 0) { withFrameNanos { }; runCatching { first.requestFocus() } } }
     val keys = Modifier.onPreviewKeyEvent { e ->
-        if (!both) return@onPreviewKeyEvent false
-        val go = (e.key == Key.DirectionDown && lane == 0) || (e.key == Key.DirectionUp && lane == 1)
+        val go = both && ((e.key == Key.DirectionDown && lane == 0) || (e.key == Key.DirectionUp && lane == 1))
         if (go && e.type == KeyEventType.KeyDown) { lane = 1 - lane; jump++ }
-        go
+        // Up from the top lane goes back to the Play / Trailer buttons.
+        val up = !go && e.key == Key.DirectionUp && onUp != null
+        if (up && e.type == KeyEventType.KeyDown) onUp?.invoke()
+        go || up
     }
     Column(keys) {
         Row(Modifier.padding(start = side, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {

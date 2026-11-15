@@ -20,7 +20,9 @@ import com.composables.icons.lucide.*
 
 /** Vesper's ConfirmModal: press-and-hold actions always ask first. Cancel on the left, the action on the right (focused). */
 object Confirm {
-    class Ask(val title: String, val body: String, val options: List<Pair<String, () -> Unit>>, val danger: Boolean)
+    class Ask(val title: String, val body: String, val options: List<Pair<String, () -> Unit>>, val danger: Boolean, val info: Boolean = false)
+    /** Result card with a single OK button. */
+    fun info(title: String, body: String) { sel = 1; armed = false; ask = Ask(title, body, listOf("OK" to {}), false, true) }
     var ask: Ask? by mutableStateOf(null)
     var sel by mutableStateOf(1)
     private var armed = false
@@ -31,7 +33,7 @@ object Confirm {
     fun key(e: KeyEvent): Boolean {
         val a = ask ?: return false
         when (e.key) {
-            Key.DirectionLeft -> if (e.type == KeyEventType.KeyDown) sel = (sel - 1).coerceAtLeast(0)
+            Key.DirectionLeft -> if (e.type == KeyEventType.KeyDown) sel = (sel - 1).coerceAtLeast(if (a.info) 1 else 0)
             Key.DirectionRight -> if (e.type == KeyEventType.KeyDown) sel = (sel + 1).coerceAtMost(a.options.size)
             Key.DirectionCenter, Key.Enter, Key.NumPadEnter ->
                 if (e.type == KeyEventType.KeyDown) { if (e.nativeKeyEvent.repeatCount == 0) armed = true }
@@ -50,12 +52,12 @@ fun ConfirmDialog() {
     val shape = RoundedCornerShape(16.dp); val btn = RoundedCornerShape(10.dp)
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.65f)), contentAlignment = Alignment.Center) {
         Column(Modifier.width(if (a.options.size > 1) 520.dp else 420.dp).clip(shape).background(Color(0xFF11182A)).border(1.dp, Color.White.copy(alpha = 0.10f), shape).padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 20.dp)) {
-            Mono(if (a.danger) "Confirm removal" else "Confirm action", 10.sp, accent, 0.28f)
+            Mono(if (a.info) "Refresh complete" else if (a.danger) "Confirm removal" else "Confirm action", 10.sp, accent, 0.28f)
             Text(a.title, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 23.sp, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
-            Text(a.body, color = Color(0xFF9DA5B5), fontFamily = Geist, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(bottom = 18.dp))
+            Text(a.body, color = if (a.info) Color(0xFFDCE3F0) else Color(0xFF9DA5B5), fontFamily = Geist, fontSize = if (a.info) 15.sp else 13.sp, lineHeight = if (a.info) 24.sp else 19.sp, modifier = Modifier.padding(bottom = 18.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                 val c = Confirm.sel == 0
-                Row(Modifier.height(40.dp).pillFocus(c).clip(btn).background(Color.White.copy(alpha = if (c) 0.14f else 0.06f)).border(if (c) 1.5.dp else 1.dp, if (c) BlueBright else Color.White.copy(alpha = 0.12f), btn).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (!a.info) Row(Modifier.height(40.dp).pillFocus(c).clip(btn).background(Color.White.copy(alpha = if (c) 0.14f else 0.06f)).border(if (c) 1.5.dp else 1.dp, if (c) BlueBright else Color.White.copy(alpha = 0.12f), btn).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Lucide.X, null, Modifier.size(13.dp), tint = Txt); Spacer(Modifier.width(6.dp))
                     Text("Cancel", color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }

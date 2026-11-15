@@ -1304,3 +1304,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.40 (build 79) — TEST COPY, BUILD-VERIFIED ONLY
 - Live TV top-right controls are now a vertical stack: row of Favourite / Refresh / Settings icons, then Sports Hub pill, then Catch Up pill (both 116dp wide to match the icon row). Risk: stack is ~116dp tall and may overlap the hero text/preview on small Live TV sizes — unchecked on device.
+
+## 3.9.41 (build 80) — TEST COPY, BUILD-VERIFIED ONLY
+- Trailer behind movie: TrailerPlayer.suspended + halt(); set in launchPlayer / detail trailer / Activity.onPause, cleared in onResume; play() refuses while suspended. Suspected cause (not reproduced): closing the action card re-armed the cover's trailer timer, which fired after the movie player opened. DetailScreen also stops any trailer on open.
+- Detail page: Up from the Cast / Similar lane returns to the Play/Trailer buttons (TitleLanes onUp -> primary.requestFocus()).
+- Covers: new "Pop-out delay" (Prefs.popDelayMs, default 1 s; Settings > Appearance) — cover only slides open after resting; trailer delay default 3 s (options 1.8/3/5/8/Off) and never before pop-out + 0.8 s.
+- Coming Up is a real home row key "calendar" (allHomeRows) -> appears in Settings > Home screen list (move/hide). Default position after Live TV row; hidden automatically when nothing airs in 7 days.
+- Refresh results: Confirm.info card "Before -> Now" for Live TV channels (channels/categories/catch-up channels), TV guide (channels with guide/programmes in the 3-day window), Movies & shows (movies/TV shows, shown after the loading screen returns to Home).

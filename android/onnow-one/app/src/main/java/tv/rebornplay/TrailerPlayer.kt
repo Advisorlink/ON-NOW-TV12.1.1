@@ -37,6 +37,9 @@ object TrailerPlayer {
     var softVolume = 1f   // only used on boxes whose system volume is fixed
         set(v) { field = v.coerceIn(0f, 1f); player?.volume = field }
     var fullscreen: Item? by mutableStateOf(null)
+    /** True while a movie / episode / channel is on screen (or the app is in the background): no trailer may start. */
+    @Volatile var suspended = false
+    fun halt() { suspended = true; stop(); fullscreen = null }
 
     fun get(ctx: Context): ExoPlayer = player ?: ExoPlayer.Builder(ctx.applicationContext)
         .setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder().setBufferDurationsMs(20_000, 60_000, 1_000, 2_500).build())
@@ -59,8 +62,10 @@ object TrailerPlayer {
 
     /** Resolve + start playback for `item`. Returns false when no trailer could be found. */
     suspend fun play(ctx: Context, item: Item, cap: Int = 480): Boolean {
+        if (suspended) return false
         val key = resolveKey(ctx, item) ?: return false
         val ts = streams(key, cap)
+        if (suspended) return false
         if (ts == null) { android.util.Log.w("Reborn", "no trailer streams for $key"); return false }
         val p = get(ctx)
         val http = DefaultHttpDataSource.Factory().setUserAgent("Mozilla/5.0 (Linux; Android 11) RebornPlay").setAllowCrossProtocolRedirects(true)

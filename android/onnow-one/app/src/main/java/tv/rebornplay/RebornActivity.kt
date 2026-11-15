@@ -68,8 +68,8 @@ class RebornActivity : ComponentActivity() {
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); pendingRoute = intent.getStringExtra("reborn_route") }
-    override fun onResume() { super.onResume(); Lockdown.enforce(this); resumeTick++ }
-    override fun onPause() { super.onPause(); TrailerPlayer.stop(); Cloud.pushIfChanged(this) }
+    override fun onResume() { super.onResume(); TrailerPlayer.suspended = false; Lockdown.enforce(this); resumeTick++ }
+    override fun onPause() { super.onPause(); TrailerPlayer.halt(); Cloud.pushIfChanged(this) }
     override fun onDestroy() { super.onDestroy(); tv.onnowtv.livetv.ReminderWatcher.detach(this); TrailerPlayer.release() }
     private var softIdx = 15
     /** Fire TV / fixed-volume boxes ignore the system slider — turn the app's own sound up/down instead. */
@@ -168,23 +168,30 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     val signOut = { Cloud.pushIfChanged(ctx); kotlinx.coroutines.GlobalScope.launch { runCatching { Cloud.forget(ctx) } }; signOutQuiet(ctx); token = null; nav.go(Route.Home); stage = "login" }
     // Live TV refresh happens in place: pick channels or guide, nothing else is reloaded.
     var liveBusy by remember { mutableStateOf<String?>(null) }
-    fun liveJob(label: String, job: suspend () -> Unit) {
+    fun change(a: Int, b: Int) = "%,d  →  %,d".format(a, b) + when { b > a -> "   (+%,d)".format(b - a); b < a -> "   (−%,d)".format(a - b); else -> "   (no change)" }
+    fun liveJob(label: String, done: String, stats: () -> List<Pair<String, Int>>, job: suspend () -> Unit) {
         if (liveBusy != null) return
         liveBusy = label
+        val before = stats()
         scope.launch {
             val r = runCatching { job() }
             if (r.isSuccess) { LiveStore.epg.clear(); LiveStore.refreshFromHolder(ctx) }
             liveBusy = null
-            Toast.makeText(ctx, if (r.isSuccess) "$label — done" else "Couldn't refresh: ${r.exceptionOrNull()?.message ?: "try again"}", Toast.LENGTH_LONG).show()
+            if (r.isSuccess) Confirm.info(done, "Before  →  Now\n" + stats().mapIndexed { i, (name, now) -> "$name:  ${change(before.getOrNull(i)?.second ?: 0, now)}" }.joinToString("\n"))
+            else Toast.makeText(ctx, "Couldn't refresh: ${r.exceptionOrNull()?.message ?: "try again"}", Toast.LENGTH_LONG).show()
         }
     }
+    val channelStats = { tv.onnowtv.livetv.BundleHolder.current.let { b -> listOf("Channels" to (b?.channels?.size ?: 0), "Categories" to (b?.categories?.size ?: 0), "Catch-up channels" to (b?.channels?.count { it.archiveEnabled } ?: 0)) } }
+    val guideStats = { tv.onnowtv.livetv.BundleHolder.current.let { b -> listOf("Channels with a guide" to (b?.epg?.size ?: 0), "Programmes" to (b?.epg?.values?.sumOf { it.size } ?: 0)) } }
+    var catBefore by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val askRefreshLive = {
         Confirm.choose("Refresh Live TV", "Choose what to refresh. Movies and TV shows are not touched.", listOf(
-            "Live TV channels" to { liveJob("Refreshing Live TV channels") { LiveLoader.refreshChannels(ctx) } },
-            "TV guide" to { liveJob("Refreshing the TV guide") { LiveLoader.refreshGuide(ctx) } }))
+            "Live TV channels" to { liveJob("Refreshing Live TV channels", "Live TV channels refreshed", channelStats) { LiveLoader.refreshChannels(ctx) } },
+            "TV guide" to { liveJob("Refreshing the TV guide", "TV guide refreshed", guideStats) { LiveLoader.refreshGuide(ctx) } }))
     }
     val askRefreshCatalogue = {
         Confirm.show("Refresh your movies and shows?", "The full list is downloaded again from your service. This can take a minute on a Fire Stick; Live TV is not touched.", "Refresh", false) {
+            catBefore = Gorilla.catalog?.let { it.movies.size to it.series.size } ?: (0 to 0)
             Cache.clear(); Gorilla.clearCache(ctx); BoxSets.reset(); nav.go(Route.Home); stage = "loading"
         }
     }
@@ -248,6 +255,11 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 liveBusy?.let { b -> Box(Modifier.fillMaxSize()) { Row(Modifier.align(Alignment.TopCenter).padding(top = 84.dp).clip(androidx.compose.foundation.shape.CircleShape).background(androidx.compose.ui.graphics.Color(0xF011182A)).border(1.dp, Blue.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape).padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = Blue, strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)); Text("$b…", color = Txt, fontFamily = Geist, fontSize = 13.sp) } } }
                 SpeedTestDialog()
+                // After "Refresh movies & shows": what it was and what it is now.
+                LaunchedEffect(catBefore, Gorilla.catalog) {
+                    val was = catBefore; val c = Gorilla.catalog
+                    if (was != null && c != null) { catBefore = null; Confirm.info("Movies & TV shows refreshed", "Before  →  Now\nMovies:  ${change(was.first, c.movies.size)}\nTV shows:  ${change(was.second, c.series.size)}") }
+                }
                 ConfirmDialog()
                 // Anything saved (My List, Continue Watching, reminders, actors, profiles) is uploaded within a minute, not only when the app closes.
                 LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(45_000); Cloud.pushIfChanged(ctx) } }

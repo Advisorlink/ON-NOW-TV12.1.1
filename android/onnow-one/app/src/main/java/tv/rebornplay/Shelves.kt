@@ -53,8 +53,13 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     val posterW = tileH * 2 / 3
     val coversOnly = remember { Prefs.coversOnly(ctx) }
     val expandMs = remember { Prefs.expandMs(ctx) }
-    val dwell = remember { if (coversOnly) 0L else Prefs.trailerDelayMs(ctx) }
-    val w by animateDpAsState(if (focused && !coversOnly) tileH * 16 / 9 else posterW, tween(expandMs), label = "w")
+    // The cover only slides open once you stop on it, so scrolling along a row shows plain covers.
+    val popDelay = remember { Prefs.popDelayMs(ctx) }
+    val dwell = remember { if (coversOnly) 0L else Prefs.trailerDelayMs(ctx).let { if (it == 0L) 0L else maxOf(it, popDelay + 800L) } }
+    var rested by remember { mutableStateOf(false) }
+    LaunchedEffect(focused) { rested = false; if (focused) { kotlinx.coroutines.delay(popDelay); rested = true } }
+    val big = focused && (rested || coversOnly)
+    val w by animateDpAsState(if (focused && rested && !coversOnly) tileH * 16 / 9 else posterW, tween(expandMs), label = "w")
     val req = requester ?: remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
     if (dwell > 0) TrailerDwell(item, focused && TitleActions.item == null, dwell)
@@ -106,8 +111,8 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
                 Box(Modifier.fillMaxSize().background(Color(0x8C05070D)))
                 ActionPills(sel, item.type == "series", inList, compact = true, modifier = Modifier.align(Alignment.Center))
             } else
-            Column(Modifier.align(Alignment.BottomStart).padding(if (focused) 14.dp else 9.dp)) {
-                Text(item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = if (focused) 15.sp else 11.sp, lineHeight = if (focused) 18.sp else 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.align(Alignment.BottomStart).padding(if (big) 14.dp else 9.dp)) {
+                Text(item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = if (big) 15.sp else 11.sp, lineHeight = if (big) 18.sp else 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (item.sub.isNotBlank()) Mono(item.sub, if (focused) 9.sp else 8.sp, Txt2, 0.12f, Modifier.padding(top = 3.dp), upper = false)
             }
         }

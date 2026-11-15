@@ -60,7 +60,7 @@ fun HomeRowsScreen(onBack: () -> Unit) {
                 Mono(String.format("%02d", i + 1), 11.sp, Txt3, 0.1f, modifier = Modifier.width(30.dp))
                 Column(Modifier.weight(1f)) {
                     Text(row.second, color = if (isHidden) Txt3 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, textDecoration = if (isHidden) TextDecoration.LineThrough else null)
-                    Text(if (isHidden) "Hidden from Home" else "${row.first} · ${row.third.size} titles", color = Txt3, fontFamily = Geist, fontSize = 11.sp)
+                    Text(if (isHidden) "Hidden from Home" else if (key == "calendar") "New episodes of your saved shows · next 7 days" else if (key == "live") "Live TV channels" else "${row.first} · ${row.third.size} titles", color = Txt3, fontFamily = Geist, fontSize = 11.sp)
                 }
                 IconBtn(Lucide.ChevronUp, i > 0, if (i == 0) first else null) { move(i, -1) }
                 IconBtn(Lucide.ChevronDown, i < rows.lastIndex) { move(i, 1) }
@@ -129,7 +129,7 @@ fun HomeRowsList() {
                 Mono(String.format("%02d", i + 1), 11.sp, Txt3, 0.1f, modifier = Modifier.width(30.dp))
                 Column(Modifier.weight(1f)) {
                     Text(row.second, color = if (isHidden) Txt3 else Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, textDecoration = if (isHidden) TextDecoration.LineThrough else null)
-                    Text(if (isHidden) "Hidden from Home" else "${row.first} · ${row.third.size} titles", color = Txt3, fontFamily = Geist, fontSize = 11.sp)
+                    Text(if (isHidden) "Hidden from Home" else if (key == "calendar") "New episodes of your saved shows · next 7 days" else if (key == "live") "Live TV channels" else "${row.first} · ${row.third.size} titles", color = Txt3, fontFamily = Geist, fontSize = 11.sp)
                 }
                 IconBtn(Lucide.ChevronUp, i > 0, null) { move(i, -1) }
                 IconBtn(Lucide.ChevronDown, i < rows.lastIndex) { move(i, 1) }
