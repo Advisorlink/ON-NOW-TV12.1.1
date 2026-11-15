@@ -1311,3 +1311,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Covers: new "Pop-out delay" (Prefs.popDelayMs, default 1 s; Settings > Appearance) — cover only slides open after resting; trailer delay default 3 s (options 1.8/3/5/8/Off) and never before pop-out + 0.8 s.
 - Coming Up is a real home row key "calendar" (allHomeRows) -> appears in Settings > Home screen list (move/hide). Default position after Live TV row; hidden automatically when nothing airs in 7 days.
 - Refresh results: Confirm.info card "Before -> Now" for Live TV channels (channels/categories/catch-up channels), TV guide (channels with guide/programmes in the 3-day window), Movies & shows (movies/TV shows, shown after the loading screen returns to Home).
+
+## 3.9.42 (build 81) — TEST COPY, BUILD-VERIFIED ONLY
+- Mini player (HomePip) is now a global overlay in the main stage (RebornActivity, after route content), same position on every page except Live TV (closed on entering Live). Focusable/OK-to-fullscreen only on Home; on other pages it is display-only. Back closes it only on Home (stack size 1). Closed by launchPlayer (movie/episode). No longer closed by Expand Trailer / opening details.
+- Sound: HomePip.mute while TrailerPlayer.playingId/fullscreen is set, and for the detail-page full-screen trailer; unmuted when the trailer ends / on resume (LivePreviewSession.player() accessor added).

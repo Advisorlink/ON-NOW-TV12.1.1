@@ -217,7 +217,6 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
             "profiles" -> ProfilesScreen(onPick = { profileKey++; nav.go(Route.Home); stage = "main" }, onSignOut = signOut)
             else -> key(profileKey) {
                 val playHero: (Hero) -> Unit = { h ->
-                    HomePip.close()
                     val url = h.item.playUrl
                     if (url == null) nav.go(Route.Detail(h.item)) else launchPlayer(activity, h.item, h.item.name, url, h.item.id)
                 }
@@ -232,7 +231,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                     else -> CompositionLocalProvider(LocalToken provides "xtream") { CompositionLocalProvider(LocalRowNav provides rowNav) { Box(Modifier.fillMaxSize().rowNavKeys(rowNav, scope)) {
                         val inset = safeInset()
                         when (cur) {
-                            is Route.Home -> { HomeScreen(nav, rowNav, playHero, onResume = { HomePip.close(); resumeEntry(activity, it) }, onChannel = { ch -> HomePip.open(activity, ch) }); HomePipWindow(activity) }
+                            is Route.Home -> { HomeScreen(nav, rowNav, playHero, onResume = { HomePip.close(); resumeEntry(activity, it) }, onChannel = { ch -> HomePip.open(activity, ch) }) }
                             is Route.Tab -> Box(Modifier.padding(horizontal = inset)) { TabGridScreen(cur.type) { nav.go(Route.Detail(it)) } }
                             is Route.BoxSets -> BoxSetsScreen(onOpenSet = { nav.go(Route.BoxSet(it)) })
                             is Route.Search -> Box(Modifier.padding(horizontal = inset)) { SearchScreen(onOpen = { nav.go(Route.Detail(it)) }, onOpenChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) }) }
@@ -249,6 +248,9 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             onSpeedTest = { HomePip.close(); TrailerPlayer.stop(); SpeedTest.show() }, onProfile = { stage = "profiles" })
                     } } }
                 }
+                // Mini player floats over every page (same spot as on Home) until something is played or Back closes it on Home.
+                LaunchedEffect(cur) { if (cur is Route.Live) HomePip.close() }
+                if (cur !is Route.Live) HomePipWindow(activity, onHome = cur is Route.Home && nav.stack.size == 1)
                 TitleActionsSheet(activity) { nav.go(Route.Detail(it)) }
                 TrailerFullscreen()
                 NotifyHitToast { nav.go(Route.Detail(it)) }

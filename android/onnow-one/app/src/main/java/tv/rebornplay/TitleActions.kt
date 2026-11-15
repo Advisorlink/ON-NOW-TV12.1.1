@@ -40,7 +40,7 @@ object TitleActions {
     internal var activate: () -> Unit = {}
     private var armed = false
     fun open(it: Item) { sel = 0; armed = false; item = it }
-    fun expand(it: Item) { HomePip.close(); TrailerPlayer.fullscreen = it }
+    fun expand(it: Item) { TrailerPlayer.fullscreen = it }
     /** Layout is [0] / [1] / [2 | 3]. */
     fun move(from: Int, key: Key): Int = when (key) {
         Key.DirectionUp -> when (from) { 0 -> 0; 1 -> 0; else -> 1 }
@@ -99,7 +99,7 @@ fun TitleActionsSheet(activity: Activity, onDetails: (Item) -> Unit) {
     val ctx = LocalContext.current
     SideEffect {
         TitleActions.details = onDetails
-        TitleActions.play = { it -> HomePip.close(); val url = it.playUrl; if (it.type == "series" || url == null) onDetails(it) else launchPlayer(activity, it, it.name, url, it.id) }
+        TitleActions.play = { it -> val url = it.playUrl; if (it.type == "series" || url == null) onDetails(it) else launchPlayer(activity, it, it.name, url, it.id) }
     }
     val item = TitleActions.item ?: return
     val series = item.type == "series"

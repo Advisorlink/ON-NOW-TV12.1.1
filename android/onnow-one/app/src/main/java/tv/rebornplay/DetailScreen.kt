@@ -40,7 +40,7 @@ import tv.vesper.app.WebAppInterface
 import tv.vesper.app.YouTubeTrailerExtractor
 
 fun launchPlayer(activity: Activity, meta: Item, title: String, url: String, cwId: String, startAtMs: Long = 0L) {
-    TrailerPlayer.halt()
+    TrailerPlayer.halt(); HomePip.close()
     ContinueWatching.record(activity, cwId, meta, title.substringAfter(" · ", "").ifBlank { meta.runtime ?: "" }, url)
     val one = JSONArray().put(JSONObject().put("url", url).put("label", "Reborn").put("addonSource", "Reborn").put("quality", "").put("pmCached", true).put("isEnglish", true).put("size", "")).toString()
     WebAppInterface(activity).playInternalRichV2(url, title, null, meta.poster, meta.background, meta.description, meta.year, meta.rating, meta.runtime,
@@ -99,7 +99,7 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
             val key = meta.trailerYt
             val ts = key?.let { k -> withContext(Dispatchers.IO) { runCatching { YouTubeTrailerExtractor.extract(k) ?: YouTubeTrailerExtractor.extractMuxed(k) }.getOrNull() } }
             trailerBusy = false
-            if (ts == null) error = "No trailer available" else { TrailerPlayer.halt(); WebAppInterface(activity).playTrailerFullscreen(ts.videoUrl, ts.audioUrl ?: "", "${meta.name} — Trailer") }
+            if (ts == null) error = "No trailer available" else { TrailerPlayer.halt(); HomePip.mute(true); WebAppInterface(activity).playTrailerFullscreen(ts.videoUrl, ts.audioUrl ?: "", "${meta.name} — Trailer") }
         }
     }
 

@@ -31,12 +31,14 @@ object HomePip {
     var pending: Channel? = null
     val channel = mutableStateOf<Channel?>(null)
     fun open(activity: Activity, ch: Channel) { pending = ch; LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) }
+    /** Silence the mini player while a trailer has the sound; give it back afterwards. */
+    fun mute(on: Boolean) { if (channel.value != null && LivePreviewSession.isAlive()) runCatching { LivePreviewSession.player()?.volume = if (on) 0f else 1f } }
     fun close() { pending = null; if (channel.value != null) { channel.value = null; LivePreviewSession.release() } }
 }
 
 /** Mini player on the right of the Home billboard, level with the title. Back closes it; OK on it goes back to full screen. */
 @Composable
-fun HomePipWindow(activity: Activity) {
+fun HomePipWindow(activity: Activity, onHome: Boolean) {
     val ctx = activity
     var ch by HomePip.channel
     var view by remember { mutableStateOf<PlayerView?>(null) }
@@ -48,6 +50,7 @@ fun HomePipWindow(activity: Activity) {
                     HomePip.pending?.let { ch = it; HomePip.pending = null }
                     val c = ch; val v = view
                     if (c != null && v != null) { if (!LivePreviewSession.isAlive() || LivePreviewSession.currentChannel?.id != c.id) LivePreviewSession.setChannel(ctx, c); LivePreviewSession.attachTo(v); LivePreviewSession.getOrCreate(ctx).playWhenReady = true }
+                    HomePip.mute(TrailerPlayer.playingId != null || TrailerPlayer.fullscreen != null)
                 }
                 Lifecycle.Event.ON_STOP -> view?.let { if (LivePreviewSession.isAlive()) LivePreviewSession.detachWithoutRelease(it) }
                 else -> {}
@@ -62,7 +65,10 @@ fun HomePipWindow(activity: Activity) {
         if (!LivePreviewSession.isAlive() || LivePreviewSession.currentChannel?.id != c.id) LivePreviewSession.setChannel(ctx, c)
         LivePreviewSession.attachTo(v); LivePreviewSession.getOrCreate(ctx).playWhenReady = true
     }
-    BackHandler { view = null; HomePip.close() }
+    // Back only closes it on the For You page; on other pages Back navigates and the mini player stays.
+    BackHandler(enabled = onHome) { view = null; HomePip.close() }
+    val trailer = TrailerPlayer.playingId != null || TrailerPlayer.fullscreen != null
+    LaunchedEffect(trailer, c.id, view) { HomePip.mute(trailer) }
     val scale by Prefs.pipScaleState(ctx)
     val now = LiveStore.nowNext(c).first
     val shape = RoundedCornerShape(12.dp)
@@ -71,7 +77,8 @@ fun HomePipWindow(activity: Activity) {
         val h = w * 9 / 16
         // Vertically centred on the billboard title block (hero ends at ~52 % of the screen).
         val top = (maxHeight * 0.33f - h / 2).coerceAtLeast(76.dp + safeInset() / 2)
-        Focusable(Modifier.align(Alignment.TopEnd).padding(top = top, end = 48.dp + safeInset()), onClick = { HomePip.open(activity, c) }) { f ->
+        val place = Modifier.align(Alignment.TopEnd).padding(top = top, end = 48.dp + safeInset())
+        val body: @Composable (Boolean) -> Unit = { f ->
             Box(Modifier.width(w).height(h).tileFocus(f, 12.dp).clip(shape).background(Color.Black).border(1.dp, Color.White.copy(alpha = 0.16f), shape)) {
                 AndroidView(factory = { x -> PlayerView(x).apply { useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; setShutterBackgroundColor(android.graphics.Color.BLACK); view = this } }, modifier = Modifier.fillMaxSize())
                 Box(Modifier.align(Alignment.TopStart).padding(8.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFFFF2535)).padding(horizontal = 6.dp, vertical = 2.dp)) {
@@ -79,9 +86,10 @@ fun HomePipWindow(activity: Activity) {
                 }
                 Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f))).padding(start = 10.dp, end = 10.dp, top = 16.dp, bottom = 7.dp)) {
                     Text(now?.title ?: c.name, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Mono(if (f) "OK · full screen   Back · close" else "${c.name}  ·  Back closes", 8.sp, Txt2, 0.08f, upper = false)
+                    Mono(if (f) "OK · full screen   Back · close" else if (onHome) "${c.name}  ·  Back closes" else c.name, 8.sp, Txt2, 0.08f, upper = false)
                 }
             }
         }
+        if (onHome) Focusable(place, onClick = { HomePip.open(activity, c) }) { f -> body(f) } else Box(place) { body(false) }
     }
 }

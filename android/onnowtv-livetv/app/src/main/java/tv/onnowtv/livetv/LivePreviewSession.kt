@@ -57,6 +57,8 @@ object LivePreviewSession {
 
     /** Lazily-create the shared [ExoPlayer].  Use the **application**
      *  context so the player out-lives any single activity. */
+    fun player(): ExoPlayer? = player
+
     fun getOrCreate(ctx: Context): ExoPlayer {
         player?.let { return it }
         synchronized(this) {
