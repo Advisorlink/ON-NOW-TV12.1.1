@@ -16,8 +16,8 @@ object SportsPlayback {
         tv.onnowtv.livetv.ui.ActionSheetDialog(activity)
             .title(clean)
             .subtitle("Live now · " + tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(bucket) + " · " + channel.name)
-            .item("Watch with Live Stats", icon = "▦") { openStats(activity, channel, clean, bucket) }
-            .item("Watch Fullscreen", icon = "▶") { open(activity, channel, subtitle = subtitle) }
+            .item("Play with Stats", icon = "▦") { openStats(activity, channel, clean, bucket) }
+            .item("Play without Stats", icon = "▶") { open(activity, channel, subtitle = subtitle) }
             .show()
     }
 

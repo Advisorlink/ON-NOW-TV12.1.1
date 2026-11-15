@@ -1323,3 +1323,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Live TV header bar (left of Search): Live Sport (orange, count badge of live events) · Sports Hub (blue) · Catch Up (green) — BarPill(tint,count).
 - Live Sport = in-screen mode (LiveTvScreen sportMode/sport): chip row of sports (All + each sport with the V2 3D icons, "LIVE · N") above the channel list; landing on a chip filters the list to channels showing that sport live now (LiveStore.whatsOnLive -> SportsLiveEvents). Picking any category exits the mode. Badge counts events; chips count events; list shows channels.
 - Fresh install: unchanged logic — full set-up screen runs whenever the catalogue/channel caches are absent (always true after a fresh install; allowBackup=false), instant open otherwise.
+
+## 3.9.46 (build 85) — TEST COPY, BUILD-VERIFIED ONLY
+- Live Sport chips: single orange ring only (removed pillFocus blue ring), chips smaller (44dp high).
+- New build = one full load: prefs reborn_boot.loaded_build vs versionCode; on mismatch (fresh install or update) caches are cleared and the full set-up screen runs once, then instant open until the next install.
+- Live Sport list: OK on a channel whose sport is in SportsPlayback.statsSports opens a sheet "Play with Stats" / "Play without Stats" (StatsPlayerActivity vs normal full screen). Same wording now used in the Sports Hub What's On Live picker. Other channels keep preview-then-fullscreen.

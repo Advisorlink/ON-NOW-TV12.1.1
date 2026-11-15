@@ -182,7 +182,19 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
                     SearchBox(query, searchOpen, onOpen = { searchOpen = true }, onClose = { query = ""; searchOpen = false }) { query = it }
                 }
                 if (sportMode) SportChips(sportChips, liveEvents.size, sport) { sport = it; focused = null }
-                ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { openChannel(it, channels) })
+                ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { ch ->
+                    // Live Sport: a game with stats asks "with stats or not"; anything else opens as usual.
+                    val entry = if (sportMode) liveEvents.asSequence().flatMap { it.sources.asSequence() }.firstOrNull { it.channel.id == ch.id && it.bucket in tv.onnowtv.livetv.SportsPlayback.statsSports } else null
+                    if (entry == null) openChannel(ch, channels) else {
+                        val title = entry.programme.title.replace("\u1D38\u1DA6\u1D5B\u1D49", "").trim()
+                        tv.onnowtv.livetv.ui.ActionSheetDialog(activity)
+                            .title(title)
+                            .subtitle("Live now · " + tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(entry.bucket) + " · " + ch.name)
+                            .item("Play with Stats", icon = "▦") { focused = ch; preview = ch; tv.onnowtv.livetv.SportsPlayback.openStats(activity, ch, title, entry.bucket) }
+                            .item("Play without Stats", icon = "▶") { focused = ch; preview = ch; LiveStore.openFullscreen(activity, ch, channels) }
+                            .show()
+                    }
+                })
             }
             if (!compact) GuideColumn(current, fmt, tick)
         }
@@ -365,17 +377,17 @@ private fun SportChips(chips: List<Pair<String, Int>>, total: Int, active: Strin
 
 @Composable
 private fun SportChip(id: String?, label: String, count: Int, active: Boolean, requester: FocusRequester?, onPick: (String?) -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(12.dp)
     Focusable(requester = requester, onFocus = { if (it) onPick(id) }, onClick = { onPick(id) }) { f ->
-        Row(Modifier.height(52.dp).pillFocus(f).clip(shape).background(if (active) SportOrange.copy(alpha = 0.18f) else LvCard).border(if (f) 2.dp else 1.dp, if (f || active) SportOrange else Color.White.copy(alpha = 0.12f), shape).padding(start = 7.dp, end = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0B2447)), contentAlignment = Alignment.Center) {
-                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(if (id == null) tv.onnowtv.livetv.R.drawable.img_sport_trophy else tv.onnowtv.livetv.data.LiveSportsClassifier.iconOf(id)), label, Modifier.size(30.dp))
+        Row(Modifier.height(44.dp).clip(shape).background(if (active) SportOrange.copy(alpha = 0.18f) else LvCard).border(if (f) 2.dp else 1.dp, if (f || active) SportOrange else Color.White.copy(alpha = 0.12f), shape).padding(start = 6.dp, end = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(32.dp).clip(CircleShape).background(Color(0xFF0B2447)), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(if (id == null) tv.onnowtv.livetv.R.drawable.img_sport_trophy else tv.onnowtv.livetv.data.LiveSportsClassifier.iconOf(id)), label, Modifier.size(25.dp))
             }
-            Spacer(Modifier.width(9.dp))
+            Spacer(Modifier.width(8.dp))
             Column {
-                Text(label.uppercase(), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 10.5.sp, lineHeight = 12.sp, letterSpacing = 0.6.sp, maxLines = 1)
+                Text(label.uppercase(), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Black, fontSize = 9.5.sp, lineHeight = 11.sp, letterSpacing = 0.6.sp, maxLines = 1)
                 Spacer(Modifier.height(2.dp))
-                LvMono("Live · $count", 8.sp, SportOrange, 0.1f)
+                LvMono("Live · $count", 7.5.sp, SportOrange, 0.1f)
             }
         }
     }

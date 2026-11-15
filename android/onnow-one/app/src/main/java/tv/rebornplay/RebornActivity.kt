@@ -122,7 +122,12 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
         }
         loadError = null; homeError = null
         // Already set up on this box: open straight away and do every check and refresh behind the scenes.
-        if (Gorilla.hasCache(ctx) && tv.onnowtv.livetv.data.BundleCache.exists(ctx)) {
+        // A newly installed version (fresh install or update) always does one full load from the service first.
+        val build = runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).let { if (android.os.Build.VERSION.SDK_INT >= 28) it.longVersionCode else it.versionCode.toLong() } }.getOrDefault(0L)
+        val bootPrefs = ctx.getSharedPreferences("reborn_boot", android.content.Context.MODE_PRIVATE)
+        val newBuild = bootPrefs.getLong("loaded_build", -1L) != build
+        if (newBuild) { Gorilla.clearCache(ctx); Cache.clear() }
+        if (!newBuild && Gorilla.hasCache(ctx) && tv.onnowtv.livetv.data.BundleCache.exists(ctx)) {
             scope.launch {
                 launch {
                     if (LiveStore.ensureLoaded(ctx)) liveReady = true
@@ -148,7 +153,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
         }
         if (auth.isSuccess) { launch { runCatching { Cloud.remember(ctx) } }; kotlinx.coroutines.withTimeoutOrNull(9000) { runCatching { Cloud.pull(ctx) } } }
         val live = launch {
-            if (LiveStore.ensureLoaded(ctx)) liveReady = true
+            if (!newBuild && LiveStore.ensureLoaded(ctx)) liveReady = true
             else runCatching { LiveLoader.load(ctx) { }; LiveStore.refreshFromHolder(ctx) }.onSuccess { liveReady = true }
                 .onFailure { if (it is LiveLoader.BadLogin) loadError = it.message else liveReady = true }
         }
@@ -161,7 +166,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
         live.join(); home.join()
         LiveLoader.keepFresh(ctx) { LiveStore.refreshFromHolder(ctx) }
         if (loadError != null) { signOutQuiet(ctx); token = null; stage = "login" }
-        else if (homeError == null) stage = "profiles"   // else: stay here and show the reason + Try again
+        else if (homeError == null) { if (liveReady) bootPrefs.edit().putLong("loaded_build", build).apply(); stage = "profiles" }   // else: stay here and show the reason + Try again
     }
     toast?.let { LaunchedEffect(it) { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show(); toast = null } }
 
