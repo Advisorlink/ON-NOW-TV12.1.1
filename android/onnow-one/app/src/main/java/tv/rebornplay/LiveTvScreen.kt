@@ -258,18 +258,21 @@ private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: 
         }
         // Drawn at the menu's own scale (not the Live TV size) so they always sit beside the menu without touching it.
         CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides (LocalOuterDensity.current ?: androidx.compose.ui.platform.LocalDensity.current)) {
-        Row(Modifier.align(Alignment.TopEnd).padding(top = if (wideBar) 23.dp + safeInset() / 2 else topPad / k, end = 10.dp + safeInset() / 2), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        Column(Modifier.align(Alignment.TopEnd).padding(top = if (wideBar) 23.dp + safeInset() / 2 else topPad / k, end = 10.dp + safeInset() / 2), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
             val fav = ch != null && ch.id in favs
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                HeroIcon(Lucide.Star, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
+                HeroIcon(Lucide.RefreshCw, "Refresh", null, onRefresh)
+                HeroIcon(Lucide.Settings, "Live TV settings", null, onSettings)
+            }
+            // Same width as the three icons above so the stack lines up.
+            HeroPill(Lucide.Trophy, "Sports Hub", onSportsHub, Modifier.width(116.dp))
             val hasCatchUp = remember(LiveStore.bundle.value) { LiveStore.bundle.value?.channels?.any { it.archiveEnabled } == true }
             if (hasCatchUp) {
                 val ctxCu = LocalContext.current
                 LaunchedEffect(LiveStore.bundle.value) { tv.onnowtv.livetv.BundleHolder.current?.let { b -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tv.onnowtv.livetv.data.CatchUpIndex.prewarm(ctxCu.applicationContext, b) } } }
-                HeroPill(Lucide.History, "Catch Up", onCatchUp)
+                HeroPill(Lucide.History, "Catch Up", onCatchUp, Modifier.width(116.dp))
             }
-            HeroPill(Lucide.Trophy, "Sports Hub", onSportsHub)
-            HeroIcon(Lucide.Star, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
-            HeroIcon(Lucide.RefreshCw, "Refresh", null, onRefresh)
-            HeroIcon(Lucide.Settings, "Live TV settings", null, onSettings)
         }
         }
     }
@@ -291,11 +294,11 @@ private fun PreviewBar(now: Programme?, previewing: Boolean, modifier: Modifier)
 }
 
 @Composable
-private fun HeroPill(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun HeroPill(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Focusable(onClick = onClick) { f ->
-        Row(Modifier.height(34.dp).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(LvPanel.copy(alpha = 0.9f)).border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape).padding(horizontal = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier.height(34.dp).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape).background(LvPanel.copy(alpha = 0.9f)).border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape).padding(horizontal = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             Icon(icon, label, Modifier.size(15.dp), tint = LvAccent); Spacer(Modifier.width(8.dp))
-            Text(label.uppercase(), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 10.5.sp, letterSpacing = 0.3.sp)
+            Text(label.uppercase(), color = Color.White, fontFamily = V2Sans, fontWeight = FontWeight.Bold, fontSize = 10.5.sp, letterSpacing = 0.3.sp, maxLines = 1, softWrap = false)
         }
     }
 }

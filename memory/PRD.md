@@ -1301,3 +1301,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Data: V2 used the backend's /api/catchup/recordings (V2 provider). For package tv.onnowtv.one CatchUpIndex.build now uses CatchUpIndex.direct: get_simple_data_table per archive channel (has_archive == 1, ended), 3 at a time, memory 10 min + disk catchup_provider.json 30 min (per username). Prewarmed when Live TV opens (CatchUpIndex.prewarm).
 - Provider facts (test login): 85 catch-up channels (mostly UK), 3 days (one 7), 82 had recordings, ~6,980 recordings, full fetch ~27 s at 3 parallel from the build box. One timeshift URL verified by curl: 206 video/mp2t. Sports channels are excluded from Catch Up (activity's genre filter).
 - Not verified on device: the screen itself, playback through PlayerActivity, return to Live TV preview after Back.
+
+## 3.9.40 (build 79) — TEST COPY, BUILD-VERIFIED ONLY
+- Live TV top-right controls are now a vertical stack: row of Favourite / Refresh / Settings icons, then Sports Hub pill, then Catch Up pill (both 116dp wide to match the icon row). Risk: stack is ~116dp tall and may overlap the hero text/preview on small Live TV sizes — unchecked on device.
