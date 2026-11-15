@@ -3,6 +3,9 @@ package tv.onnowtv.livetv.data
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.withLock
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
@@ -24,11 +27,39 @@ object CatchUpIndex {
     /** channelId → confirmed recordings (oldest first), only for the given channels. */
     suspend fun build(ctx: Context, channels: List<Channel>): Map<String, List<Programme>> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val all = memory?.takeIf { now - it.first < MEMORY_TTL_MS }?.second
+        val all = if (ctx.packageName == "tv.onnowtv.one") direct(ctx, channels, now) else memory?.takeIf { now - it.first < MEMORY_TTL_MS }?.second
             ?: fetch(ctx)?.also { memory = now to it }
             ?: disk(ctx, now).orEmpty()
         channels.mapNotNull { c -> all[c.id]?.filter { eligible(c, it, now) }?.takeIf { it.isNotEmpty() }?.let { c.id to it } }.toMap()
     }
+
+    private val directLock = kotlinx.coroutines.sync.Mutex()
+    private const val DIRECT_FILE = "catchup_provider.json"
+
+    /** Reborn Play: the recordings list comes straight from the signed-in service (each catch-up channel's own archive listing). */
+    private suspend fun direct(ctx: Context, channels: List<Channel>, now: Long): Map<String, List<Programme>> = directLock.withLock {
+        memory?.takeIf { now - it.first < 10 * 60_000L }?.second?.let { return@withLock it }
+        val f = File(ctx.filesDir, DIRECT_FILE)
+        val owner = AuthStore.username(ctx)
+        runCatching {
+            if (f.exists() && now - f.lastModified() < 30 * 60_000L) JSONObject(f.readText()).takeIf { it.optString("user") == owner }?.let { parse(it.toString()) } else null
+        }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { memory = now to it; return@withLock it }
+        val map = kotlinx.coroutines.coroutineScope {
+            channels.map { c -> async { c.id to SportsReplayRepository.archiveProgrammes(c).orEmpty().filter { it.archiveAvailable == true && it.stopMs <= now && it.title.isNotBlank() }.sortedBy { it.startMs } } }.awaitAll()
+        }.filter { it.second.isNotEmpty() }.toMap()
+        if (map.isNotEmpty()) {
+            memory = now to map
+            runCatching {
+                val ch = JSONObject()
+                map.forEach { (id, list) -> ch.put(id, org.json.JSONArray().apply { list.forEach { p -> put(JSONObject().put("t", p.title).put("d", p.description ?: "").put("s", p.startMs / 1000L).put("e", p.stopMs / 1000L)) } }) }
+                f.writeText(JSONObject().put("user", owner).put("channels", ch).toString())
+            }
+        }
+        map
+    }
+
+    /** Fetch the list ahead of time so Catch Up opens without a wait. */
+    suspend fun prewarm(ctx: Context, bundle: XtreamBundle) { runCatching { recordings(ctx, bundle) } }
 
     private fun fetch(ctx: Context): Map<String, List<Programme>>? = runCatching {
         val req = Request.Builder().url("${XtreamRepository.BACKEND_BASE.trimEnd('/')}/api/catchup/recordings")

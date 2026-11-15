@@ -119,7 +119,8 @@ class CatchUpActivity : AppCompatActivity() {
             channels.forEach { c -> genreOf[c.id] = genreFor(catNames[c.categoryId].orEmpty() + " " + c.name) }
             val live = channels.filter { it.id in index && genreOf[it.id] != "Sports" }
             loader.dismiss()
-            heroMeta.text = "WATCH WHAT YOU MISSED — UP TO 7 DAYS"
+            val maxDays = (live.maxOfOrNull { it.archiveDays ?: 0 } ?: 7).coerceIn(1, 7)
+            heroMeta.text = "WATCH WHAT YOU MISSED — UP TO $maxDays DAY${if (maxDays == 1) "" else "S"}"
             if (live.isEmpty()) {
                 heroTitle.text = "No recordings right now"
                 heroSynopsis.text = "Your provider isn't serving any catch-up recordings at the moment."
@@ -163,11 +164,11 @@ class CatchUpActivity : AppCompatActivity() {
         }, FrameLayout.LayoutParams(-1, dp(260)))
 
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(48), dp(28), dp(48), dp(36)) }
-        col.addView(eyebrow("↺  ON NOW TV · CATCH UP", violet))
+        col.addView(eyebrow(if (packageName == "tv.onnowtv.one") "↺  REBORN PLAY · CATCH UP" else "↺  ON NOW TV · CATCH UP", violet))
         heroTitle = text("Catch Up", 34f, Color.WHITE, Typeface.create("sans-serif-black", Typeface.NORMAL)).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
         col.addView(heroTitle, LinearLayout.LayoutParams(dp(560), -2).apply { topMargin = dp(10) })
         heroMeta = text("", 11f, cyan, Typeface.MONOSPACE).apply { letterSpacing = .14f }
-        heroMeta.text = "WATCH WHAT YOU MISSED — UP TO 7 DAYS"
+        heroMeta.text = "WATCH WHAT YOU MISSED"
         col.addView(heroMeta, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
         heroSynopsis = text("", 13f, Color.parseColor("#C7CFDB"), Typeface.DEFAULT).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setLineSpacing(0f, 1.2f) }
         col.addView(heroSynopsis, LinearLayout.LayoutParams(dp(520), -2).apply { topMargin = dp(8) })

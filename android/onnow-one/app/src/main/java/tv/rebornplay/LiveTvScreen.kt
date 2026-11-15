@@ -151,7 +151,8 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
     Column(Modifier.fillMaxSize().background(LvBg)) {
         LiveHero(current, preview, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
             onSettings = onSettings,
-            onSportsHub = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }) { v -> playerView = v }
+            onSportsHub = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) },
+            onCatchUp = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.CatchUpActivity::class.java)) }) { v -> playerView = v }
         Row(Modifier.weight(1f).fillMaxWidth().padding(start = side, end = side, bottom = 10.dp + inset / 2), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             CategoryColumn(cats, catId, locked, unlocked, favCount = favs.size, total = b.channels.size, onFocus = { focusedCat = it }, onSelect = { selectCategory(it) })
             Column(Modifier.weight(1f).fillMaxHeight().panel().padding(start = 10.dp, end = 10.dp, top = 8.dp)) {
@@ -198,7 +199,7 @@ private fun LiveBadge(live: Boolean, big: Boolean = false) {
 private fun clock(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return "%02d:%02d:%02d".format(s / 3600, (s / 60) % 60, s % 60) }
 
 @Composable
-private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onSportsHub: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
+private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onSportsHub: () -> Unit, onCatchUp: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
     val ctx = LocalContext.current
     val compact = isCompact()
     val k = LocalK.current
@@ -259,6 +260,12 @@ private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: 
         CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides (LocalOuterDensity.current ?: androidx.compose.ui.platform.LocalDensity.current)) {
         Row(Modifier.align(Alignment.TopEnd).padding(top = if (wideBar) 23.dp + safeInset() / 2 else topPad / k, end = 10.dp + safeInset() / 2), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             val fav = ch != null && ch.id in favs
+            val hasCatchUp = remember(LiveStore.bundle.value) { LiveStore.bundle.value?.channels?.any { it.archiveEnabled } == true }
+            if (hasCatchUp) {
+                val ctxCu = LocalContext.current
+                LaunchedEffect(LiveStore.bundle.value) { tv.onnowtv.livetv.BundleHolder.current?.let { b -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tv.onnowtv.livetv.data.CatchUpIndex.prewarm(ctxCu.applicationContext, b) } } }
+                HeroPill(Lucide.History, "Catch Up", onCatchUp)
+            }
             HeroPill(Lucide.Trophy, "Sports Hub", onSportsHub)
             HeroIcon(Lucide.Star, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
             HeroIcon(Lucide.RefreshCw, "Refresh", null, onRefresh)
