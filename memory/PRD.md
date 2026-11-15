@@ -1328,3 +1328,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Live Sport chips: single orange ring only (removed pillFocus blue ring), chips smaller (44dp high).
 - New build = one full load: prefs reborn_boot.loaded_build vs versionCode; on mismatch (fresh install or update) caches are cleared and the full set-up screen runs once, then instant open until the next install.
 - Live Sport list: OK on a channel whose sport is in SportsPlayback.statsSports opens a sheet "Play with Stats" / "Play without Stats" (StatsPlayerActivity vs normal full screen). Same wording now used in the Sports Hub What's On Live picker. Other channels keep preview-then-fullscreen.
+
+## 3.9.47 (build 86) — TEST COPY, BUILD-VERIFIED ONLY
+- Live Sport: pressing the button focuses the "All" chip (retrying requestFocus); Down from chips -> first game row (firstRow), Up from the first game row -> the active chip (chipFocus hoisted requester); "Other sport" chip sorted last; "N channels" label removed from the Live TV header bar.

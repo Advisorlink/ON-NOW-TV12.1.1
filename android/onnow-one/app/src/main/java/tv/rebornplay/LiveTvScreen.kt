@@ -40,6 +40,7 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import androidx.compose.ui.input.key.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.onnowtv.livetv.LivePreviewSession
@@ -99,7 +100,8 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
     var sport by remember { mutableStateOf<String?>(null) }
     var liveEvents by remember { mutableStateOf<List<tv.onnowtv.livetv.data.SportsLiveEvents.Event>>(emptyList()) }
     LaunchedEffect(b, tick) { liveEvents = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LiveStore.whatsOnLive() } }
-    val sportChips = remember(liveEvents) { liveEvents.groupBy { it.bucket }.map { (k, v) -> k to v.size }.sortedByDescending { it.second } }
+    val sportChips = remember(liveEvents) { liveEvents.groupBy { it.bucket }.map { (k, v) -> k to v.size }.sortedWith(compareBy<Pair<String, Int>> { it.first == "other" }.thenByDescending { it.second }) }
+    val chipFocus = remember { FocusRequester() }
     val channels = remember(b, catId, favs, query, sportMode, sport, liveEvents) {
         val base = if (!sportMode) LiveStore.channelsIn(catId) else {
             val byId = b.channels.associateBy { it.id }
@@ -167,7 +169,6 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
             Column(Modifier.weight(1f).fillMaxHeight().panel().padding(start = 10.dp, end = 10.dp, top = 8.dp)) {
                 Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     LvMono(if (sportMode) "Live sport" + (sport?.let { " · " + tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(it) } ?: "") else when (catId) { LiveStore.ALL -> "All channels"; LiveStore.FAVS -> "Favourites"; else -> cats.firstOrNull { it.id == catId }?.name ?: "Channels" }, 10.sp, if (sportMode) SportOrange else LvAccent, 0.3f)
-                    Spacer(Modifier.width(16.dp)); LvMono("${channels.size} channels", 9.sp, LvDim, 0.2f)
                     Spacer(Modifier.weight(1f))
                     if (!searchOpen) {
                         val goSports = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }
@@ -181,7 +182,13 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
                     }
                     SearchBox(query, searchOpen, onOpen = { searchOpen = true }, onClose = { query = ""; searchOpen = false }) { query = it }
                 }
-                if (sportMode) SportChips(sportChips, liveEvents.size, sport) { sport = it; focused = null }
+                if (sportMode) SportChips(sportChips, liveEvents.size, sport, chipFocus, onDown = { runCatching { firstRow.requestFocus() } }) { sport = it; focused = null }
+                Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
+                    // Up from the first game goes back to the sport icons.
+                    val up = sportMode && e.key == Key.DirectionUp && (focused == null || focused?.id == channels.firstOrNull()?.id)
+                    if (up && e.type == KeyEventType.KeyDown) runCatching { chipFocus.requestFocus() }
+                    up
+                }) {
                 ChannelColumn(channels, favs, current?.id, firstRow, fmt, tick, onFocus = { focused = it }, onOpen = { ch ->
                     // Live Sport: a game with stats asks "with stats or not"; anything else opens as usual.
                     val entry = if (sportMode) liveEvents.asSequence().flatMap { it.sources.asSequence() }.firstOrNull { it.channel.id == ch.id && it.bucket in tv.onnowtv.livetv.SportsPlayback.statsSports } else null
@@ -195,6 +202,7 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
                             .show()
                     }
                 })
+                }
             }
             if (!compact) GuideColumn(current, fmt, tick)
         }
@@ -365,13 +373,13 @@ private val CatchGreen = Color(0xFF34D399)
 
 /** Sport icons under the Live Sport button: landing on one lists every channel showing that sport live right now. */
 @Composable
-private fun SportChips(chips: List<Pair<String, Int>>, total: Int, active: String?, onPick: (String?) -> Unit) {
-    val first = remember { FocusRequester() }
-    FocusOnShow(first, Unit)
+private fun SportChips(chips: List<Pair<String, Int>>, total: Int, active: String?, focus: FocusRequester, onDown: () -> Unit, onPick: (String?) -> Unit) {
+    // Pressing Live Sport lands on "All" straight away.
+    LaunchedEffect(Unit) { repeat(12) { if (runCatching { focus.requestFocus() }.isSuccess) return@LaunchedEffect; delay(60) } }
     if (total == 0) { Box(Modifier.fillMaxWidth().padding(vertical = 14.dp), contentAlignment = Alignment.Center) { LvMono("No live sport on your channels right now", 10.sp, LvDimmer, upper = false) }; return }
-    androidx.compose.foundation.lazy.LazyRow(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
-        item(key = "__all__") { SportChip(null, "All", total, active == null, first, onPick) }
-        items(chips.size, key = { chips[it].first }) { i -> SportChip(chips[i].first, tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(chips[i].first), chips[i].second, active == chips[i].first, null, onPick) }
+    androidx.compose.foundation.lazy.LazyRow(Modifier.fillMaxWidth().padding(bottom = 8.dp).onPreviewKeyEvent { e -> val d = e.key == Key.DirectionDown; if (d && e.type == KeyEventType.KeyDown) onDown(); d }, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+        item(key = "__all__") { SportChip(null, "All", total, active == null, if (active == null) focus else null, onPick) }
+        items(chips.size, key = { chips[it].first }) { i -> SportChip(chips[i].first, tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(chips[i].first), chips[i].second, active == chips[i].first, if (active == chips[i].first) focus else null, onPick) }
     }
 }
 
