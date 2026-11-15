@@ -21,7 +21,7 @@ object SportsPlayback {
             .show()
     }
 
-    fun openStats(activity: Activity, channel: Channel, programmeTitle: String, bucket: String) {
+    fun openStats(activity: Activity, channel: Channel, programmeTitle: String, bucket: String, stopOnExit: Boolean = true) {
         if (LivePreviewSession.currentChannel?.id != channel.id || !LivePreviewSession.isAlive()) LivePreviewSession.setChannel(activity, channel)
         PlaybackQueue.setQueue(listOf(channel), channel.id)
         activity.startActivity(Intent(activity, StatsPlayerActivity::class.java).apply {
@@ -30,7 +30,7 @@ object SportsPlayback {
             putExtra(StatsPlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
             putExtra(StatsPlayerActivity.EXTRA_PROGRAMME_TITLE, programmeTitle)
             putExtra(StatsPlayerActivity.EXTRA_SPORT, bucket)
-            putExtra(StatsPlayerActivity.EXTRA_STOP_ON_EXIT, true)
+            putExtra(StatsPlayerActivity.EXTRA_STOP_ON_EXIT, stopOnExit)
         })
     }
     fun open(activity: Activity, channel: Channel, queue: List<Channel> = listOf(channel), subtitle: String = "", failover: Boolean = false) {

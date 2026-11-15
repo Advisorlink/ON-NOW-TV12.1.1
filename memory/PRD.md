@@ -1331,3 +1331,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.47 (build 86) — TEST COPY, BUILD-VERIFIED ONLY
 - Live Sport: pressing the button focuses the "All" chip (retrying requestFocus); Down from chips -> first game row (firstRow), Up from the first game row -> the active chip (chipFocus hoisted requester); "Other sport" chip sorted last; "N channels" label removed from the Live TV header bar.
+
+## 3.9.48 (build 87) — TEST COPY, BUILD-VERIFIED ONLY
+- Stats opened from the Live TV "Live Sport" list no longer stops the channel on Back (openStats stopOnExit=false); the Live TV preview window re-attaches the still-running player on resume. Sports Hub path still stops on exit (no preview there).

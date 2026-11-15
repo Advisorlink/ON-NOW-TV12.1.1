@@ -197,7 +197,7 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
                         tv.onnowtv.livetv.ui.ActionSheetDialog(activity)
                             .title(title)
                             .subtitle("Live now · " + tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(entry.bucket) + " · " + ch.name)
-                            .item("Play with Stats", icon = "▦") { focused = ch; preview = ch; tv.onnowtv.livetv.SportsPlayback.openStats(activity, ch, title, entry.bucket) }
+                            .item("Play with Stats", icon = "▦") { focused = ch; preview = ch; tv.onnowtv.livetv.SportsPlayback.openStats(activity, ch, title, entry.bucket, stopOnExit = false) }
                             .item("Play without Stats", icon = "▶") { focused = ch; preview = ch; LiveStore.openFullscreen(activity, ch, channels) }
                             .show()
                     }
