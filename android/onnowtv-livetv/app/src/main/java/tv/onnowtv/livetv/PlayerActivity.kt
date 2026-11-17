@@ -1652,20 +1652,27 @@ open class PlayerActivity : AppCompatActivity() {
         bar.setBackgroundResource(R.drawable.scrubber_focus_bg)
         bar.layoutParams = bar.layoutParams.apply { height = (18 * resources.displayMetrics.density).toInt() }
         bar.setPadding(0, (7 * resources.displayMetrics.density).toInt(), 0, (7 * resources.displayMetrics.density).toInt())
+        // Moving across the bar does nothing: press OK on it to start skipping, OK again (or move away) to stop.
+        var armed = false
+        fun hint(t: String) { status.text = t; hideHandler.removeCallbacksAndMessages(null); hideHandler.postDelayed({ status.text = "" }, 2_600L) }
+        fun show(v: View, has: Boolean) = v.animate().scaleY(if (armed) 2.6f else if (has) 1.6f else 1f).setDuration(140L).start()
         bar.setOnFocusChangeListener { v, has ->
-            v.animate().scaleY(if (has) 1.9f else 1f).setDuration(140L).start()
-            if (has) {
-                status.text = "◀  ▶  SKIP  ·  HOLD TO GO FASTER"
-                hideHandler.removeCallbacksAndMessages(null)
-                hideHandler.postDelayed({ status.text = "" }, 2_200L)
-            }
+            if (!has) armed = false
+            show(v, has)
+            if (has) hint("PRESS OK TO SKIP THROUGH THE RECORDING")
         }
-        bar.setOnKeyListener { _, keyCode, e ->
-            if (e.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-            if (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return@setOnKeyListener false
+        bar.setOnKeyListener { v, keyCode, e ->
+            val ok = keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+            if (ok) {
+                if (e.action == KeyEvent.ACTION_UP) { armed = !armed; show(v, true); hint(if (armed) "◀  ▶  SKIP  ·  HOLD TO GO FASTER  ·  OK WHEN DONE" else "PRESS OK TO SKIP THROUGH THE RECORDING") }
+                bumpControlsHide(); return@setOnKeyListener true
+            }
+            if (!armed || (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT)) return@setOnKeyListener false
+            if (e.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener true
             val held = e.repeatCount
             val step = when { held > 12 -> 300_000L; held > 4 -> 60_000L; else -> 30_000L }
             seekRecording(if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -step else step)
+            bumpControlsHide()
             true
         }
     }

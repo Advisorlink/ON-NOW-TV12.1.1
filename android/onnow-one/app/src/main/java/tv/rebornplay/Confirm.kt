@@ -51,7 +51,7 @@ fun ConfirmDialog() {
     val accent = if (a.danger) Color(0xFFFF6B7A) else Color(0xFF5DC8FF)
     val shape = RoundedCornerShape(16.dp); val btn = RoundedCornerShape(10.dp)
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.65f)), contentAlignment = Alignment.Center) {
-        Column(Modifier.width(if (a.options.size > 1) 520.dp else 420.dp).clip(shape).background(Color(0xFF11182A)).border(1.dp, Color.White.copy(alpha = 0.10f), shape).padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 20.dp)) {
+        Column(Modifier.width(if (a.options.size > 2) 700.dp else if (a.options.size > 1) 520.dp else 420.dp).clip(shape).background(Color(0xFF11182A)).border(1.dp, Color.White.copy(alpha = 0.10f), shape).padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 20.dp)) {
             Mono(if (a.info) "Refresh complete" else if (a.danger) "Confirm removal" else "Confirm action", 10.sp, accent, 0.28f)
             Text(a.title, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 23.sp, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
             Text(a.body, color = if (a.info) Color(0xFFDCE3F0) else Color(0xFF9DA5B5), fontFamily = Geist, fontSize = if (a.info) 15.sp else 13.sp, lineHeight = if (a.info) 24.sp else 19.sp, modifier = Modifier.padding(bottom = 18.dp))

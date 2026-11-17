@@ -33,7 +33,7 @@ import com.composables.icons.lucide.*
  * and the label popping in underneath the focused icon.
  */
 @Composable
-fun TopNav(activeId: String, autoplay: Boolean, rowNav: RowNav? = null, onItem: (NavItem) -> Unit, onAutoplay: () -> Unit, onSpeedUp: () -> Unit, onSpeedTest: () -> Unit, onProfile: () -> Unit) {
+fun TopNav(activeId: String, autoplay: Boolean, rowNav: RowNav? = null, onItem: (NavItem) -> Unit, onAutoplay: () -> Unit, onSpeedUp: () -> Unit, onSpeedTest: () -> Unit, onRefresh: () -> Unit = {}, onProfile: () -> Unit) {
     val ctx = LocalContext.current
     val profile = remember { Profiles.active(ctx) }
     var hover by remember { mutableStateOf<Pair<String, Float>?>(null) }   // label + centre x (px)
@@ -51,6 +51,7 @@ fun TopNav(activeId: String, autoplay: Boolean, rowNav: RowNav? = null, onItem: 
             NavButton(Lucide.CirclePlay, if (autoplay) "Auto play · ON" else "Auto play · OFF", autoplay, accent = true, onHover = hv, rowNav = rowNav, onClick = onAutoplay)
             NavButton(Lucide.Rocket, "Speed up", false, onHover = hv, rowNav = rowNav, onClick = onSpeedUp)
             NavButton(Lucide.Gauge, "Speed test", false, onHover = hv, rowNav = rowNav, onClick = onSpeedTest)
+            NavButton(Lucide.RefreshCw, "Refresh", false, onHover = hv, rowNav = rowNav, onClick = onRefresh)
             var pcx by remember { mutableStateOf(0f) }
             Focusable(Modifier.padding(start = 2.dp).onGloballyPositioned { pcx = it.positionInRoot().x + it.size.width / 2f }, onClick = onProfile, onFocus = { hv("Switch profile", pcx, it) }) { f ->
                 Box(Modifier.size(40.dp).focusScale(f, 1.04f).pillFocus(f).clip(CircleShape), contentAlignment = Alignment.Center) {

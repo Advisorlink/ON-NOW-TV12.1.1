@@ -64,7 +64,7 @@ private val PanelShape = RoundedCornerShape(12.dp)
 
 /** Live TV guide in the Reborn look — hero + preview window, categories | channels | programme guide. */
 @Composable
-fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit, onRefresh: () -> Unit) {
+fun LiveTvScreen(activity: Activity, onLoad: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val bundle by LiveStore.bundle
@@ -162,8 +162,7 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
     val inset = safeInset() * LocalK.current
     val side = 10.dp + inset / 2
     Column(Modifier.fillMaxSize().background(LvBg)) {
-        LiveHero(current, preview, favs, fmt, tick, onFav = { current?.let { LiveStore.toggleFavourite(ctx, it.id) } }, onRefresh = onRefresh,
-            onSettings = onSettings,
+        LiveHero(current, preview, favs, fmt, tick, onFullscreen = { (preview ?: current)?.let { LiveStore.openFullscreen(activity, it, channels) } },
             onSportsHub = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) },
             onCatchUp = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.CatchUpActivity::class.java)) }) { v -> playerView = v }
         Row(Modifier.weight(1f).fillMaxWidth().padding(start = side, end = side, bottom = 10.dp + inset / 2), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -172,16 +171,13 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
                 Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     LvMono(if (sportMode) "Live sport" + (sport?.let { " · " + tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(it) } ?: "") else when (catId) { LiveStore.ALL -> "All channels"; LiveStore.FAVS -> "Favourites"; else -> cats.firstOrNull { it.id == catId }?.name ?: "Channels" }, 10.sp, if (sportMode) SportOrange else LvAccent, 0.3f)
                     Spacer(Modifier.weight(1f))
-                    if (!searchOpen) {
-                        val goSports = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.SportsHubActivity::class.java)) }
-                        val goCatchUp = { activity.startActivity(android.content.Intent(activity, tv.onnowtv.livetv.CatchUpActivity::class.java)) }
-                        BarPill(Lucide.Radio, "Live Sport", { sportMode = true; sport = null; focused = null }, SportOrange, liveEvents.size.toString(), sportMode); Spacer(Modifier.width(7.dp))
-                        BarPill(Lucide.Trophy, "Sports Hub", goSports, LvAccent); Spacer(Modifier.width(7.dp))
-                        if (remember(b) { b.channels.any { it.archiveEnabled } }) {
-                            BarPill(Lucide.History, "Catch Up", goCatchUp, CatchGreen); Spacer(Modifier.width(7.dp))
-                        }
+                    val go = { c: Class<*> -> activity.startActivity(android.content.Intent(activity, c)) }
+                    BarPill(Lucide.RotateCcw, "Sports Replays", { go(tv.onnowtv.livetv.SportsCatchUpActivity::class.java) }, ReplayPurple); Spacer(Modifier.width(7.dp))
+                    BarPill(Lucide.Radio, "Live Sport", { sportMode = true; sport = null; focused = null }, SportOrange, liveEvents.size.toString(), sportMode); Spacer(Modifier.width(7.dp))
+                    BarPill(Lucide.Trophy, "Sports Hub", { go(tv.onnowtv.livetv.SportsHubActivity::class.java) }, LvAccent)
+                    if (remember(b) { b.channels.any { it.archiveEnabled } }) {
+                        Spacer(Modifier.width(7.dp)); BarPill(Lucide.History, "Catch Up", { go(tv.onnowtv.livetv.CatchUpActivity::class.java) }, CatchGreen)
                     }
-                    SearchBox(query, searchOpen, onOpen = { searchOpen = true }, onClose = { query = ""; searchOpen = false }) { query = it }
                 }
                 if (sportMode) SportChips(sportChips, liveEvents.size, sport, chipFocus, onDown = { runCatching { firstRow.requestFocus() } }) { sport = it; focused = null }
                 Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
@@ -240,7 +236,7 @@ private fun LiveBadge(live: Boolean, big: Boolean = false) {
 private fun clock(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return "%02d:%02d:%02d".format(s / 3600, (s / 60) % 60, s % 60) }
 
 @Composable
-private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFav: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit, onSportsHub: () -> Unit, onCatchUp: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
+private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: SimpleDateFormat, tick: Long, onFullscreen: () -> Unit, onSportsHub: () -> Unit, onCatchUp: () -> Unit, onPlayerView: (PlayerView) -> Unit) {
     val ctx = LocalContext.current
     val compact = isCompact()
     val k = LocalK.current
@@ -300,12 +296,7 @@ private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: 
         // Drawn at the menu's own scale (not the Live TV size) so they always sit beside the menu without touching it.
         CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides (LocalOuterDensity.current ?: androidx.compose.ui.platform.LocalDensity.current)) {
         Column(Modifier.align(Alignment.TopEnd).padding(top = if (wideBar) 23.dp + safeInset() / 2 else topPad / k, end = 10.dp + safeInset() / 2), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            val fav = ch != null && ch.id in favs
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                HeroIcon(Lucide.Star, if (fav) "Unfavourite" else "Favourite", if (fav) Amber else null, onFav)
-                HeroIcon(Lucide.RefreshCw, "Refresh", null, onRefresh)
-                HeroIcon(Lucide.Settings, "Live TV settings", null, onSettings)
-            }
+            HeroPill(Lucide.Maximize, "Full screen", onFullscreen)
         }
         }
     }
@@ -371,6 +362,7 @@ private fun BarPill(icon: ImageVector, label: String, onClick: () -> Unit, tint:
 
 private val SportOrange = Color(0xFFFF8A1F)
 private val CatchGreen = Color(0xFF34D399)
+private val ReplayPurple = Color(0xFFA855F7)
 
 /** Sport icons under the Live Sport button: landing on one lists every channel showing that sport live right now. */
 @Composable

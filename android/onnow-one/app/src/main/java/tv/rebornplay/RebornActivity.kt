@@ -189,6 +189,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
     val channelStats = { tv.onnowtv.livetv.BundleHolder.current.let { b -> listOf("Channels" to (b?.channels?.size ?: 0), "Categories" to (b?.categories?.size ?: 0), "Catch-up channels" to (b?.channels?.count { it.archiveEnabled } ?: 0)) } }
     val guideStats = { tv.onnowtv.livetv.BundleHolder.current.let { b -> listOf("Channels with a guide" to (b?.epg?.size ?: 0), "Programmes" to (b?.epg?.values?.sumOf { it.size } ?: 0)) } }
     var catBefore by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var allBefore by remember { mutableStateOf<List<Pair<String, Int>>?>(null) }
     val askRefreshLive = {
         Confirm.choose("Refresh Live TV", "Choose what to refresh. Movies and TV shows are not touched.", listOf(
             "Live TV channels" to { liveJob("Refreshing Live TV channels", "Live TV channels refreshed", channelStats) { LiveLoader.refreshChannels(ctx) } },
@@ -199,6 +200,28 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
             catBefore = Gorilla.catalog?.let { it.movies.size to it.series.size } ?: (0 to 0)
             Cache.clear(); Gorilla.clearCache(ctx); BoxSets.reset(); nav.go(Route.Home); stage = "loading"
         }
+    }
+    // Top-bar Refresh: one place to pick what to reload; every choice ends with a Before → Now card.
+    val askRefreshAll = {
+        Confirm.choose("Refresh", "Choose what to download again from your service.", listOf(
+            "Movies & shows" to { catBefore = Gorilla.catalog?.let { it.movies.size to it.series.size } ?: (0 to 0); Cache.clear(); Gorilla.clearCache(ctx); BoxSets.reset(); nav.go(Route.Home); stage = "loading" },
+            "TV guide" to { liveJob("Refreshing the TV guide", "TV guide refreshed", guideStats) { LiveLoader.refreshGuide(ctx) } },
+            "Live TV" to { liveJob("Refreshing Live TV channels", "Live TV channels refreshed", channelStats) { LiveLoader.refreshChannels(ctx) } },
+            "Everything" to {
+                if (liveBusy == null) {
+                    liveBusy = "Refreshing everything"
+                    val before = channelStats() + guideStats()
+                    scope.launch {
+                        val r = runCatching { LiveLoader.refreshChannels(ctx); LiveLoader.refreshGuide(ctx) }
+                        if (r.isSuccess) { LiveStore.epg.clear(); LiveStore.refreshFromHolder(ctx) }
+                        liveBusy = null
+                        if (r.isFailure) Toast.makeText(ctx, "Couldn't refresh Live TV: ${r.exceptionOrNull()?.message ?: "try again"}", Toast.LENGTH_LONG).show()
+                        allBefore = before.takeIf { r.isSuccess }
+                        catBefore = Gorilla.catalog?.let { it.movies.size to it.series.size } ?: (0 to 0)
+                        Cache.clear(); Gorilla.clearCache(ctx); BoxSets.reset(); nav.go(Route.Home); stage = "loading"
+                    }
+                }
+            }))
     }
     val refreshLive = {
         tv.onnowtv.livetv.LivePreviewSession.release()
@@ -241,7 +264,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             is Route.BoxSets -> BoxSetsScreen(onOpenSet = { nav.go(Route.BoxSet(it)) })
                             is Route.Search -> Box(Modifier.padding(horizontal = inset)) { SearchScreen(onOpen = { nav.go(Route.Detail(it)) }, onOpenChannel = { ch -> LiveStore.openFullscreen(activity, ch, LiveStore.bundle.value?.channels ?: listOf(ch)) }) }
                             is Route.Library -> LibraryScreen(onBack = { nav.go(Route.Home) }, onResume = { resumeEntry(activity, it) }, onCalendar = { nav.go(Route.Calendar) }, onActor = { nav.go(Route.Actor(it)) }, onSet = { nav.go(Route.BoxSet(it)) }) { nav.go(Route.Detail(it)) }
-                            is Route.Live -> LiveTvScreen(activity, onLoad = refreshLive, onSettings = { nav.go(Route.Settings) }, onRefresh = askRefreshLive)
+                            is Route.Live -> LiveTvScreen(activity, onLoad = refreshLive)
                             is Route.Settings -> Box(Modifier.padding(horizontal = inset)) { SettingsScreen(activity, autoplay, onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay) }, onProfiles = { stage = "profiles" }, onSignOut = signOut, onRefreshLive = askRefreshLive, onRefreshCatalogue = askRefreshCatalogue, onHomeRows = { nav.go(Route.HomeRows) }, onPickLiveCategory = { nav.go(Route.LiveCategoryPick) }, onBack = { nav.go(Route.Home) }) }
                             is Route.LiveCategoryPick -> Box(Modifier.padding(horizontal = inset)) { LiveCategoryPickScreen(onDone = { nav.go(Route.Settings) }) }
                             is Route.HomeRows -> Box(Modifier.padding(horizontal = inset)) { HomeRowsScreen(onBack = { nav.go(Route.Settings) }) }
@@ -250,7 +273,7 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                         val activeId = when (val top = nav.stack.first()) { is Route.Home -> "home"; is Route.Tab -> if (top.type == "movie") "movies" else "tv"; is Route.HomeRows, is Route.LiveCategoryPick -> "settings"; is Route.BoxSet -> "boxsets"; else -> NAV_ITEMS.firstOrNull { it.route == top }?.id ?: "" }
                         TopNav(activeId, autoplay, rowNav, onItem = { item -> item.route?.let { nav.go(it) } },
                             onAutoplay = { autoplay = !autoplay; Prefs.setAutoplay(ctx, autoplay); toast = if (autoplay) "Auto play ON" else "Auto play OFF" }, onSpeedUp = { BoxBoost.show(activity, auto = false) },
-                            onSpeedTest = { HomePip.close(); TrailerPlayer.stop(); SpeedTest.show() }, onProfile = { stage = "profiles" })
+                            onSpeedTest = { HomePip.close(); TrailerPlayer.stop(); SpeedTest.show() }, onRefresh = askRefreshAll, onProfile = { stage = "profiles" })
                     } } }
                 }
                 // Mini player floats over every page (same spot as on Home) until something is played or Back closes it on Home.
@@ -265,7 +288,12 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                 // After "Refresh movies & shows": what it was and what it is now.
                 LaunchedEffect(catBefore, Gorilla.catalog) {
                     val was = catBefore; val c = Gorilla.catalog
-                    if (was != null && c != null) { catBefore = null; Confirm.info("Movies & TV shows refreshed", "Before  →  Now\nMovies:  ${change(was.first, c.movies.size)}\nTV shows:  ${change(was.second, c.series.size)}") }
+                    if (was != null && c != null) {
+                        catBefore = null
+                        val live = allBefore?.let { b -> val now = channelStats() + guideStats(); "\n" + now.mapIndexed { i, (name, n) -> "$name:  ${change(b.getOrNull(i)?.second ?: 0, n)}" }.joinToString("\n") }.orEmpty()
+                        Confirm.info(if (allBefore != null) "Everything refreshed" else "Movies & TV shows refreshed", "Before  →  Now\nMovies:  ${change(was.first, c.movies.size)}\nTV shows:  ${change(was.second, c.series.size)}$live")
+                        allBefore = null
+                    }
                 }
                 ConfirmDialog()
                 // Anything saved (My List, Continue Watching, reminders, actors, profiles) is uploaded within a minute, not only when the app closes.

@@ -1375,3 +1375,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## Disk note (17 Nov)
 - /app volume (9.8G) filled up: .git holds ~3.3G of loose objects because every build's 40 MB APK in android/onnow-one/test-artifacts is tracked. Freed ~800 MB by deleting /root/.m2 (unused maven cache), /root/.npm/_cacache and two stale git tmp files. Will fill again after ~15 more builds — next agent should consider `git gc` or keeping the APK out of version control (ask the user first; the download link serves that file).
+
+## 3.9.56 (build 95) — TEST COPY, BUILD-VERIFIED ONLY
+- Continue Watching movie/show cards: when only a tall poster is known it is shown whole (Fit) over a dimmed copy instead of cropped to 16:9.
+- Catch-up scrubber: Left/Right only skip after pressing OK on the bar (armed); OK again or moving focus away disarms; otherwise Left/Right just move focus.
+- Top bar: Refresh button after Speed test -> Confirm.choose: Movies & shows / TV guide / Live TV / Everything, each ending in a Before -> Now card (Everything = channels + guide, then catalogue reload, one combined card).
+- Live TV: top-right Favourite / Refresh / Settings icons removed, replaced by a "Full screen" pill (opens the previewed/highlighted channel). Search removed from the channel bar. Bar order: Sports Replays (purple, opens SportsCatchUpActivity) · Live Sport (orange) · Sports Hub (blue) · Catch Up (green). SearchBox composable left unused.

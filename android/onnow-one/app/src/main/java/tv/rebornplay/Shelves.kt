@@ -260,7 +260,12 @@ fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -
                 }
             }
             else if (e.item.type == "replay" && e.item.background == null) { if (e.item.poster != null) AsyncImage(e.item.poster, e.item.name, Modifier.align(Alignment.Center).fillMaxSize(0.5f), contentScale = ContentScale.Fit) }
-            else AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            else if (e.item.background != null) AsyncImage(e.item.background, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            else {
+                // Only a tall cover is known: show it whole over a dimmed copy instead of cropping it to fit the wide card.
+                AsyncImage(e.item.poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.22f)
+                AsyncImage(e.item.poster, e.item.name, Modifier.fillMaxSize().padding(top = 6.dp, bottom = 6.dp), contentScale = ContentScale.Fit)
+            }
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
             if (e.item.type == "replay") Row(Modifier.align(Alignment.TopStart).padding(8.dp).height(20.dp).clip(CircleShape).background(Bg0.copy(alpha = 0.8f)).border(1.dp, Blue.copy(alpha = 0.7f), CircleShape).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Lucide.History, null, Modifier.size(10.dp), tint = BlueBright); Spacer(Modifier.width(5.dp)); Mono("Catch up", 8.sp, Txt, 0.1f)
