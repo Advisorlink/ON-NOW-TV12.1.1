@@ -99,7 +99,9 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
     var sportMode by remember { mutableStateOf(false) }
     var sport by remember { mutableStateOf<String?>(null) }
     var liveEvents by remember { mutableStateOf<List<tv.onnowtv.livetv.data.SportsLiveEvents.Event>>(emptyList()) }
-    LaunchedEffect(b, tick) { liveEvents = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LiveStore.whatsOnLive() } }
+    // Re-checked every 2 minutes (not on every 30 s tick) so it never competes with a channel starting.
+    val sportTick = tick / 120_000L
+    LaunchedEffect(b, sportTick) { delay(1500); liveEvents = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LiveStore.whatsOnLive() } }
     val sportChips = remember(liveEvents) { liveEvents.groupBy { it.bucket }.map { (k, v) -> k to v.size }.sortedWith(compareBy<Pair<String, Int>> { it.first == "other" }.thenByDescending { it.second }) }
     val chipFocus = remember { FocusRequester() }
     val channels = remember(b, catId, favs, query, sportMode, sport, liveEvents) {
@@ -176,7 +178,6 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit, onSettings: () -> Unit,
                         BarPill(Lucide.Radio, "Live Sport", { sportMode = true; sport = null; focused = null }, SportOrange, liveEvents.size.toString(), sportMode); Spacer(Modifier.width(7.dp))
                         BarPill(Lucide.Trophy, "Sports Hub", goSports, LvAccent); Spacer(Modifier.width(7.dp))
                         if (remember(b) { b.channels.any { it.archiveEnabled } }) {
-                            LaunchedEffect(b) { tv.onnowtv.livetv.BundleHolder.current?.let { cur -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tv.onnowtv.livetv.data.CatchUpIndex.prewarm(ctx.applicationContext, cur) } } }
                             BarPill(Lucide.History, "Catch Up", goCatchUp, CatchGreen); Spacer(Modifier.width(7.dp))
                         }
                     }

@@ -1334,3 +1334,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.48 (build 87) — TEST COPY, BUILD-VERIFIED ONLY
 - Stats opened from the Live TV "Live Sport" list no longer stops the channel on Back (openStats stopOnExit=false); the Live TV preview window re-attaches the still-running player on resume. Sports Hub path still stops on exit (no preview there).
+
+## 3.9.49 (build 88) — TEST COPY, BUILD-VERIFIED ONLY
+- Slow / frozen channel start (reported twice) still NOT root-caused; no player code changed since 2 Nov. Removed the two background jobs added recently that ran exactly when Live TV opens: Catch Up prewarm (85 provider requests, ~27 s) — Catch Up list now loads only when Catch Up is opened; Live Sport detection now every 2 min (was 30 s) and 1.5 s after open. Player buffer settings untouched (user asked not to change them).
+- If still slow: next step is on-device timing (time to first frame / stall count reported to the backend) rather than more guessing. Other suspects: full guide in memory (build 73+), keepFresh guide download, provider side.
+- Build tip: start the build with `setsid nohup ... < /dev/null &` then poll /tmp/one_build.log in a separate call (a combined long call hit the tool deadline and killed the script).
