@@ -104,6 +104,8 @@ object LiveStore {
         PlaybackQueue.setQueue(if (list.any { it.id == ch.id }) list else bundle.value?.channels ?: list, ch.id)
         lastChannelId = ch.id
         LivePreviewSession.markHandover()
+        // Fire TV & co: hand the picture over the same way the stats screen does (HK1 keeps its own, already smooth, path).
+        if (!tv.onnowtv.livetv.DeviceProfile.isHk1) LivePreviewSession.detachCurrent()
         activity.startActivity(Intent(activity, PlayerActivity::class.java).apply {
             putExtra(PlayerActivity.EXTRA_URL, ch.streamUrl)
             putExtra(PlayerActivity.EXTRA_TITLE, ch.name)

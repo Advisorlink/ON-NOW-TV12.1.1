@@ -258,6 +258,7 @@ object LivePreviewSession {
             else -> {}
         }
         if (view.player !== p) view.player = p
+        bound = java.lang.ref.WeakReference(view)
         if (!force) { handover?.let { it.surfaceMs = android.os.SystemClock.elapsedRealtime() - it.t0; it.waits = waits }; watchFrames(view) }
     }
 
@@ -282,8 +283,18 @@ object LivePreviewSession {
         val h = handover ?: return; handover = null
         runCatching {
             onHandover?.invoke(org.json.JSONObject().put("kind", "fullscreen_open").put("surface_ms", h.surfaceMs).put("first_frame_ms", frameMs).put("surface_waits", h.waits)
-                .put("decoder_inits", h.decoderInits).put("decoder", h.decoder).put("forced_rebinds", h.forced).put("channel", currentChannel?.name ?: ""))
+                .put("decoder_inits", h.decoderInits).put("decoder", h.decoder).put("forced_rebinds", h.forced).put("state", player?.playbackState ?: -1).put("error", player?.playerError?.errorCodeName ?: "").put("channel", currentChannel?.name ?: ""))
         }
+    }
+
+    private var bound: java.lang.ref.WeakReference<PlayerView>? = null
+    /** Let go of the view showing the picture BEFORE another screen opens (what the stats screen does, and
+     *  the order Fire TV handles cleanly). The stream itself keeps running; only the picture target moves. */
+    fun detachCurrent() {
+        pendingBind = null
+        main.removeCallbacks(frameCheck)
+        bound?.get()?.let { runCatching { it.player = null } }
+        bound = null
     }
 
     /** Detach [view] from the shared player WITHOUT releasing the

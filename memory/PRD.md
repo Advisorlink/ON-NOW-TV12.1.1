@@ -1395,3 +1395,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Known remaining limit: on workaround-list boxes one decoder reset per surface change is unavoidable -> a pause of up to one key-frame interval can remain. Real fix there would be never changing surface (grow-in-place overlay was tried in V2 and went black on Fire TV, see EpgActivity comment).
 - Diagnostics: each full-screen open posts one line to /api/reborn/diag (Mongo `reborn_diag`): device, surface_ms, first_frame_ms, surface_waits, decoder_inits, decoder name, forced_rebinds. READ THIS FIRST if the user reports the freeze again:  python3 -c "from pymongo import MongoClient;import os;[print(d) for d in MongoClient(os.environ['MONGO_URL'])[os.environ['DB_NAME']].reborn_diag.find({},{'_id':0}).sort('ts',-1).limit(30)]"  (run with backend/.env loaded). decoder_inits>=1 on Fire TV = decoder reset path.
 - Shared-code note: LivePreviewSession/PlayerActivity are also compiled into the V2 Live TV app; V2 picks these changes up on its next build.
+
+## Build 3.9.60-99 (Nov 17) — Fire TV full-screen hand-over (attempt 2) + hold to favourite
+- Guide/mini-player → full screen on non-HK1 boxes now lets go of the preview view BEFORE PlayerActivity opens (`LivePreviewSession.detachCurrent()` in `LiveStore.openFullscreen`) — the same order as StatsPlayerActivity.goFullscreen, which the user confirmed is smooth on Fire Stick/Cube. HK1 path unchanged. NOT device-verified; root cause on Fire TV never reproduced (no hardware, no diag rows arrived in `reborn_diag`).
+- Diag report (`/api/reborn/diag`, collection `reborn_diag`) now also carries player `state` and `error` — check it first if the freeze is reported again (suspect: ExoPlayer "detach surface timed out" on Fire OS).
+- "Play without Stats" no longer re-attaches the preview while full screen is opening.
+- Live TV guide: hold OK on a channel row = add/remove favourite (star + toast); short press still plays. Key handling in `ChannelRow` (LiveTvScreen.kt).
+- Still open: old V2 settings port (P1), clean customer copy without test login (P2).

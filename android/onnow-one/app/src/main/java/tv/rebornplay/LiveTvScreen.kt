@@ -195,7 +195,7 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit) {
                             .title(title)
                             .subtitle("Live now · " + tv.onnowtv.livetv.data.LiveSportsClassifier.labelOf(entry.bucket) + " · " + ch.name)
                             .item("Play with Stats", icon = "▦") { focused = ch; preview = ch; tv.onnowtv.livetv.SportsPlayback.openStats(activity, ch, title, entry.bucket, stopOnExit = false) }
-                            .item("Play without Stats", icon = "▶") { focused = ch; preview = ch; LiveStore.openFullscreen(activity, ch, channels) }
+                            .item("Play without Stats", icon = "▶") { focused = ch; LiveStore.openFullscreen(activity, ch, channels) }
                             .show()
                     }
                 })
@@ -469,16 +469,34 @@ private fun ChannelColumn(channels: List<Channel>, favs: Set<String>, currentId:
     LazyColumn(state = state, verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(start = 2.dp, end = 2.dp, top = 2.dp, bottom = 12.dp)) {
         itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
             LaunchedEffect(ch.id) { runCatching { LiveStore.loadRow(ctx, ch) } }
-            ChannelRow(ch, ch.id in favs, ch.id == currentId, if (i == 0) first else null, fmt, tick, onFocus = { onFocus(ch) }) { onOpen(ch) }
+            ChannelRow(ch, ch.id in favs, ch.id == currentId, if (i == 0) first else null, fmt, tick, onFocus = { onFocus(ch) }, onHold = {
+                val adding = ch.id !in LiveStore.favourites.value
+                LiveStore.toggleFavourite(ctx, ch.id)
+                android.widget.Toast.makeText(ctx, if (adding) "Added to favourites" else "Removed from favourites", android.widget.Toast.LENGTH_SHORT).show()
+            }) { onOpen(ch) }
         }
     }
 }
 
 @Composable
-private fun ChannelRow(ch: Channel, fav: Boolean, active: Boolean, requester: FocusRequester?, fmt: SimpleDateFormat, tick: Long, onFocus: () -> Unit, onClick: () -> Unit) {
+private fun ChannelRow(ch: Channel, fav: Boolean, active: Boolean, requester: FocusRequester?, fmt: SimpleDateFormat, tick: Long, onFocus: () -> Unit, onHold: () -> Unit, onClick: () -> Unit) {
     val ctx = LocalContext.current
     val now = remember(ch.id, LiveStore.epg[LiveStore.key(ch)], tick) { LiveStore.nowNext(ch).first }
-    Focusable(Modifier.fillMaxWidth(), onClick = onClick, requester = requester, onFocus = { if (it) onFocus() }) { f ->
+    // Hold OK = favourite / unfavourite; a normal press still plays.
+    var okDown by remember { mutableStateOf(false) }
+    var held by remember { mutableStateOf(false) }
+    Focusable(Modifier.fillMaxWidth().onPreviewKeyEvent { e ->
+        if (e.key != Key.DirectionCenter && e.key != Key.Enter && e.key != Key.NumPadEnter) return@onPreviewKeyEvent false
+        val n = e.nativeKeyEvent
+        if (e.type == KeyEventType.KeyDown) {
+            if (n.repeatCount == 0) { okDown = true; held = false }
+            else if (okDown && !held && n.eventTime - n.downTime >= 550L) { held = true; onHold() }
+        } else if (e.type == KeyEventType.KeyUp) {
+            if (okDown && !held) onClick()
+            okDown = false; held = false
+        }
+        true
+    }, onClick = onClick, requester = requester, onFocus = { if (it) onFocus() }) { f ->
         // One focus treatment only: a single cyan border with a soft glow.
         Column(Modifier.fillMaxWidth().blueGlow(f, RowShape, 9.dp, 0.55f).clip(RowShape).background(if (f) LvFocus else LvCard)
             .border(if (f) 1.5.dp else 1.dp, if (f) LvAccent else if (active) LvAccent.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.10f), RowShape)) {
