@@ -207,8 +207,8 @@ private fun AppearanceSection(onPickLiveCategory: () -> Unit) {
         }
     }
     SubHead("Covers & trailers")
-    var dvd by remember { mutableStateOf(Prefs.dvd3d(ctx)) }
-    ToggleRow("3D effect", "Covers on the Movies & TV screen become 3D DVD cases. Rest on one and the case opens and the disc comes out; OK brings up Play and the other choices.", dvd) { dvd = !dvd; Prefs.setDvd3d(ctx, dvd) }
+    var dvd by remember { mutableStateOf(Prefs.dvdMode(ctx)) }
+    ActionRow("3D effect", "Covers on the Movies & TV screen become 3D DVD cases. Horizontal: a flat row. Distance: the row runs off into the distance and OK opens the case with the disc spinning.", Prefs.dvdModeLabel(dvd)) { dvd = Prefs.cycleDvdMode(ctx) }
     var dvdDelay by remember { mutableStateOf(Prefs.dvdDelayMs(ctx)) }
     ActionRow("3D open delay", "How long you rest on a 3D case before it opens by itself.", Prefs.popDelayLabel(dvdDelay)) { dvdDelay = Prefs.cycleDvdDelay(ctx) }
     var covers by remember { mutableStateOf(Prefs.coversOnly(ctx)) }

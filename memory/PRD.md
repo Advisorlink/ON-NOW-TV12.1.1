@@ -1420,3 +1420,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Case now turns the other way (opening edge on the right faces out, `TURN_ANGLE` 34°), much thicker (`DEPTH` 0.15), reflections removed, spine title removed.
 - `DvdRow`: endless looping row (Int.MAX_VALUE items, index % n, when ≥ 4 titles); first title starts third from the right with the last titles wrapped to its left.
 - Case opens by itself after resting (Settings → Appearance → "3D open delay", 1/1.5/2/3 s, default 1.5 s); OK shows the normal centred pop-up straight away. `TitleActions.side` removed.
+
+## Build 3.9.64-103 (Nov 17) — "3D Distance" mode (not rendered here)
+- Settings → Appearance → "3D effect" now cycles Off / 3D Horizontal / 3D Distance (`Prefs.dvdMode`, old `dvd_3d` boolean migrates to Horizontal).
+- `DvdDistanceRow` (Dvd3D.kt): single focusable row handling Left/Right itself; highlighted case big on the right, others in true perspective towards a vanishing point on the left (up to 18 shown), endless loop. Left = next title comes forward, Right = back (flip in onPreviewKeyEvent if user wants it reversed).
+- Rest on a case (3D open delay) → `peek`: cover stays shut, tray + disc slide out of the right side.
+- OK → `DvdOpenCase` instead of the card (`TitleActions.caseMode`): open case, cover half with title + the same four choices, tray half with slowly spinning disc. Same key handling as the card.

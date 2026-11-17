@@ -111,8 +111,10 @@ object Prefs {
     fun coversOnly(ctx: Context) = p(ctx).getBoolean("covers_only", false)
     fun setCoversOnly(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("covers_only", v).apply()
     /** Home rows drawn as 3D DVD cases. */
-    fun dvd3d(ctx: Context) = p(ctx).getBoolean("dvd_3d", false)
-    fun setDvd3d(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("dvd_3d", v).apply()
+    /** 0 = off, 1 = 3D Horizontal (flat row), 2 = 3D Distance (row running into the distance). */
+    fun dvdMode(ctx: Context) = p(ctx).getInt("dvd_mode", if (p(ctx).getBoolean("dvd_3d", false)) 1 else 0)
+    fun cycleDvdMode(ctx: Context): Int { val v = (dvdMode(ctx) + 1) % 3; p(ctx).edit().putInt("dvd_mode", v).apply(); return v }
+    fun dvdModeLabel(v: Int) = when (v) { 1 -> "3D Horizontal"; 2 -> "3D Distance"; else -> "Off" }
     /** How long you rest on a 3D case before it opens by itself. */
     val DVD_DELAYS = listOf(1000L, 1500L, 2000L, 3000L)
     fun dvdDelayMs(ctx: Context) = p(ctx).getLong("dvd_delay", 1500L)
