@@ -38,25 +38,33 @@ object CatchUpIndex {
 
     /** Reborn Play: the recordings list comes straight from the signed-in service (each catch-up channel's own archive listing). */
     private suspend fun direct(ctx: Context, channels: List<Channel>, now: Long): Map<String, List<Programme>> = directLock.withLock {
-        memory?.takeIf { now - it.first < 10 * 60_000L }?.second?.let { return@withLock it }
-        val f = File(ctx.filesDir, DIRECT_FILE)
+        // Catch Up (TV channels) and sports replays ask for different channel sets, so the cache tracks which channels it covers.
         val owner = AuthStore.username(ctx)
-        runCatching {
-            if (f.exists() && now - f.lastModified() < 30 * 60_000L) JSONObject(f.readText()).takeIf { it.optString("user") == owner }?.let { parse(it.toString()) } else null
-        }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { memory = now to it; return@withLock it }
-        val map = kotlinx.coroutines.coroutineScope {
-            channels.map { c -> async { c.id to SportsReplayRepository.archiveProgrammes(c).orEmpty().filter { it.archiveAvailable == true && it.stopMs <= now && it.title.isNotBlank() }.sortedBy { it.startMs } } }.awaitAll()
-        }.filter { it.second.isNotEmpty() }.toMap()
-        if (map.isNotEmpty()) {
-            memory = now to map
-            runCatching {
-                val ch = JSONObject()
-                map.forEach { (id, list) -> ch.put(id, org.json.JSONArray().apply { list.forEach { p -> put(JSONObject().put("t", p.title).put("d", p.description ?: "").put("s", p.startMs / 1000L).put("e", p.stopMs / 1000L)) } }) }
-                f.writeText(JSONObject().put("user", owner).put("channels", ch).toString())
+        val f = File(ctx.filesDir, DIRECT_FILE)
+        if (covered.isEmpty()) runCatching {
+            if (f.exists() && now - f.lastModified() < 30 * 60_000L) JSONObject(f.readText()).takeIf { it.optString("user") == owner }?.let { j ->
+                parse(j.toString())?.let { memory = f.lastModified() to it }
+                j.optJSONArray("covered")?.let { a -> covered = (0 until a.length()).map { a.getString(it) }.toSet() }
             }
+        }
+        val cached = memory?.takeIf { now - it.first < 30 * 60_000L }?.second
+        if (cached == null) covered = emptySet()
+        val missing = channels.filter { it.id !in covered }
+        if (missing.isEmpty()) return@withLock cached.orEmpty()
+        val fresh = kotlinx.coroutines.coroutineScope {
+            missing.map { c -> async { c.id to SportsReplayRepository.archiveProgrammes(c)?.filter { it.archiveAvailable == true && it.stopMs <= now && it.title.isNotBlank() }?.sortedBy { it.startMs } } }.awaitAll()
+        }
+        val map = cached.orEmpty() + fresh.filter { !it.second.isNullOrEmpty() }.associate { it.first to it.second!! }
+        covered = covered + fresh.filter { it.second != null }.map { it.first }   // failed requests are retried next time
+        memory = (memory?.first?.takeIf { cached != null } ?: now) to map
+        runCatching {
+            val ch = JSONObject()
+            map.forEach { (id, list) -> ch.put(id, org.json.JSONArray().apply { list.forEach { p -> put(JSONObject().put("t", p.title).put("d", p.description ?: "").put("s", p.startMs / 1000L).put("e", p.stopMs / 1000L)) } }) }
+            f.writeText(JSONObject().put("user", owner).put("covered", org.json.JSONArray(covered.toList())).put("channels", ch).toString())
         }
         map
     }
+    @Volatile private var covered: Set<String> = emptySet()
 
     /** Fetch the list ahead of time so Catch Up opens without a wait. */
     suspend fun prewarm(ctx: Context, bundle: XtreamBundle) { runCatching { recordings(ctx, bundle) } }
