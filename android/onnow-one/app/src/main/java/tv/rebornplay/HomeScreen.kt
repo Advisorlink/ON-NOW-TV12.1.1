@@ -131,7 +131,7 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
                     key == "live" -> LiveRow(1 + i, rowNav, 200.dp, onChannel)
                     key == "calendar" -> ComingUpShelf(coming, 1 + i, rowNav, 200.dp) { nav.open(it) }
                     key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, 200.dp)
-                    else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav) { nav.open(it) }
+                    else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav, home = true) { nav.open(it) }
                 }
             }
         }
@@ -187,7 +187,7 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
                             key == "live" -> LiveRow(1 + i, rowNav, tileH, onChannel)
                             key == "calendar" -> ComingUpShelf(ComingUp.eps.value, 1 + i, rowNav, tileH) { nav.open(it) }
                             key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, tileH) { preview = it }
-                            else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 0.dp) { nav.open(it) }
+                            else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 0.dp, home = true) { nav.open(it) }
                         }
                     }
                 }

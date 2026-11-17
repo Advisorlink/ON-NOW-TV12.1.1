@@ -1402,3 +1402,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - "Play without Stats" no longer re-attaches the preview while full screen is opening.
 - Live TV guide: hold OK on a channel row = add/remove favourite (star + toast); short press still plays. Key handling in `ChannelRow` (LiveTvScreen.kt).
 - Still open: old V2 settings port (P1), clean customer copy without test login (P2).
+
+## Build 3.9.61-100 (Nov 17) — 3D DVD-case covers (first pass, NOT seen on a device)
+- New `Dvd3D.kt`: `DvdCase` (plastic shell, spine, gloss, year + DVD logo, floor reflection, tray + disc when open) and `DvdTile`. Art is the plain TMDB poster.
+- Settings → Appearance → "3D effect" toggle (`Prefs.dvd3d`, default off). Home rows only (`PosterShelf(home = true)`).
+- Highlighted case anchors third from the right (`AnchoredRow(fromRight = true)`). OK opens the case (620 ms), then the normal TitleActions pop-up shows on the left (`TitleActions.side`) so the open case stays visible. No in-cover trailers/wide pop-out in 3D mode.
+- Could not render Compose on this machine (Robolectric native graphics has no linux-aarch64 build) — look and cover swing direction (`rotationY` sign in DvdCase) need tuning from the user's photos.

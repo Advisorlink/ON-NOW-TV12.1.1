@@ -39,7 +39,9 @@ object TitleActions {
     var details: (Item) -> Unit = {}
     internal var activate: () -> Unit = {}
     private var armed = false
-    fun open(it: Item) { sel = 0; armed = false; item = it }
+    /** Opened from a 3D case: the card sits on the left so the open case stays in view. */
+    var side by mutableStateOf(false)
+    fun open(it: Item) { sel = 0; armed = false; side = false; item = it }
     fun expand(it: Item) { TrailerPlayer.fullscreen = it }
     /** Layout is [0] / [1] / [2 | 3]. */
     fun move(from: Int, key: Key): Int = when (key) {
@@ -118,8 +120,9 @@ fun TitleActionsSheet(activity: Activity, onDetails: (Item) -> Unit) {
     BackHandler { close() }   // focus never left the cover, so Back lands exactly where you were
     val rich = Gorilla.cachedInfo(item) ?: item
     val shape = RoundedCornerShape(22.dp)
-    Box(Modifier.fillMaxSize().background(Bg0.copy(alpha = 0.72f)), contentAlignment = Alignment.Center) {
-        Box(Modifier.width(520.dp).height(400.dp).blueGlow(true, shape, 26.dp, 0.55f).clip(shape).background(Color(0xFF0B1220)).border(1.5.dp, BlueBright.copy(alpha = 0.55f), shape)) {
+    val side = TitleActions.side
+    Box(Modifier.fillMaxSize().then(if (side) Modifier.background(Brush.horizontalGradient(0f to Bg0.copy(alpha = 0.88f), 0.45f to Bg0.copy(alpha = 0.55f), 1f to Bg0.copy(alpha = 0.12f))) else Modifier.background(Bg0.copy(alpha = 0.72f))).padding(start = if (side) 56.dp else 0.dp), contentAlignment = if (side) Alignment.CenterStart else Alignment.Center) {
+        Box(Modifier.width(if (side) 360.dp else 520.dp).height(400.dp).blueGlow(true, shape, 26.dp, 0.55f).clip(shape).background(Color(0xFF0B1220)).border(1.5.dp, BlueBright.copy(alpha = 0.55f), shape)) {
             AsyncImage(rememberWideArt(rich), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x4005070D), 0.4f to Color(0x8C05070D), 1f to Color(0xF205070D))))
             Column(Modifier.align(Alignment.TopStart).padding(horizontal = 24.dp, vertical = 20.dp)) {

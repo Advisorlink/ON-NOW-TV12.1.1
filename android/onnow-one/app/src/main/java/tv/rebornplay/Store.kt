@@ -110,6 +110,9 @@ object Prefs {
     /** Vesper "Covers only": no wide pop-out card, no trailers — just the posters. */
     fun coversOnly(ctx: Context) = p(ctx).getBoolean("covers_only", false)
     fun setCoversOnly(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("covers_only", v).apply()
+    /** Home rows drawn as 3D DVD cases. */
+    fun dvd3d(ctx: Context) = p(ctx).getBoolean("dvd_3d", false)
+    fun setDvd3d(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("dvd_3d", v).apply()
 }
 
 /** Home → Live TV row: what it shows and how it looks (Settings → Live TV row). */

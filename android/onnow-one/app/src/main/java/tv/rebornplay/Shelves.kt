@@ -122,15 +122,19 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
 }
 
 @Composable
-fun PosterShelf(eyebrow: String, title: String, items: List<Item>, total: Int = items.size, firstRequester: FocusRequester? = null, onFocusItem: ((Item) -> Unit)? = null, row: Int = -2, rowNav: RowNav? = null, tileH: Dp = POSTER_H, bottomPad: Dp = 30.dp, onOpen: (Item) -> Unit) {
+fun PosterShelf(eyebrow: String, title: String, items: List<Item>, total: Int = items.size, firstRequester: FocusRequester? = null, onFocusItem: ((Item) -> Unit)? = null, row: Int = -2, rowNav: RowNav? = null, tileH: Dp = POSTER_H, bottomPad: Dp = 30.dp, home: Boolean = false, onOpen: (Item) -> Unit) {
     if (items.isEmpty()) return
     val inset = safeInset()
+    val ctx = LocalContext.current
+    val dvd = home && remember { Prefs.dvd3d(ctx) }
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
     Column(Modifier.padding(bottom = bottomPad)) {
         SectionHeader(eyebrow, title, "${items.size} of $total titles", Modifier.padding(horizontal = inset))
-        AnchoredRow(64.dp + inset + tileH * 2 / 3 + 12.dp) {
+        // 3D cases: the highlighted one sits third in from the right.
+        AnchoredRow(if (dvd) 64.dp + inset + dvdCaseWidth(tileH) * 3 + 24.dp else 64.dp + inset + tileH * 2 / 3 + 12.dp, fromRight = dvd) {
             LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 itemsIndexed(items.distinctBy { it.id }, key = { _, it -> it.id }) { i, it ->
+                    if (dvd) DvdTile(it, if (i == 0) firstRequester else null, onFocusItem, row, rowNav, i == 0, tileH) { onOpen(it) } else
                     PosterTile(it, if (i == 0) firstRequester else null, onFocusItem, row, rowNav, i == 0, tileH) { onOpen(it) }
                 }
             }
@@ -345,12 +349,12 @@ fun LiveRow(row: Int, rowNav: RowNav?, tileH: Dp, onChannel: (tv.onnowtv.livetv.
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun AnchoredRow(anchor: Dp, content: @Composable () -> Unit) {
+fun AnchoredRow(anchor: Dp, fromRight: Boolean = false, content: @Composable () -> Unit) {
     val anchorPx = with(LocalDensity.current) { anchor.toPx() }
-    val spec = remember(anchorPx) {
+    val spec = remember(anchorPx, fromRight) {
         object : androidx.compose.foundation.gestures.BringIntoViewSpec {
             override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> = tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-            override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset - anchorPx
+            override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset - (if (fromRight) containerSize - anchorPx else anchorPx)
         }
     }
     CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides spec) { content() }
