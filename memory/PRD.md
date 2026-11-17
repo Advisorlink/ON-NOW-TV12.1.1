@@ -1408,3 +1408,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Settings → Appearance → "3D effect" toggle (`Prefs.dvd3d`, default off). Home rows only (`PosterShelf(home = true)`).
 - Highlighted case anchors third from the right (`AnchoredRow(fromRight = true)`). OK opens the case (620 ms), then the normal TitleActions pop-up shows on the left (`TitleActions.side`) so the open case stays visible. No in-cover trailers/wide pop-out in 3D mode.
 - Could not render Compose on this machine (Robolectric native graphics has no linux-aarch64 build) — look and cover swing direction (`rotationY` sign in DvdCase) need tuning from the user's photos.
+
+## Build 3.9.62-101 (Nov 17) — 3D covers, tuning round 1 (from user's TV photo; still not rendered here)
+- Poster now fills the whole case front (thin rim only; the old front spine band made covers look too skinny).
+- Row always highlights third from the right, including the first cover (start padding = row width − anchor, in `PosterShelf`).
+- Highlighted case turns side-on (`TURN_ANGLE` 30°) with a real spine face showing the title (`DEPTH`); OK swings the cover open (`OPEN_ANGLE`), tray slides out, disc lifts out, then the pop-up (950 ms).
+- rotationY convention assumed: positive = right edge away from viewer. If the spine looks detached / in front, flip signs in `DvdCase`.
