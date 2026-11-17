@@ -84,6 +84,8 @@ open class PlayerActivity : AppCompatActivity() {
          *  to happen with zero buffer hit. */
         const val EXTRA_USE_SHARED_PLAYER = "extra_use_shared_player"
         const val EXTRA_STOP_ON_EXIT = "extra_stop_on_exit"
+        /** Replays of a full live broadcast: how far into the recording the game really starts. */
+        const val EXTRA_KICKOFF_OFFSET_MS = "extra_kickoff_offset_ms"
         const val EXTRA_LOADING_EYEBROW = "extra_loading_eyebrow"
         const val EXTRA_HOME_NAME = "extra_home_name"
         const val EXTRA_HOME_LOGO = "extra_home_logo"
@@ -384,6 +386,7 @@ open class PlayerActivity : AppCompatActivity() {
         // OK on the banner switches channel via PlaybackQueue.
         val rootFrame = findViewById<android.widget.FrameLayout>(android.R.id.content)
         val playerRoot = (rootFrame.getChildAt(0) as? android.widget.FrameLayout) ?: rootFrame
+        setUpKickoffButton(playerRoot)
         ReminderWatcher.attach(this, playerRoot) { reminder ->
             val channel = ReminderWatcher.buildChannelFromBundle(reminder.channelId)
             if (channel != null) {
@@ -1162,6 +1165,9 @@ open class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_CHANNEL_UP,
             KeyEvent.KEYCODE_PAGE_UP -> {
+                // Up from the controls moves onto "Jump to kick-off" when it is on screen.
+                kickoffButton?.let { b -> if (keyCode == KeyEvent.KEYCODE_DPAD_UP && b.visibility == View.VISIBLE && !b.hasFocus()) { b.requestFocus(); bumpControlsHide(); return true } }
+                if (kickoffButton?.hasFocus() == true) return true
                 if (playerOverlay.visibility == View.VISIBLE) {
                     hideControlsBar(); return true
                 }
@@ -1171,6 +1177,7 @@ open class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_DPAD_DOWN,
             KeyEvent.KEYCODE_CHANNEL_DOWN,
             KeyEvent.KEYCODE_PAGE_DOWN -> {
+                if (kickoffButton?.hasFocus() == true && playerOverlay.visibility == View.VISIBLE) { btnPlayPause.requestFocus(); bumpControlsHide(); return true }
                 // v2.9.1: DOWN now reveals the controls bar instead
                 // of zapping channels.  Channel-down moves to the
                 // remote's dedicated CHANNEL_DOWN button (handled
@@ -1197,6 +1204,7 @@ open class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 // Catch-up: LEFT/RIGHT on the bare picture skips through the recording
                 // (hold to scrub faster); the controls bar shows where you are.
+                if (kickoffButton?.hasFocus() == true && playerOverlay.visibility == View.VISIBLE) return true
                 if (catchUp && playerOverlay.visibility != View.VISIBLE) {
                     val held = event?.repeatCount ?: 0
                     val step = when { held > 12 -> 300_000L; held > 4 -> 60_000L; keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> 10_000L; else -> 30_000L }
@@ -1313,6 +1321,7 @@ open class PlayerActivity : AppCompatActivity() {
         // Always sync the Play/Pause label to the current state.
         syncPlayPauseGlyph()
         btnPlayPause.requestFocus()
+        showKickoffButton(focus = false)
         bumpControlsHide()
     }
 
@@ -1324,6 +1333,7 @@ open class PlayerActivity : AppCompatActivity() {
         playerOverlay.animate().alpha(0f).setDuration(180L).withEndAction {
             playerOverlay.visibility = View.GONE
         }.start()
+        hideKickoffButton()
         clockBlock.animate().alpha(0f).setDuration(180L).withEndAction {
             clockBlock.visibility = View.GONE
         }.start()
@@ -1702,6 +1712,69 @@ open class PlayerActivity : AppCompatActivity() {
         if (backend == PlayerPrefs.Backend.VLC) { bufferLoader.visibility = View.VISIBLE; vlcController?.tune(url) }
         else player?.let { p -> p.setMediaItem(MediaItem.fromUri(url)); p.playWhenReady = true; p.prepare() }
         syncPlayPauseGlyph()
+    }
+
+    // ── Jump to kick-off ──
+    private var kickoffButton: TextView? = null
+    private var kickoffUsed = false
+    private val kickoffOffset by lazy { intent.getLongExtra(EXTRA_KICKOFF_OFFSET_MS, -1L) }
+    private val kickoffHide = Runnable { if (playerOverlay.visibility != View.VISIBLE) hideKickoffButton() }
+    private fun kickoffAvailable() = !kickoffUsed && shift != null && kickoffOffset > 0 && recordingPosition().first < kickoffOffset - 60_000L
+
+    private fun setUpKickoffButton(root: android.widget.FrameLayout) {
+        if (!catchUp || shift == null || kickoffOffset <= 0) return
+        val d = resources.displayMetrics.density
+        fun bg(focused: Boolean) = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = 26 * d
+            setColor(if (focused) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#E6101826"))
+            setStroke((2 * d).toInt(), android.graphics.Color.parseColor(if (focused) "#FFFFFF" else "#5DC8FF"))
+        }
+        val b = TextView(this).apply {
+            text = "⏭   JUMP TO KICK-OFF"
+            tag = "player-jump-to-kickoff"
+            textSize = 15f; typeface = android.graphics.Typeface.DEFAULT_BOLD; letterSpacing = .06f
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding((22 * d).toInt(), (13 * d).toInt(), (24 * d).toInt(), (13 * d).toInt())
+            background = bg(false)
+            isFocusable = true; isClickable = true; visibility = View.GONE
+            setOnFocusChangeListener { v, has ->
+                v.background = bg(has); (v as TextView).setTextColor(if (has) android.graphics.Color.parseColor("#0A1220") else android.graphics.Color.WHITE)
+                v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f).setDuration(120L).start()
+            }
+            setOnClickListener { jumpToKickoff() }
+        }
+        root.addView(b, android.widget.FrameLayout.LayoutParams(-2, -2, android.view.Gravity.TOP or android.view.Gravity.START).apply { topMargin = (40 * d).toInt(); leftMargin = (48 * d).toInt() })
+        kickoffButton = b
+        // Offered for the first 20 seconds, already selected so one press of OK jumps.
+        seekHandler.postDelayed({ showKickoffButton(focus = true); seekHandler.postDelayed(kickoffHide, 20_000L) }, 2_500L)
+    }
+
+    private fun showKickoffButton(focus: Boolean) {
+        val b = kickoffButton ?: return
+        if (!kickoffAvailable()) { hideKickoffButton(); return }
+        if (b.visibility != View.VISIBLE) { b.alpha = 0f; b.visibility = View.VISIBLE; b.bringToFront(); b.animate().alpha(1f).setDuration(180L).start() }
+        if (focus) b.requestFocus()
+    }
+
+    private fun hideKickoffButton() {
+        val b = kickoffButton ?: return
+        if (b.visibility != View.VISIBLE) return
+        val had = b.hasFocus()
+        b.visibility = View.GONE
+        if (had && playerOverlay.visibility == View.VISIBLE) btnPlayPause.requestFocus()
+    }
+
+    private fun jumpToKickoff() {
+        if (shift == null) return
+        kickoffUsed = true
+        seekHandler.removeCallbacks(kickoffHide); hideKickoffButton()
+        // Land a minute before the start so nothing is missed.
+        shiftPending = (kickoffOffset - 60_000L).coerceAtLeast(0L)
+        seekHandler.removeCallbacks(shiftLoad); shiftLoad.run()
+        status.text = "⏭  KICK-OFF"
+        hideHandler.removeCallbacksAndMessages(null)
+        hideHandler.postDelayed({ status.text = "" }, 1_800L)
+        updateCatchUpProgress()
     }
 
     private fun recordingPosition(): Pair<Long, Long> {

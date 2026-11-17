@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import tv.onnowtv.livetv.PlayerActivity
 import tv.onnowtv.livetv.data.CatchUpIndex
 import tv.onnowtv.livetv.data.CatchUpResolver
@@ -18,7 +19,7 @@ object CatchUpPlayback {
 
     fun start(
         activity: AppCompatActivity, host: FrameLayout, channel: Channel, programme: Programme, title: String, subtitle: String,
-        all: List<Channel>, home: PlayerLoadingOverlay.Team? = null, away: PlayerLoadingOverlay.Team? = null, onMissing: () -> Unit = {},
+        all: List<Channel>, home: PlayerLoadingOverlay.Team? = null, away: PlayerLoadingOverlay.Team? = null, kickoffMs: Long? = null, findKickoff: Boolean = false, onMissing: () -> Unit = {},
     ) {
         if (busy) return
         busy = true
@@ -30,6 +31,7 @@ object CatchUpPlayback {
         // Free the line (1-connection accounts) before the recording connects.
         tv.onnowtv.livetv.LivePreviewSession.release()
         activity.lifecycleScope.launch {
+            val kick = async { (kickoffMs ?: if (findKickoff) runCatching { tv.onnowtv.livetv.data.SportsKickoff.find(programme) }.getOrNull() else null)?.takeIf { tv.onnowtv.livetv.data.SportsKickoff.eligible(programme) && tv.onnowtv.livetv.data.SportsKickoff.usable(programme, it) } }
             val ready = try { CatchUpResolver.resolve(activity, channel, programme, all) } finally { busy = false }
             if (ready == null) {
                 cover.dismiss()
@@ -43,6 +45,7 @@ object CatchUpPlayback {
                 putExtra(PlayerActivity.EXTRA_TITLE, title)
                 putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · $subtitle")
                 putExtra(PlayerActivity.EXTRA_STOP_ON_EXIT, true)
+                kick.await()?.let { putExtra(PlayerActivity.EXTRA_KICKOFF_OFFSET_MS, it - programme.startMs / 60_000L * 60_000L) }
                 home?.let { putExtra(PlayerActivity.EXTRA_HOME_NAME, it.name); putExtra(PlayerActivity.EXTRA_HOME_LOGO, it.logo); it.color?.let { c -> putExtra(PlayerActivity.EXTRA_HOME_COLOR, String.format("#%06X", 0xFFFFFF and c)) } }
                 away?.let { putExtra(PlayerActivity.EXTRA_AWAY_NAME, it.name); putExtra(PlayerActivity.EXTRA_AWAY_LOGO, it.logo); it.color?.let { c -> putExtra(PlayerActivity.EXTRA_AWAY_COLOR, String.format("#%06X", 0xFFFFFF and c)) } }
             })

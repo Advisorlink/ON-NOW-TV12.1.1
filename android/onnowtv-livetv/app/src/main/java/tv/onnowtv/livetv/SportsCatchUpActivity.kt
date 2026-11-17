@@ -375,7 +375,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         fun team(x: SportsCatchUpData.Side?) = x?.let { PlayerLoadingOverlay.Team(it.name, it.logo, it.color?.let { c -> UIColor(c, 0) }?.takeIf { v -> v != 0 }) }
         CatchUpPlayback.start(this, rootView, g.channel, g.programme, describe(g),
             "${g.channel.name} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)}", archive,
-            team(m?.home), team(m?.away)) { games.removeAll { it.key == g.key }; render() }
+            team(m?.home), team(m?.away), findKickoff = m != null) { games.removeAll { it.key == g.key }; render() }
     }
 
     // ------------------------------------------------------------- time

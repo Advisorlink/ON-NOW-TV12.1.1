@@ -82,6 +82,6 @@ object SportsReplayRow {
         val title = if (home != null && away != null) "${home.name} vs ${away.name}" else hit.programme.title
         val day = SimpleDateFormat("EEE d MMM h:mm a", Locale.getDefault()).format(Date(hit.programme.startMs)).uppercase()
         CatchUpPlayback.start(activity, activity.findViewById<FrameLayout>(android.R.id.content), hit.channel, hit.programme, title,
-            "${hit.channel.name} · $day", all.map { it.channel }.distinctBy { it.id }, home, away)
+            "${hit.channel.name} · $day", all.map { it.channel }.distinctBy { it.id }, home, away, kickoffMs = game.optLong("startMs").takeIf { it > 0 })
     }
 }
