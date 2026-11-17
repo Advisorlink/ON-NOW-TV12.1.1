@@ -151,15 +151,23 @@ object ContinueWatching {
     /** Most recent first; finished titles (>95 %) and never-started ones are dropped. */
     fun entries(ctx: Context): List<CwEntry> = runCatching {
         val a = JSONArray(p(ctx).getString(key(ctx), "[]"))
-        (0 until a.length()).mapNotNull { i ->
+        ((0 until a.length()).mapNotNull { i ->
             val o = a.getJSONObject(i); val cwId = o.getString("cwId")
             val (pos, dur) = progress(ctx, cwId) ?: (0L to 0L)
             if (pos < 30_000L || (dur > 0 && pos.toFloat() / dur > 0.95f)) return@mapNotNull null
             val item = Item(o.getString("itemId"), o.optString("type"), o.optString("name"), o.optString("poster", null), o.optString("background", null), year = o.optString("year", null), rating = o.optString("rating", null))
             CwEntry(cwId, item, o.optString("label"), o.optString("url"), pos, dur, o.optLong("updatedAt"))
-        }.sortedByDescending { it.updatedAt }
+        } + replays(ctx)).sortedByDescending { it.updatedAt }
+    }.getOrDefault(emptyList())
+    /** Catch-up recordings and sports replays you stopped part-way through. */
+    private fun replays(ctx: Context): List<CwEntry> = runCatching {
+        tv.onnowtv.livetv.data.ReplayResume.list(ctx).map { r ->
+            val art = r.sport?.let { "android.resource://${ctx.packageName}/" + tv.onnowtv.livetv.data.SportsCatchUpData.art(it) }
+            CwEntry("replay:" + r.id, Item("replay:" + r.id, "replay", r.title, r.logo, art), "Replay", r.url, r.positionMs, r.durationMs, r.updatedAt)
+        }
     }.getOrDefault(emptyList())
     fun remove(ctx: Context, cwId: String) {
+        if (cwId.startsWith("replay:")) { tv.onnowtv.livetv.data.ReplayResume.remove(ctx, cwId.removePrefix("replay:")); return }
         val a = JSONArray(p(ctx).getString(key(ctx), "[]"))
         p(ctx).edit().putString(key(ctx), JSONArray().apply { (0 until a.length()).map { a.getJSONObject(it) }.filter { it.optString("cwId") != cwId }.forEach { put(it) } }.toString()).apply()
     }

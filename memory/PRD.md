@@ -1359,3 +1359,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Button (tag player-jump-to-kickoff, top-left): appears 2.5 s after the player opens, pre-focused, for 20 s; reappears whenever the controls bar is open while still before kick-off; Up from controls focuses it, Down returns to controls; OK jumps to kick-off minus 1 min via the timeshift reload (shiftLoad). Hidden for good once used or once past kick-off.
 - Verified (temp JVM test, real provider listings + real feed): Patriots at Lions +30 min, 49ers at Cowboys +10, Steelers at Bengals +10 (both channels); Vikings at Packers none (kick-off == slot start); RedZone none.
 - Note for tests: unit tests use stubbed org.json (returnDefaultValues) — add testImplementation("org.json:json:20231013") temporarily when a test needs real JSON.
+
+## 3.9.54 (build 93) — TEST COPY, BUILD-VERIFIED ONLY (nothing here run on a device)
+- Replay player: "−10 MIN" / "+10 MIN" buttons either side of Play/Pause for every catch-up recording (PlayerActivity.addBigSkipButtons, tags player-skip-back-10 / player-skip-forward-10) using the timeshift reload skip.
+- Resume: data/ReplayResume.kt (prefs "replay_resume", keyed by recording tail@start@length; not per profile; dropped 3 days after the recording start or when within 3 min of the end). Saved every 5 s and on stop. PlayerActivity.EXTRA_RESUME_MS starts the recording at that minute.
+- Reopening the same recording from Catch Up / Replays asks "Continue from Xm" / "Start from the beginning" (CatchUpPlayback).
+- Home Continue Watching: ContinueWatching.entries merges ReplayResume.list as CwEntry type "replay" (sport art or channel logo, "Catch up" chip, minutes left); OK resumes via ReplayResume.intent (resumeEntry), long-press remove works (ContinueWatching.remove handles "replay:" ids).
+- Likely real cause of "skip restarts from the beginning": any player error/stall after a seek ran scheduleRetry with the original URL. scheduleRetry now reconnects at the last known position (shiftUrlAt(shiftLastPos)). Not reproduced on device.

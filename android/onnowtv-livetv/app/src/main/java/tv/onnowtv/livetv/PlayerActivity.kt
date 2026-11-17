@@ -86,6 +86,9 @@ open class PlayerActivity : AppCompatActivity() {
         const val EXTRA_STOP_ON_EXIT = "extra_stop_on_exit"
         /** Replays of a full live broadcast: how far into the recording the game really starts. */
         const val EXTRA_KICKOFF_OFFSET_MS = "extra_kickoff_offset_ms"
+        /** Recordings: start this far in (continue where you left off). */
+        const val EXTRA_RESUME_MS = "extra_resume_ms"
+        const val EXTRA_CHANNEL_LOGO = "extra_channel_logo"
         const val EXTRA_LOADING_EYEBROW = "extra_loading_eyebrow"
         const val EXTRA_HOME_NAME = "extra_home_name"
         const val EXTRA_HOME_LOGO = "extra_home_logo"
@@ -330,7 +333,7 @@ open class PlayerActivity : AppCompatActivity() {
 
         wirePlayerControls()
 
-        val url = intent.getStringExtra(EXTRA_URL)
+        val url = intent.getStringExtra(EXTRA_URL)?.let { u -> val r = intent.getLongExtra(EXTRA_RESUME_MS, 0L); if (r > 0 && shift != null) shiftUrlAt(r) else u }
         val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
         val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
@@ -387,6 +390,7 @@ open class PlayerActivity : AppCompatActivity() {
         val rootFrame = findViewById<android.widget.FrameLayout>(android.R.id.content)
         val playerRoot = (rootFrame.getChildAt(0) as? android.widget.FrameLayout) ?: rootFrame
         setUpKickoffButton(playerRoot)
+        if (catchUp && shift != null) { addBigSkipButtons(); seekHandler.postDelayed(shiftSave, 5_000L) }
         ReminderWatcher.attach(this, playerRoot) { reminder ->
             val channel = ReminderWatcher.buildChannelFromBundle(reminder.channelId)
             if (channel != null) {
@@ -860,7 +864,7 @@ open class PlayerActivity : AppCompatActivity() {
         retryHandler.removeCallbacksAndMessages(null)
         retryHandler.postDelayed({
             if (playbackBlocked()) return@postDelayed
-            val url = tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl)
+            val url = if (catchUp && shift != null) shiftUrlAt(shiftLastPos) else tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl)
             if (backend == PlayerPrefs.Backend.VLC) {
                 vlcController?.tune(url)
             } else {
@@ -1702,13 +1706,47 @@ open class PlayerActivity : AppCompatActivity() {
     }
     private var shiftBaseMs = 0L
     private var shiftPending = -1L
+    private var shiftLastPos = 0L
+    /** Address of the same recording starting at [posMs]; also what a reconnect uses, so a retry never restarts the programme. */
+    private fun shiftUrlAt(posMs: Long): String {
+        val s = shift!!
+        val base = (posMs.coerceIn(0L, (s.totalMs - 60_000L).coerceAtLeast(0L))) / 60_000L * 60_000L
+        val mins = ((s.totalMs - base + 59_999L) / 60_000L).coerceAtLeast(1)
+        shiftBaseMs = base; shiftLastPos = base
+        return s.prefix + mins + "/" + shiftFmt.format(java.util.Date(s.startMs + base)) + "/" + s.tail
+    }
+    /** Every few seconds: remember the place for reconnects and for "continue where you left off". */
+    private val shiftSave = object : Runnable {
+        override fun run() {
+            if (shift != null && shiftPending < 0) {
+                val pos = recordingPosition().first
+                if (pos > shiftBaseMs) shiftLastPos = pos
+                tv.onnowtv.livetv.data.ReplayResume.save(this@PlayerActivity, intent, shiftLastPos)
+            }
+            seekHandler.postDelayed(this, 5_000L)
+        }
+    }
+    private fun addBigSkipButtons() {
+        val row = btnPlayPause.parent as? android.widget.LinearLayout ?: return
+        val d = resources.displayMetrics.density
+        fun make(label: String, tagName: String, delta: Long) = TextView(this).apply {
+            text = label; tag = tagName
+            textSize = 12f; typeface = android.graphics.Typeface.DEFAULT_BOLD; gravity = android.view.Gravity.CENTER; setTextColor(android.graphics.Color.WHITE)
+            fun bg(f: Boolean) = android.graphics.drawable.GradientDrawable().apply { cornerRadius = 26 * d; setColor(android.graphics.Color.parseColor(if (f) "#FFFFFF" else "#33FFFFFF")); setStroke((1.5f * d).toInt(), android.graphics.Color.parseColor(if (f) "#FFFFFF" else "#55FFFFFF")) }
+            background = bg(false); isFocusable = true; isClickable = true
+            setOnFocusChangeListener { v, has -> v.background = bg(has); (v as TextView).setTextColor(if (has) android.graphics.Color.parseColor("#0A1220") else android.graphics.Color.WHITE); if (has) bumpControlsHide() }
+            setOnClickListener { seekRecording(delta); bumpControlsHide() }
+            layoutParams = android.widget.LinearLayout.LayoutParams((84 * d).toInt(), (52 * d).toInt()).apply { marginEnd = (14 * d).toInt() }
+        }
+        val at = row.indexOfChild(btnPlayPause)
+        row.addView(make("−10 MIN", "player-skip-back-10", -600_000L), at)
+        row.addView(make("+10 MIN", "player-skip-forward-10", 600_000L), at + 2)
+    }
+
     private val shiftLoad = Runnable {
         val s = shift ?: return@Runnable
         val target = shiftPending.takeIf { it >= 0 } ?: return@Runnable
-        val base = target / 60_000L * 60_000L
-        val mins = ((s.totalMs - base + 59_999L) / 60_000L).coerceAtLeast(1)
-        val url = s.prefix + mins + "/" + shiftFmt.format(java.util.Date(s.startMs + base)) + "/" + s.tail
-        shiftBaseMs = base; shiftPending = -1L
+        val url = shiftUrlAt(target); shiftPending = -1L
         if (backend == PlayerPrefs.Backend.VLC) { bufferLoader.visibility = View.VISIBLE; vlcController?.tune(url) }
         else player?.let { p -> p.setMediaItem(MediaItem.fromUri(url)); p.playWhenReady = true; p.prepare() }
         syncPlayPauseGlyph()
@@ -1933,6 +1971,7 @@ open class PlayerActivity : AppCompatActivity() {
     override fun finish() { stopSportsPlayback(); super.finish() }
 
     override fun onStop() {
+        if (catchUp && shift != null) { val pos = recordingPosition().first; if (shiftPending < 0 && pos > shiftBaseMs) shiftLastPos = pos; tv.onnowtv.livetv.data.ReplayResume.save(this, intent, shiftLastPos); seekHandler.removeCallbacks(shiftSave) }
         if (stopOnExit) {
             sportsBackgrounded = true
             retryHandler.removeCallbacksAndMessages(null); stallHandler.removeCallbacksAndMessages(null)

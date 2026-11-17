@@ -242,8 +242,12 @@ fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -
     }
     Focusable(hold.zIndex(if (top) 1f else 0f), onClick = onClick, requester = req, onFocus = { top = it; onFocus?.invoke(it) }) { f ->
         Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
-            AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (e.item.type == "replay" && e.item.background == null) { if (e.item.poster != null) AsyncImage(e.item.poster, e.item.name, Modifier.align(Alignment.Center).fillMaxSize(0.5f), contentScale = ContentScale.Fit) }
+            else AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
+            if (e.item.type == "replay") Row(Modifier.align(Alignment.TopStart).padding(8.dp).height(20.dp).clip(CircleShape).background(Bg0.copy(alpha = 0.8f)).border(1.dp, Blue.copy(alpha = 0.7f), CircleShape).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Lucide.History, null, Modifier.size(10.dp), tint = BlueBright); Spacer(Modifier.width(5.dp)); Mono("Catch up", 8.sp, Txt, 0.1f)
+            }
             Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {
                 Text(e.item.name, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(6.dp))
@@ -252,7 +256,7 @@ fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -
                     Spacer(Modifier.width(8.dp))
                     Box(Modifier.weight(1f).height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))) { Box(Modifier.fillMaxHeight().fillMaxWidth(e.fraction).background(Blue)) }
                     Spacer(Modifier.width(8.dp))
-                    Mono(e.label.substringBefore(" · ").ifBlank { "${e.minutesLeft}m left" }, 9.sp, Txt2, 0.06f, upper = false)
+                    Mono(if (e.item.type == "replay") "${e.minutesLeft}m left" else e.label.substringBefore(" · ").ifBlank { "${e.minutesLeft}m left" }, 9.sp, Txt2, 0.06f, upper = false)
                 }
             }
         }

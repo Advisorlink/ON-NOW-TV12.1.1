@@ -49,6 +49,13 @@ fun launchPlayer(activity: Activity, meta: Item, title: String, url: String, cwI
 
 /** Relaunch a Continue Watching entry exactly where it was left. */
 fun resumeEntry(activity: Activity, e: CwEntry) {
+    if (e.item.type == "replay") {
+        // A recording: free the line first (one connection), then reopen it at the saved place.
+        val saved = tv.onnowtv.livetv.data.ReplayResume.get(activity, e.cwId.removePrefix("replay:")) ?: return
+        TrailerPlayer.halt(); HomePip.close(); tv.onnowtv.livetv.LivePreviewSession.release()
+        activity.startActivity(tv.onnowtv.livetv.data.ReplayResume.intent(activity, saved))
+        return
+    }
     val title = if (e.item.type == "series" && e.label.isNotBlank()) "${e.item.name} · ${e.label}" else e.item.name
     launchPlayer(activity, e.item, title, e.url, e.cwId, e.positionMs)
 }

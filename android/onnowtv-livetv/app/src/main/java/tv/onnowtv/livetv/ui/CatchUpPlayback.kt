@@ -40,17 +40,31 @@ object CatchUpPlayback {
                 onMissing()
                 return@launch
             }
-            activity.startActivity(Intent(activity, PlayerActivity::class.java).apply {
-                putExtra(PlayerActivity.EXTRA_URL, ready.url)
-                putExtra(PlayerActivity.EXTRA_TITLE, title)
-                putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · $subtitle")
-                putExtra(PlayerActivity.EXTRA_STOP_ON_EXIT, true)
-                kick.await()?.let { putExtra(PlayerActivity.EXTRA_KICKOFF_OFFSET_MS, it - programme.startMs / 60_000L * 60_000L) }
-                home?.let { putExtra(PlayerActivity.EXTRA_HOME_NAME, it.name); putExtra(PlayerActivity.EXTRA_HOME_LOGO, it.logo); it.color?.let { c -> putExtra(PlayerActivity.EXTRA_HOME_COLOR, String.format("#%06X", 0xFFFFFF and c)) } }
-                away?.let { putExtra(PlayerActivity.EXTRA_AWAY_NAME, it.name); putExtra(PlayerActivity.EXTRA_AWAY_LOGO, it.logo); it.color?.let { c -> putExtra(PlayerActivity.EXTRA_AWAY_COLOR, String.format("#%06X", 0xFFFFFF and c)) } }
-            })
-            activity.overridePendingTransition(0, 0)
-            cover.postDelayed({ cover.dismiss() }, 1_200L)
+            val kickoff = kick.await()
+            fun open(resumeMs: Long) {
+                activity.startActivity(Intent(activity, PlayerActivity::class.java).apply {
+                    putExtra(PlayerActivity.EXTRA_URL, ready.url)
+                    putExtra(PlayerActivity.EXTRA_TITLE, title)
+                    putExtra(PlayerActivity.EXTRA_SUBTITLE, "CATCH UP · $subtitle")
+                    putExtra(PlayerActivity.EXTRA_STOP_ON_EXIT, true)
+                    channel.logoUrl?.let { putExtra(PlayerActivity.EXTRA_CHANNEL_LOGO, it) }
+                    if (resumeMs > 0) putExtra(PlayerActivity.EXTRA_RESUME_MS, resumeMs)
+                    kickoff?.let { putExtra(PlayerActivity.EXTRA_KICKOFF_OFFSET_MS, it - programme.startMs / 60_000L * 60_000L) }
+                    home?.let { putExtra(PlayerActivity.EXTRA_HOME_NAME, it.name); putExtra(PlayerActivity.EXTRA_HOME_LOGO, it.logo); it.color?.let { c -> putExtra(PlayerActivity.EXTRA_HOME_COLOR, String.format("#%06X", 0xFFFFFF and c)) } }
+                    away?.let { putExtra(PlayerActivity.EXTRA_AWAY_NAME, it.name); putExtra(PlayerActivity.EXTRA_AWAY_LOGO, it.logo); it.color?.let { c -> putExtra(PlayerActivity.EXTRA_AWAY_COLOR, String.format("#%06X", 0xFFFFFF and c)) } }
+                })
+                activity.overridePendingTransition(0, 0)
+                cover.postDelayed({ cover.dismiss() }, 1_200L)
+            }
+            // Started this recording before? Offer to carry on from the same place.
+            val saved = tv.onnowtv.livetv.data.ReplayResume.parse(ready.url)?.let { tv.onnowtv.livetv.data.ReplayResume.get(activity, it.id) }?.takeIf { it.positionMs >= 60_000L }
+            if (saved == null) open(0L) else {
+                var chosen = false
+                ActionSheetDialog(activity).title(title).subtitle("You stopped " + tv.onnowtv.livetv.data.ReplayResume.clock(saved.positionMs) + " in")
+                    .item("Continue from " + tv.onnowtv.livetv.data.ReplayResume.clock(saved.positionMs), icon = "▶") { chosen = true; open(saved.positionMs) }
+                    .item("Start from the beginning", icon = "↺") { chosen = true; open(0L) }
+                    .show().setOnDismissListener { if (!chosen) cover.dismiss() }
+            }
         }
     }
 }
