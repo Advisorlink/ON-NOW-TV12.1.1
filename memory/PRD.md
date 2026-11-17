@@ -1366,3 +1366,12 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Reopening the same recording from Catch Up / Replays asks "Continue from Xm" / "Start from the beginning" (CatchUpPlayback).
 - Home Continue Watching: ContinueWatching.entries merges ReplayResume.list as CwEntry type "replay" (sport art or channel logo, "Catch up" chip, minutes left); OK resumes via ReplayResume.intent (resumeEntry), long-press remove works (ContinueWatching.remove handles "replay:" ids).
 - Likely real cause of "skip restarts from the beginning": any player error/stall after a seek ran scheduleRetry with the original URL. scheduleRetry now reconnects at the last known position (shiftUrlAt(shiftLastPos)). Not reproduced on device.
+
+## 3.9.55 (build 94) — TEST COPY, BUILD-VERIFIED ONLY
+- Catch-up player: SWAP BACK slot (btn_player_swap) is now the skip-to-start button when a start time is known (tag player-skip-to-start, wording by sport via kickoffLabel: KICK-OFF / TIP-OFF / PUCK DROP / FIRST PITCH / FIRST BALL / RACE START / START OF MATCH / THE FIGHT / START); hidden in catch-up when no start time. Stays in the bar for the whole recording (also jumps back). The 20 s pop-up at open remains (same wording); it no longer re-appears with the controls bar.
+- Start time still only exists for full live broadcasts matched to a two-team fixture in the scores feed (SportsKickoff) — races, tennis, golf etc. generally get no button.
+- Continue Watching replay cards: team colours + crests either side with VS (data from ReplayResume Entry.home/away; colours now stored as ints — build 93 dropped them). Unmatched recordings keep sport art / channel logo.
+- Sports Hub > Replays cards: progress bar + "▶ CONTINUE FROM 1H 12M · CHANNEL" on started recordings (ReplayResume.find), refreshed on return to the screen; OK asks Continue / Start from the beginning.
+
+## Disk note (17 Nov)
+- /app volume (9.8G) filled up: .git holds ~3.3G of loose objects because every build's 40 MB APK in android/onnow-one/test-artifacts is tracked. Freed ~800 MB by deleting /root/.m2 (unused maven cache), /root/.npm/_cacache and two stale git tmp files. Will fill again after ~15 more builds — next agent should consider `git gc` or keeping the APK out of version control (ask the user first; the download link serves that file).

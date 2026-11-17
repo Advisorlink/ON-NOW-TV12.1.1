@@ -252,6 +252,10 @@ class SportsCatchUpActivity : AppCompatActivity() {
         addView(text("", 9f, cyan, Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)).apply {
             id = R_SUB; letterSpacing = .12f; maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(12), 0, dp(12), dp(10)); gravity = Gravity.CENTER_HORIZONTAL
         }, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        addView(android.widget.ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+            id = R_PROG; max = 1000; visibility = View.GONE
+            progressTintList = android.content.res.ColorStateList.valueOf(cyan); progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#55FFFFFF"))
+        }, FrameLayout.LayoutParams(-1, dp(5), Gravity.BOTTOM))
     }
 
     private fun teamColumn(logoId: Int, nameId: Int, initId: Int) = LinearLayout(this).apply {
@@ -272,6 +276,10 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val ring = shape(Color.TRANSPARENT, Color.parseColor("#1AFFFFFF"), 1, 14)
         v.background = states(ring, shape(Color.TRANSPARENT, cyan, 3, 14))
         v.findViewById<TextView>(R_SUB).text = "${g.channel.name.uppercase()} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)} · ${minutes(g.programme)} MIN"
+        // Started before? Show how far in, and that OK carries on.
+        val saved = tv.onnowtv.livetv.data.ReplayResume.find(this, g.channel.id, g.programme)
+        v.findViewById<android.widget.ProgressBar>(R_PROG).apply { visibility = if (saved != null) View.VISIBLE else View.GONE; if (saved != null && saved.durationMs > 0) progress = (saved.positionMs * 1000 / saved.durationMs).toInt() }
+        if (saved != null) v.findViewById<TextView>(R_SUB).text = "▶ CONTINUE FROM ${tv.onnowtv.livetv.data.ReplayResume.clock(saved.positionMs).uppercase()} · ${g.channel.name.uppercase()}"
         val k = kind(g.programme)
         v.findViewById<TextView>(R_KIND).apply {
             text = k
@@ -370,6 +378,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
         emptyHint.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
     }
 
+    override fun onResume() { super.onResume(); if (games.isNotEmpty()) render() }
+
     private fun play(g: Game) {
         val m = SportsCatchUpData.meta(g.sport, g.programme.title)?.takeIf { it.match && it.home != null && it.away != null }
         fun team(x: SportsCatchUpData.Side?) = x?.let { PlayerLoadingOverlay.Team(it.name, it.logo, it.color?.let { c -> UIColor(c, 0) }?.takeIf { v -> v != 0 }) }
@@ -409,6 +419,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val R_ICON = View.generateViewId()
         val R_TITLE = View.generateViewId()
         val R_SUB = View.generateViewId()
+        val R_PROG = View.generateViewId()
         val R_KIND = View.generateViewId()
         val R_TEAMS = View.generateViewId()
         val R_HOME_LOGO = View.generateViewId()

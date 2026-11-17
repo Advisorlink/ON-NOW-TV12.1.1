@@ -9,8 +9,15 @@ import tv.onnowtv.livetv.PlayerActivity
 object ReplayResume {
     class Parts(val prefix: String, val totalMs: Long, val start: String, val tail: String) { val id get() = "$tail@$start@$totalMs" }
     class Entry(val id: String, val url: String, val title: String, val subtitle: String, val logo: String?, val sport: String?,
-                val positionMs: Long, val durationMs: Long, val updatedAt: Long, val json: JSONObject)
+                val positionMs: Long, val durationMs: Long, val updatedAt: Long, val json: JSONObject) {
+        class Team(val name: String, val logo: String?, val colour: Int?)
+        private fun team(n: String, l: String, c: String) = json.optString(n).takeIf { it.isNotBlank() }?.let { Team(it, json.optString(l).takeIf { x -> x.isNotBlank() }, if (json.has(c)) json.optInt(c) else null) }
+        val home get() = team(PlayerActivity.EXTRA_HOME_NAME, PlayerActivity.EXTRA_HOME_LOGO, PlayerActivity.EXTRA_HOME_COLOR)
+        val away get() = team(PlayerActivity.EXTRA_AWAY_NAME, PlayerActivity.EXTRA_AWAY_LOGO, PlayerActivity.EXTRA_AWAY_COLOR)
+    }
 
+    private val STRINGS = listOf(PlayerActivity.EXTRA_HOME_NAME, PlayerActivity.EXTRA_HOME_LOGO, PlayerActivity.EXTRA_AWAY_NAME, PlayerActivity.EXTRA_AWAY_LOGO, PlayerActivity.EXTRA_CHANNEL_LOGO)
+    private val COLOURS = listOf(PlayerActivity.EXTRA_HOME_COLOR, PlayerActivity.EXTRA_AWAY_COLOR)
     private val SHAPE = Regex("^(.*/timeshift/[^/]+/[^/]+/)(\\d+)/(\\d{4}-\\d{2}-\\d{2}:\\d{2}-\\d{2})/(.+)$")
     private const val KEEP_MS = 3 * 86_400_000L   // recordings are only kept by the service for a few days
     fun parse(url: String?): Parts? = SHAPE.find(url.orEmpty())?.let { Parts(it.groupValues[1], it.groupValues[2].toLong() * 60_000L, it.groupValues[3], it.groupValues[4]) }
@@ -26,8 +33,8 @@ object ReplayResume {
         val teams = intent.getStringExtra(PlayerActivity.EXTRA_HOME_NAME) != null
         val o = JSONObject().put("url", url).put("title", title).put("subtitle", subtitle).put("pos", positionMs).put("dur", parts.totalMs).put("at", System.currentTimeMillis())
             .put("sport", LiveSportsClassifier.programmeBucket(title) ?: LiveSportsClassifier.programmeBucket(subtitle) ?: if (teams) LiveSportsClassifier.OTHER_SPORT else "")
-        listOf(PlayerActivity.EXTRA_HOME_NAME, PlayerActivity.EXTRA_HOME_LOGO, PlayerActivity.EXTRA_HOME_COLOR, PlayerActivity.EXTRA_AWAY_NAME, PlayerActivity.EXTRA_AWAY_LOGO,
-            PlayerActivity.EXTRA_AWAY_COLOR, PlayerActivity.EXTRA_CHANNEL_LOGO).forEach { k -> intent.getStringExtra(k)?.let { o.put(k, it) } }
+        STRINGS.forEach { k -> intent.getStringExtra(k)?.let { o.put(k, it) } }
+        COLOURS.forEach { k -> if (intent.hasExtra(k)) o.put(k, intent.getIntExtra(k, 0)) }
         intent.getLongExtra(PlayerActivity.EXTRA_KICKOFF_OFFSET_MS, -1L).takeIf { it > 0 }?.let { o.put(PlayerActivity.EXTRA_KICKOFF_OFFSET_MS, it) }
         p(ctx).edit().putString(parts.id, o.toString()).apply()
     }
@@ -41,6 +48,17 @@ object ReplayResume {
             o.optString("sport").takeIf { it.isNotBlank() }, o.optLong("pos"), o.optLong("dur"), o.optLong("at"), o)
     }.getOrNull()
 
+    /** The saved place for this channel's recording of [programme], if it was started before. */
+    fun find(ctx: Context, channelId: String, programme: Programme): Entry? {
+        val total = (programme.stopMs - programme.startMs / 60_000L * 60_000L + 59_999L) / 60_000L * 60_000L
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd:HH-mm", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+        return list(ctx).firstOrNull { e ->
+            val p = parse(e.url) ?: return@firstOrNull false
+            // The service may stamp recordings in its own time zone, so allow for the offset.
+            p.tail.substringBeforeLast('.') == channelId && p.totalMs == total && (runCatching { fmt.parse(p.start)?.time }.getOrNull()?.let { kotlin.math.abs(it - programme.startMs) <= 14 * 3_600_000L } == true)
+        }
+    }
+
     fun list(ctx: Context): List<Entry> = p(ctx).all.keys.toList().mapNotNull { get(ctx, it) }.sortedByDescending { it.updatedAt }
     fun remove(ctx: Context, id: String) = p(ctx).edit().remove(id).apply()
 
@@ -49,8 +67,8 @@ object ReplayResume {
         putExtra(PlayerActivity.EXTRA_URL, e.url); putExtra(PlayerActivity.EXTRA_TITLE, e.title); putExtra(PlayerActivity.EXTRA_SUBTITLE, e.subtitle)
         putExtra(PlayerActivity.EXTRA_STOP_ON_EXIT, true)
         if (!fromStart) putExtra(PlayerActivity.EXTRA_RESUME_MS, e.positionMs)
-        listOf(PlayerActivity.EXTRA_HOME_NAME, PlayerActivity.EXTRA_HOME_LOGO, PlayerActivity.EXTRA_HOME_COLOR, PlayerActivity.EXTRA_AWAY_NAME, PlayerActivity.EXTRA_AWAY_LOGO,
-            PlayerActivity.EXTRA_AWAY_COLOR, PlayerActivity.EXTRA_CHANNEL_LOGO).forEach { k -> e.json.optString(k).takeIf { it.isNotBlank() }?.let { putExtra(k, it) } }
+        STRINGS.forEach { k -> e.json.optString(k).takeIf { it.isNotBlank() }?.let { putExtra(k, it) } }
+        COLOURS.forEach { k -> if (e.json.has(k)) putExtra(k, e.json.optInt(k)) }
         e.json.optLong(PlayerActivity.EXTRA_KICKOFF_OFFSET_MS, -1L).takeIf { it > 0 }?.let { putExtra(PlayerActivity.EXTRA_KICKOFF_OFFSET_MS, it) }
     }
 

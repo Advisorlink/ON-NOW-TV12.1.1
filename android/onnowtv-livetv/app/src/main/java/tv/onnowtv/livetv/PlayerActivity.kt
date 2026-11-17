@@ -1262,7 +1262,7 @@ open class PlayerActivity : AppCompatActivity() {
         // v2.10 — new design buttons
         btnChUp.setOnClickListener { channelStep(forward = true); bumpControlsHide() }
         btnChDown.setOnClickListener { channelStep(forward = false); bumpControlsHide() }
-        btnSwap.setOnClickListener { swapToPreviousChannel(); bumpControlsHide() }
+        btnSwap.setOnClickListener { if (catchUp) jumpToKickoff() else swapToPreviousChannel(); bumpControlsHide() }
         btnFavorite.setOnClickListener { toggleFavorite(); bumpControlsHide() }
         // Legacy aspect/info buttons live as hidden 0×0 views so we
         // don't break old code paths, but they no longer receive
@@ -1325,7 +1325,6 @@ open class PlayerActivity : AppCompatActivity() {
         // Always sync the Play/Pause label to the current state.
         syncPlayPauseGlyph()
         btnPlayPause.requestFocus()
-        showKickoffButton(focus = false)
         bumpControlsHide()
     }
 
@@ -1759,7 +1758,31 @@ open class PlayerActivity : AppCompatActivity() {
     private val kickoffHide = Runnable { if (playerOverlay.visibility != View.VISIBLE) hideKickoffButton() }
     private fun kickoffAvailable() = !kickoffUsed && shift != null && kickoffOffset > 0 && recordingPosition().first < kickoffOffset - 60_000L
 
+    /** Wording for the start of the action, by sport. */
+    private val kickoffLabel by lazy {
+        val t = intent.getStringExtra(EXTRA_TITLE).orEmpty(); val sub = intent.getStringExtra(EXTRA_SUBTITLE).orEmpty()
+        when (tv.onnowtv.livetv.data.LiveSportsClassifier.programmeBucket(t) ?: tv.onnowtv.livetv.data.LiveSportsClassifier.programmeBucket(sub)) {
+            "soccer", "nfl", "afl", "rugby", "nrl" -> "SKIP TO KICK-OFF"
+            "nba" -> "SKIP TO TIP-OFF"
+            "nhl" -> "SKIP TO PUCK DROP"
+            "mlb" -> "SKIP TO FIRST PITCH"
+            "cricket" -> "SKIP TO FIRST BALL"
+            "f1", "motorsport", "cycling" -> "SKIP TO RACE START"
+            "tennis" -> "SKIP TO START OF MATCH"
+            "mma", "wwe" -> "SKIP TO THE FIGHT"
+            else -> "SKIP TO START"
+        }
+    }
+
     private fun setUpKickoffButton(root: android.widget.FrameLayout) {
+        if (catchUp) {
+            // Recordings have no "previous channel": that slot becomes the skip-to-start button when the start time is known.
+            val group = btnSwap as? android.view.ViewGroup
+            if (shift != null && kickoffOffset > 0 && group != null) {
+                (0 until group.childCount).map { group.getChildAt(it) }.forEach { c -> if (c is TextView) c.text = "⏭  $kickoffLabel" else c.visibility = View.GONE }
+                btnSwap.tag = "player-skip-to-start"; btnSwap.visibility = View.VISIBLE
+            } else btnSwap.visibility = View.GONE
+        }
         if (!catchUp || shift == null || kickoffOffset <= 0) return
         val d = resources.displayMetrics.density
         fun bg(focused: Boolean) = android.graphics.drawable.GradientDrawable().apply {
@@ -1768,7 +1791,7 @@ open class PlayerActivity : AppCompatActivity() {
             setStroke((2 * d).toInt(), android.graphics.Color.parseColor(if (focused) "#FFFFFF" else "#5DC8FF"))
         }
         val b = TextView(this).apply {
-            text = "⏭   JUMP TO KICK-OFF"
+            text = "⏭   $kickoffLabel"
             tag = "player-jump-to-kickoff"
             textSize = 15f; typeface = android.graphics.Typeface.DEFAULT_BOLD; letterSpacing = .06f
             setTextColor(android.graphics.Color.WHITE)
@@ -1809,7 +1832,7 @@ open class PlayerActivity : AppCompatActivity() {
         // Land a minute before the start so nothing is missed.
         shiftPending = (kickoffOffset - 60_000L).coerceAtLeast(0L)
         seekHandler.removeCallbacks(shiftLoad); shiftLoad.run()
-        status.text = "⏭  KICK-OFF"
+        status.text = "⏭  " + kickoffLabel.removePrefix("SKIP TO ")
         hideHandler.removeCallbacksAndMessages(null)
         hideHandler.postDelayed({ status.text = "" }, 1_800L)
         updateCatchUpProgress()

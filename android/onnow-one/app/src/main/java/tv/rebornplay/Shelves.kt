@@ -242,7 +242,24 @@ fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -
     }
     Focusable(hold.zIndex(if (top) 1f else 0f), onClick = onClick, requester = req, onFocus = { top = it; onFocus?.invoke(it) }) { f ->
         Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
-            if (e.item.type == "replay" && e.item.background == null) { if (e.item.poster != null) AsyncImage(e.item.poster, e.item.name, Modifier.align(Alignment.Center).fillMaxSize(0.5f), contentScale = ContentScale.Fit) }
+            val replayCtx = LocalContext.current
+            val replay = remember(e.cwId) { if (e.item.type == "replay") tv.onnowtv.livetv.data.ReplayResume.get(replayCtx, e.cwId.removePrefix("replay:")) else null }
+            val home = replay?.home; val away = replay?.away
+            if (home != null && away != null) {
+                // Same look as the replay card: each team's colour and crest either side.
+                fun tint(c: Int?, fallback: Color) = (c?.takeIf { it != 0 }?.let { Color(it).copy(alpha = 1f) } ?: fallback)
+                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(tint(home.colour, Blue).copy(alpha = 0.6f), Color(0xFF0E1422), tint(away.colour, Color(0xFF2A3547)).copy(alpha = 0.6f)))))
+                Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 46.dp), verticalAlignment = Alignment.CenterVertically) {
+                    listOf(home, away).forEachIndexed { i, t ->
+                        if (i == 1) Box(Modifier.clip(CircleShape).background(Color.Black.copy(alpha = 0.4f)).border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape).padding(horizontal = 8.dp, vertical = 3.dp)) { Mono("VS", 9.sp, Txt, 0.2f) }
+                        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                            if (t.logo != null) AsyncImage(t.logo, t.name, Modifier.fillMaxHeight(0.92f).aspectRatio(1f), contentScale = ContentScale.Fit)
+                            else Text(t.name.split(' ').mapNotNull { it.firstOrNull()?.uppercaseChar() }.take(3).joinToString(""), color = Txt, fontFamily = Geist, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                        }
+                    }
+                }
+            }
+            else if (e.item.type == "replay" && e.item.background == null) { if (e.item.poster != null) AsyncImage(e.item.poster, e.item.name, Modifier.align(Alignment.Center).fillMaxSize(0.5f), contentScale = ContentScale.Fit) }
             else AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
             if (e.item.type == "replay") Row(Modifier.align(Alignment.TopStart).padding(8.dp).height(20.dp).clip(CircleShape).background(Bg0.copy(alpha = 0.8f)).border(1.dp, Blue.copy(alpha = 0.7f), CircleShape).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
