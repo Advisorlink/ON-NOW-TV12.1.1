@@ -268,7 +268,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val accent = LiveSportsClassifier.colorOf(g.sport)
         val ring = shape(Color.TRANSPARENT, Color.parseColor("#1AFFFFFF"), 1, 14)
         v.background = states(ring, shape(Color.TRANSPARENT, cyan, 3, 14))
-        v.findViewById<TextView>(R_SUB).text = "${g.channel.name.uppercase()} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)} · ${minutes(g.programme)} MIN"
+        v.findViewById<TextView>(R_SUB).text = "${g.channel.name.uppercase()} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)} · ${minutes(g.programme)} MIN · ${kind(g.programme)}"
         val art = v.findViewById<ImageView>(R_ART)
         val shade = v.findViewById<View>(R_SHADE)
         val title = v.findViewById<TextView>(R_TITLE)
@@ -352,7 +352,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         if (day !in dayList) dayList.firstOrNull()?.let { day = it }
         days.submit(dayList)
         val shown = mine.filter { startOfDay(it.programme.startMs) == day }
-            .sortedWith(compareByDescending<Game> { SportsCatchUpData.meta(it.sport, it.programme.title)?.match == true }.thenByDescending { it.programme.startMs })
+            .sortedWith(compareByDescending<Game> { SportsCatchUpData.meta(it.sport, it.programme.title)?.match == true }.thenByDescending { kind(it.programme) == "FULL LIVE BROADCAST" }.thenByDescending { it.programme.startMs })
         cards.submit(shown)
         sectionTitle.text = "CATCH UP ${LiveSportsClassifier.labelOf(s).uppercase()}"
         sectionTitle.setTextColor(LiveSportsClassifier.colorOf(s).let { if (ColorUtils.calculateLuminance(it) < .12) cyan else it })
@@ -378,6 +378,8 @@ class SportsCatchUpActivity : AppCompatActivity() {
         return when (d) { today -> "TODAY"; yesterday -> "YESTERDAY"; else -> SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Date(d)).uppercase() }
     }
     private fun time(ms: Long) = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(ms)).uppercase()
+    /** Tells the whole-game recording apart from short highlight re-runs that carry the same title. */
+    private fun kind(p: Programme): String { val m = minutes(p); return when { LiveSportsClassifier.hasLiveWord(p.title) && m >= 90 -> "FULL LIVE BROADCAST"; m <= 30 -> "SHORT HIGHLIGHTS"; m < 90 -> "SHORTER RE-RUN"; else -> "FULL RE-RUN" } }
     private fun minutes(p: Programme) = ((p.stopMs - p.startMs) / 60_000L).coerceAtLeast(1)
 
     private class Adapter<T>(private val create: (ViewGroup) -> View, private val bind: (View, T) -> Unit) :

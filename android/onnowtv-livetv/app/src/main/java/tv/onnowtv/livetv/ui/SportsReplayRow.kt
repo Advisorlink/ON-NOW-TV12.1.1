@@ -47,11 +47,14 @@ object SportsReplayRow {
                             val all = CatchUpIndex.recordings(ctx, bundle)
                             val id = game.optString("id")
                             val hit = memo[id]?.takeIf { it.first === all }?.second ?: withContext(Dispatchers.Default) {
-                                all.filter { GameChannelMatcher.isFixtureReplay(game, it.programme) }.minByOrNull { it.programme.startMs }
+                                // Prefer the original live broadcast (whole game), then the longest airing; short highlight re-runs and joined-late slots come last.
+                                all.filter { GameChannelMatcher.isFixtureReplay(game, it.programme) }.sortedWith(compareByDescending<CatchUpIndex.Recording> { tv.onnowtv.livetv.data.LiveSportsClassifier.hasLiveWord(it.programme.title) && it.programme.stopMs - it.programme.startMs >= 90 * 60_000L }
+                                    .thenByDescending { it.programme.stopMs - it.programme.startMs }.thenBy { it.programme.startMs }).firstOrNull()
                             }.also { memo[id] = all to it }
                             if (hit != null) {
                                 val day = SimpleDateFormat("EEE d MMM · h:mm a", Locale.getDefault()).format(Date(hit.programme.startMs))
-                                source.text = "${hit.channel.name} · $day"
+                                val mins = (hit.programme.stopMs - hit.programme.startMs) / 60_000L
+                                source.text = "${hit.channel.name} · $day · ${if (mins >= 90) "full broadcast" else "short re-run"} · ${mins} min"
                                 button.contentDescription = "Watch replay · ${hit.channel.name}"
                                 button.setOnClickListener { play(ctx, game, hit, all) }
                                 row.visibility = View.VISIBLE; onAvailable()
