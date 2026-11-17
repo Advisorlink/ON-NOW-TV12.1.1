@@ -85,6 +85,14 @@ async def crash(body: CrashReport):
     return {"ok": True}
 
 
+@router.post("/diag")
+async def diag(body: dict):
+    doc = {k: (v if isinstance(v, (int, float, bool)) else str(v)[:200]) for k, v in list(body.items())[:20]}
+    doc["ts"] = time.time()
+    await _db().reborn_diag.insert_one(doc)
+    return {"ok": True}
+
+
 class Push(Login):
     data: Dict[str, Any]
 

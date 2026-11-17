@@ -420,8 +420,8 @@ open class PlayerActivity : AppCompatActivity() {
             LivePreviewSession.fullscreenHost()?.let { if (it.player !== p) LivePreviewSession.attachTo(it) }
         } else {
             // Full rebind + picture guard (a plain `playerView.player = p` could keep a stale surface).
-            if (playerView.isLaidOut && playerView.width > 0) LivePreviewSession.attachTo(playerView)
-            else { playerView.player = p; playerView.doOnLayout { LivePreviewSession.attachTo(playerView) } }
+            // Binds as soon as this screen's surface exists; until then the stream keeps running on the preview's surface.
+            LivePreviewSession.attachTo(playerView)
         }
         // Per user request: full-screen playback must stay full
         // colour — no controller overlay, no dimming.

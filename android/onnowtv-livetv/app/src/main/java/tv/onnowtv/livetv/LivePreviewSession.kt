@@ -185,7 +185,6 @@ object LivePreviewSession {
      *  re-read the current SurfaceTexture. */
     fun attachTo(view: PlayerView) {
         rebind(view, force = false)
-        watchFrames(view)
     }
 
     // ── "Is the picture really on screen?" guard ────────────────────────────────────────
@@ -206,9 +205,10 @@ object LivePreviewSession {
             if (++watchTries > 30) return
             if (p.playbackState == Player.STATE_READY && p.playWhenReady && p.videoFormat != null) {
                 if (++forcedRebinds > 3) return
+                handover?.let { it.forced++ }
                 android.util.Log.w("LivePreviewSession", "no picture on screen — rebinding surface (try $forcedRebinds)")
                 rebind(v, force = true)
-                main.postDelayed(this, 1_200L)
+                main.postDelayed(this, if (DeviceProfile.isHk1) 1_200L else 6_000L)
             } else {
                 main.postDelayed(this, 600L)
             }
@@ -219,6 +219,7 @@ object LivePreviewSession {
         override fun onRenderedFirstFrame() {
             framesFlowing = true
             main.removeCallbacks(frameCheck)
+            handover?.let { if (it.surfaceMs >= 0) finishHandover(android.os.SystemClock.elapsedRealtime() - it.t0) }
         }
     }
     private fun watchFrames(view: PlayerView) {
@@ -229,20 +230,25 @@ object LivePreviewSession {
         watchTries = 0
         forcedRebinds = 0
         main.removeCallbacks(frameCheck)
-        main.postDelayed(frameCheck, 900L)
+        main.postDelayed(frameCheck, if (DeviceProfile.isHk1) 900L else 5_000L)
     }
 
     /** Point the player at [view]'s surface. Normal hand-overs (preview ⇄ full screen) switch
      *  surface in ONE step — never via "no surface", which makes some TV-box decoders reset
      *  (the re-buffer on expand). [force] (picture guard only) unbinds first to beat
      *  PlayerView's same-player short-circuit. */
+    private var pendingBind: java.lang.ref.WeakReference<PlayerView>? = null
     private fun rebind(view: PlayerView, force: Boolean, waits: Int = 0) {
         val p = getOrCreate(view.context)
-        // Shrinking back: the guide's TextureView recreates its SurfaceTexture a beat after
-        // resume. Keep the full-screen surface until it exists instead of going surface-less.
+        if (!force) { if (waits == 0) pendingBind = java.lang.ref.WeakReference(view) else if (pendingBind?.get() !== view) return }
+        // The new view's surface does not exist until its window has drawn once. Binding earlier sends the
+        // picture to "no surface" (frozen frame; on Fire TV boxes the decoder resets and waits for the next
+        // key-frame). Keep playing on the current surface until the new one exists, then switch in ONE step.
         val tv = view.videoSurfaceView as? android.view.TextureView
-        if (!force && tv != null && !tv.isAvailable && waits < 20) {
-            main.postDelayed({ rebind(view, false, waits + 1) }, 50L)
+        val sv = view.videoSurfaceView as? android.view.SurfaceView
+        val ready = tv?.isAvailable ?: sv?.holder?.surface?.isValid ?: true
+        if (!force && !ready && waits < 60) {
+            main.postDelayed({ rebind(view, false, waits + 1) }, 25L)
             return
         }
         if (force) { p.clearVideoSurface(); view.player = null }
@@ -252,6 +258,32 @@ object LivePreviewSession {
             else -> {}
         }
         if (view.player !== p) view.player = p
+        if (!force) { handover?.let { it.surfaceMs = android.os.SystemClock.elapsedRealtime() - it.t0; it.waits = waits }; watchFrames(view) }
+    }
+
+    // ── Hand-over timing (preview → full screen), reported once per open so slow boxes can be diagnosed ──
+    class Handover(val t0: Long) { var surfaceMs = -1L; var waits = 0; var decoderInits = 0; var decoder = ""; var forced = 0 }
+    @Volatile private var handover: Handover? = null
+    /** Set by the app: receives one JSON line per full-screen open. */
+    @Volatile var onHandover: ((org.json.JSONObject) -> Unit)? = null
+    private var analyticsOn: ExoPlayer? = null
+    private val analytics = object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+        override fun onVideoDecoderInitialized(eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime, decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+            handover?.let { it.decoderInits++; it.decoder = decoderName }
+        }
+    }
+    fun markHandover() {
+        val p = player ?: return
+        if (analyticsOn !== p) { p.addAnalyticsListener(analytics); analyticsOn = p }
+        val h = Handover(android.os.SystemClock.elapsedRealtime()); handover = h
+        main.postDelayed({ if (handover === h) finishHandover(-1L) }, 20_000L)
+    }
+    private fun finishHandover(frameMs: Long) {
+        val h = handover ?: return; handover = null
+        runCatching {
+            onHandover?.invoke(org.json.JSONObject().put("kind", "fullscreen_open").put("surface_ms", h.surfaceMs).put("first_frame_ms", frameMs).put("surface_waits", h.waits)
+                .put("decoder_inits", h.decoderInits).put("decoder", h.decoder).put("forced_rebinds", h.forced).put("channel", currentChannel?.name ?: ""))
+        }
     }
 
     /** Detach [view] from the shared player WITHOUT releasing the

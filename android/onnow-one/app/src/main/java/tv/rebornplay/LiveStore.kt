@@ -103,6 +103,7 @@ object LiveStore {
         if (LivePreviewSession.currentChannel?.id != ch.id) LivePreviewSession.setChannel(activity, ch)
         PlaybackQueue.setQueue(if (list.any { it.id == ch.id }) list else bundle.value?.channels ?: list, ch.id)
         lastChannelId = ch.id
+        LivePreviewSession.markHandover()
         activity.startActivity(Intent(activity, PlayerActivity::class.java).apply {
             putExtra(PlayerActivity.EXTRA_URL, ch.streamUrl)
             putExtra(PlayerActivity.EXTRA_TITLE, ch.name)
