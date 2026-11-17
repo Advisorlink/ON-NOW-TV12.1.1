@@ -1682,15 +1682,42 @@ open class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun recordingPosition(): Pair<Long, Long> =
-        if (backend == PlayerPrefs.Backend.VLC) (vlcController?.positionMs() ?: -1L) to (vlcController?.lengthMs() ?: -1L)
-        else (player?.currentPosition ?: -1L) to (player?.duration?.takeIf { it != androidx.media3.common.C.TIME_UNSET } ?: -1L)
+    // Recordings are skipped by asking the service for the recording from the new time, so a skip can never fall back to the start.
+    private class Shift(val prefix: String, val startMs: Long, val totalMs: Long, val tail: String)
+    private val shiftFmt get() = java.text.SimpleDateFormat("yyyy-MM-dd:HH-mm", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+    private val shift: Shift? by lazy {
+        val m = Regex("^(.*/timeshift/[^/]+/[^/]+/)(\\d+)/(\\d{4}-\\d{2}-\\d{2}:\\d{2}-\\d{2})/(.+)$").find(intent.getStringExtra(EXTRA_URL).orEmpty()) ?: return@lazy null
+        val start = runCatching { shiftFmt.parse(m.groupValues[3])?.time }.getOrNull() ?: return@lazy null
+        Shift(m.groupValues[1], start, m.groupValues[2].toLong() * 60_000L, m.groupValues[4])
+    }
+    private var shiftBaseMs = 0L
+    private var shiftPending = -1L
+    private val shiftLoad = Runnable {
+        val s = shift ?: return@Runnable
+        val target = shiftPending.takeIf { it >= 0 } ?: return@Runnable
+        val base = target / 60_000L * 60_000L
+        val mins = ((s.totalMs - base + 59_999L) / 60_000L).coerceAtLeast(1)
+        val url = s.prefix + mins + "/" + shiftFmt.format(java.util.Date(s.startMs + base)) + "/" + s.tail
+        shiftBaseMs = base; shiftPending = -1L
+        if (backend == PlayerPrefs.Backend.VLC) { bufferLoader.visibility = View.VISIBLE; vlcController?.tune(url) }
+        else player?.let { p -> p.setMediaItem(MediaItem.fromUri(url)); p.playWhenReady = true; p.prepare() }
+        syncPlayPauseGlyph()
+    }
+
+    private fun recordingPosition(): Pair<Long, Long> {
+        val raw = if (backend == PlayerPrefs.Backend.VLC) (vlcController?.positionMs() ?: -1L) to (vlcController?.lengthMs() ?: -1L)
+            else (player?.currentPosition ?: -1L) to (player?.duration?.takeIf { it != androidx.media3.common.C.TIME_UNSET } ?: -1L)
+        val s = shift ?: return raw
+        if (shiftPending >= 0) return shiftPending to s.totalMs
+        return (shiftBaseMs + raw.first.coerceAtLeast(0L)) to s.totalMs
+    }
 
     private fun seekRecording(deltaMs: Long) {
         val (pos, dur) = recordingPosition()
         if (pos < 0) return
         val target = (pos + deltaMs).coerceAtLeast(0L).let { if (dur > 0) it.coerceAtMost(dur - 2_000L) else it }
-        if (backend == PlayerPrefs.Backend.VLC) vlcController?.seekTo(target) else player?.seekTo(target)
+        if (shift != null) { shiftPending = target.coerceAtMost((dur - 60_000L).coerceAtLeast(0L)); seekHandler.removeCallbacks(shiftLoad); seekHandler.postDelayed(shiftLoad, 700L) }
+        else if (backend == PlayerPrefs.Backend.VLC) vlcController?.seekTo(target) else player?.seekTo(target)
         val sign = if (deltaMs >= 0) "⏩  +" else "⏪  −"
         status.text = "$sign${fmtSpan(kotlin.math.abs(deltaMs))}   ${fmtSpan(target)}${if (dur > 0) " / " + fmtSpan(dur) else ""}"
         hideHandler.removeCallbacksAndMessages(null)

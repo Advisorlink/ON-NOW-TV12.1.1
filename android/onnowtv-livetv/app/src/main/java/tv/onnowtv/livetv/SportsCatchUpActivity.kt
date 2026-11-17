@@ -246,6 +246,9 @@ class SportsCatchUpActivity : AppCompatActivity() {
         addView(text("", 16f, Color.WHITE, Typeface.DEFAULT_BOLD).apply {
             id = R_TITLE; maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setShadowLayer(8f, 0f, 2f, Color.BLACK); setPadding(dp(14), 0, dp(14), 0)
         }, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
+        addView(text("", 10.5f, Color.WHITE, Typeface.create("sans-serif-black", Typeface.NORMAL)).apply {
+            id = R_KIND; letterSpacing = .08f; maxLines = 1; setPadding(dp(9), dp(4), dp(9), dp(4))
+        }, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { topMargin = dp(8); leftMargin = dp(8) })
         addView(text("", 9f, cyan, Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)).apply {
             id = R_SUB; letterSpacing = .12f; maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(12), 0, dp(12), dp(10)); gravity = Gravity.CENTER_HORIZONTAL
         }, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
@@ -268,7 +271,14 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val accent = LiveSportsClassifier.colorOf(g.sport)
         val ring = shape(Color.TRANSPARENT, Color.parseColor("#1AFFFFFF"), 1, 14)
         v.background = states(ring, shape(Color.TRANSPARENT, cyan, 3, 14))
-        v.findViewById<TextView>(R_SUB).text = "${g.channel.name.uppercase()} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)} · ${minutes(g.programme)} MIN · ${kind(g.programme)}"
+        v.findViewById<TextView>(R_SUB).text = "${g.channel.name.uppercase()} · ${dayLabel(startOfDay(g.programme.startMs))} ${time(g.programme.startMs)} · ${minutes(g.programme)} MIN"
+        val k = kind(g.programme)
+        v.findViewById<TextView>(R_KIND).apply {
+            text = k
+            val c = Color.parseColor(when (k) { "FULL LIVE BROADCAST" -> "#16A34A"; "FULL RE-RUN" -> "#2563EB"; "SHORTER RE-RUN" -> "#D97706"; else -> "#B91C1C" })
+            background = shape(c, Color.parseColor("#66FFFFFF"), 1, 8)
+            bringToFront()
+        }
         val art = v.findViewById<ImageView>(R_ART)
         val shade = v.findViewById<View>(R_SHADE)
         val title = v.findViewById<TextView>(R_TITLE)
@@ -399,6 +409,7 @@ class SportsCatchUpActivity : AppCompatActivity() {
         val R_ICON = View.generateViewId()
         val R_TITLE = View.generateViewId()
         val R_SUB = View.generateViewId()
+        val R_KIND = View.generateViewId()
         val R_TEAMS = View.generateViewId()
         val R_HOME_LOGO = View.generateViewId()
         val R_HOME_NAME = View.generateViewId()
