@@ -130,17 +130,12 @@ fun PosterShelf(eyebrow: String, title: String, items: List<Item>, total: Int = 
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
     Column(Modifier.padding(bottom = bottomPad)) {
         SectionHeader(eyebrow, title, "${items.size} of $total titles", Modifier.padding(horizontal = inset))
-        // 3D cases: the highlighted one sits third in from the right.
-        AnchoredRow(if (dvd) 64.dp + inset + dvdCaseWidth(tileH) * 3 + 24.dp else 64.dp + inset + tileH * 2 / 3 + 12.dp, fromRight = dvd) {
-            // 3D: the row starts at that slot too, so even the first cover is highlighted third from the right.
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val startPad = if (dvd) (maxWidth - (64.dp + inset + dvdCaseWidth(tileH) * 3 + 24.dp)).coerceAtLeast(64.dp + inset) else 64.dp + inset
-            LazyRow(contentPadding = PaddingValues(start = startPad, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (dvd) DvdRow(items.distinctBy { it.id }, firstRequester, onFocusItem, row, rowNav, tileH, inset, onOpen) else
+        AnchoredRow(64.dp + inset + tileH * 2 / 3 + 12.dp) {
+            LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 itemsIndexed(items.distinctBy { it.id }, key = { _, it -> it.id }) { i, it ->
-                    if (dvd) DvdTile(it, if (i == 0) firstRequester else null, onFocusItem, row, rowNav, i == 0, tileH) { onOpen(it) } else
                     PosterTile(it, if (i == 0) firstRequester else null, onFocusItem, row, rowNav, i == 0, tileH) { onOpen(it) }
                 }
-            }
             }
         }
     }

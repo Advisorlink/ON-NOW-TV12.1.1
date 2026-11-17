@@ -113,6 +113,10 @@ object Prefs {
     /** Home rows drawn as 3D DVD cases. */
     fun dvd3d(ctx: Context) = p(ctx).getBoolean("dvd_3d", false)
     fun setDvd3d(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("dvd_3d", v).apply()
+    /** How long you rest on a 3D case before it opens by itself. */
+    val DVD_DELAYS = listOf(1000L, 1500L, 2000L, 3000L)
+    fun dvdDelayMs(ctx: Context) = p(ctx).getLong("dvd_delay", 1500L)
+    fun cycleDvdDelay(ctx: Context): Long { val v = DVD_DELAYS[(DVD_DELAYS.indexOf(dvdDelayMs(ctx)) + 1) % DVD_DELAYS.size]; p(ctx).edit().putLong("dvd_delay", v).apply(); return v }
 }
 
 /** Home → Live TV row: what it shows and how it looks (Settings → Live TV row). */

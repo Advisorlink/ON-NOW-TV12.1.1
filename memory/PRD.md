@@ -1414,3 +1414,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Row always highlights third from the right, including the first cover (start padding = row width − anchor, in `PosterShelf`).
 - Highlighted case turns side-on (`TURN_ANGLE` 30°) with a real spine face showing the title (`DEPTH`); OK swings the cover open (`OPEN_ANGLE`), tray slides out, disc lifts out, then the pop-up (950 ms).
 - rotationY convention assumed: positive = right edge away from viewer. If the spine looks detached / in front, flip signs in `DvdCase`.
+
+## Build 3.9.63-102 (Nov 17) — 3D covers, tuning round 2 (not rendered here; user confirmed round 1 turn direction via photo)
+- rotationY convention CONFIRMED by user photo: positive = right edge away from viewer.
+- Case now turns the other way (opening edge on the right faces out, `TURN_ANGLE` 34°), much thicker (`DEPTH` 0.15), reflections removed, spine title removed.
+- `DvdRow`: endless looping row (Int.MAX_VALUE items, index % n, when ≥ 4 titles); first title starts third from the right with the last titles wrapped to its left.
+- Case opens by itself after resting (Settings → Appearance → "3D open delay", 1/1.5/2/3 s, default 1.5 s); OK shows the normal centred pop-up straight away. `TitleActions.side` removed.
