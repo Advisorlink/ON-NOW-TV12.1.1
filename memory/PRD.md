@@ -1381,3 +1381,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Catch-up scrubber: Left/Right only skip after pressing OK on the bar (armed); OK again or moving focus away disarms; otherwise Left/Right just move focus.
 - Top bar: Refresh button after Speed test -> Confirm.choose: Movies & shows / TV guide / Live TV / Everything, each ending in a Before -> Now card (Everything = channels + guide, then catalogue reload, one combined card).
 - Live TV: top-right Favourite / Refresh / Settings icons removed, replaced by a "Full screen" pill (opens the previewed/highlighted channel). Search removed from the channel bar. Bar order: Sports Replays (purple, opens SportsCatchUpActivity) · Live Sport (orange) · Sports Hub (blue) · Catch Up (green). SearchBox composable left unused.
+
+## 3.9.57 (build 96) — TEST COPY, BUILD-VERIFIED ONLY
+- Continue Watching movie/show cards: reverted the build-95 "whole poster over dimmed copy" look (user disliked it). Real cause of "zoomed in": saved entries often had no backdrop, so the tall poster was cropped into the wide card. Card now looks up the wide backdrop once (Gorilla.enrich, cached in CwArt) and shows it Crop/TopCenter like Coming Soon; poster crop only as fallback when the service has no backdrop.

@@ -229,6 +229,8 @@ private fun CwTile(e: CwEntry, h: Dp, first: Boolean, row: Int, rowNav: RowNav?,
 }
 
 /** Continue Watching card — 16:9 backdrop, title, play dot + progress bar + minutes left. */
+private val CwArt = java.util.concurrent.ConcurrentHashMap<String, String>()
+
 @Composable
 fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -> Unit)? = null, onRemove: (() -> Unit)? = null, onClick: () -> Unit) {
     var top by remember { mutableStateOf(false) }
@@ -260,11 +262,11 @@ fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -
                 }
             }
             else if (e.item.type == "replay" && e.item.background == null) { if (e.item.poster != null) AsyncImage(e.item.poster, e.item.name, Modifier.align(Alignment.Center).fillMaxSize(0.5f), contentScale = ContentScale.Fit) }
-            else if (e.item.background != null) AsyncImage(e.item.background, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else {
-                // Only a tall cover is known: show it whole over a dimmed copy instead of cropping it to fit the wide card.
-                AsyncImage(e.item.poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.22f)
-                AsyncImage(e.item.poster, e.item.name, Modifier.fillMaxSize().padding(top = 6.dp, bottom = 6.dp), contentScale = ContentScale.Fit)
+                // Wide backdrop art like the Coming Soon cards. Older entries only saved the tall cover, so the backdrop is looked up once.
+                var backdrop by remember(e.cwId) { mutableStateOf(e.item.background ?: CwArt[e.item.id]) }
+                LaunchedEffect(e.cwId) { if (backdrop == null) runCatching { Gorilla.enrich(replayCtx, e.item) }.getOrNull()?.background?.let { CwArt[e.item.id] = it; backdrop = it } }
+                AsyncImage(backdrop ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
             }
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
             if (e.item.type == "replay") Row(Modifier.align(Alignment.TopStart).padding(8.dp).height(20.dp).clip(CircleShape).background(Bg0.copy(alpha = 0.8f)).border(1.dp, Blue.copy(alpha = 0.7f), CircleShape).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
