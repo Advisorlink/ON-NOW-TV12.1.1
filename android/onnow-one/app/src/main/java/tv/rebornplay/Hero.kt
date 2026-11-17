@@ -49,7 +49,7 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
     Box(Modifier.fillMaxWidth().height(h)) {
         if (onHero == null) {
             Crossfade(hero, animationSpec = tween(600), label = "hero") { h ->
-                AsyncImage(h.item.background ?: h.item.poster, null, Modifier.fillMaxSize().padding(start = if (compact) 200.dp else 360.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+                AsyncImage(rememberWideArt(h.item), null, Modifier.fillMaxSize().padding(start = if (compact) 200.dp else 360.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
             }
             Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.42f to Bg0.copy(alpha = 0.96f), 0.62f to Bg0.copy(alpha = 0.35f), 0.85f to Color.Transparent)))
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.55f), 0.35f to Color.Transparent, 0.75f to Bg0.copy(alpha = 0.4f), 1f to Bg0)))
@@ -105,7 +105,7 @@ fun ResumeCard(e: CwEntry, short: Boolean, rowNav: RowNav?, modifier: Modifier =
     Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(0, req) }, modifier = modifier) { f ->
         Column(Modifier.width(if (short) 300.dp else 360.dp).blueGlow(f, shape).clip(shape).background(Bg1.copy(alpha = 0.78f)).border(if (f) 2.dp else 1.dp, if (f) Blue else Color.White.copy(alpha = 0.12f), shape).padding(12.dp)) {
             Box(Modifier.fillMaxWidth().height(if (short) 90.dp else 140.dp).clip(RoundedCornerShape(12.dp)).background(Bg2)) {
-                AsyncImage(e.item.background ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                AsyncImage(rememberWideArt(e.item), e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Bg0.copy(alpha = 0.7f))))
             }
             Spacer(Modifier.height(if (short) 8.dp else 12.dp))
@@ -132,7 +132,7 @@ fun ResumeCard(e: CwEntry, short: Boolean, rowNav: RowNav?, modifier: Modifier =
 @Composable
 fun FullBleedBackdrop(item: Item?) {
     Box(Modifier.fillMaxSize().background(Bg0)) {
-        Crossfade(item?.background ?: item?.poster, animationSpec = tween(650), label = "bg") { url ->
+        Crossfade(rememberWideArt(item), animationSpec = tween(650), label = "bg") { url ->
             if (url != null) AsyncImage(url, null, Modifier.fillMaxSize().padding(start = 300.dp), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
         }
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0, 0.36f to Bg0.copy(alpha = 0.97f), 0.58f to Bg0.copy(alpha = 0.45f), 0.85f to Bg0.copy(alpha = 0.05f))))

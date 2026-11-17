@@ -111,7 +111,8 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
     }
 
     Box(Modifier.fillMaxSize().background(Bg0)) {
-        AsyncImage(meta.background ?: meta.poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.85f)
+        val wideArt = rememberWideArt(meta)
+        AsyncImage(wideArt, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.85f)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg0.copy(alpha = 0.45f), 0.3f to Bg0.copy(alpha = 0.2f), 0.7f to Bg0.copy(alpha = 0.35f), 1f to Bg0.copy(alpha = 0.65f))))
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0.copy(alpha = 0.92f), 0.3f to Bg0.copy(alpha = 0.7f), 0.55f to Bg0.copy(alpha = 0.2f), 0.75f to Color.Transparent)))
 
@@ -172,7 +173,7 @@ fun DetailScreen(activity: Activity, initial: Item, onBack: () -> Unit, onHome: 
             if (isSeries && episodes.isNotEmpty()) {
                 if (shown) item { Mono("Season $season · ${episodes.count { it.season == season }} episodes", 10.sp, Txt3, 0.24f, Modifier.padding(top = 20.dp, bottom = 12.dp)) }
                 if (shown) items(episodes.filter { it.season == season }, key = { it.id }) { e ->
-                    Box(Modifier.fillMaxWidth().padding(bottom = 14.dp)) { EpisodeRow(e, meta.background ?: meta.poster, progress[e.id] ?: 0f) { playEpisode(e) } }
+                    Box(Modifier.fillMaxWidth().padding(bottom = 14.dp)) { EpisodeRow(e, wideArt, progress[e.id] ?: 0f) { playEpisode(e) } }
                 }
             }
         }

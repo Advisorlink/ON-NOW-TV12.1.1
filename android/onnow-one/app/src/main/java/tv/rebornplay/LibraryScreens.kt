@@ -303,7 +303,7 @@ fun NotifyHitToast(onWatch: (Item) -> Unit) {
     fun dismiss() { NotifyScan.hits.remove(hit) }
     BackHandler { dismiss() }
     val shape = RoundedCornerShape(16.dp)
-    val art = hit.wanted.background ?: hit.found.background ?: hit.found.poster ?: hit.wanted.poster
+    val art = hit.wanted.background ?: rememberWideArt(hit.found)
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.align(Alignment.TopEnd).padding(top = 24.dp + safeInset() / 2, end = 24.dp + safeInset() / 2).width(400.dp).blueGlow(true, shape, 16.dp, 0.6f).clip(shape).background(Color(0xFF11182A)).border(1.dp, Blue.copy(alpha = 0.45f), shape)) {
             Box(Modifier.fillMaxWidth().height(150.dp).background(Bg2)) {

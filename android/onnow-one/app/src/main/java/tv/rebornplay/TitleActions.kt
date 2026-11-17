@@ -120,7 +120,7 @@ fun TitleActionsSheet(activity: Activity, onDetails: (Item) -> Unit) {
     val shape = RoundedCornerShape(22.dp)
     Box(Modifier.fillMaxSize().background(Bg0.copy(alpha = 0.72f)), contentAlignment = Alignment.Center) {
         Box(Modifier.width(520.dp).height(400.dp).blueGlow(true, shape, 26.dp, 0.55f).clip(shape).background(Color(0xFF0B1220)).border(1.5.dp, BlueBright.copy(alpha = 0.55f), shape)) {
-            AsyncImage(rich.background ?: item.poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+            AsyncImage(rememberWideArt(rich), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x4005070D), 0.4f to Color(0x8C05070D), 1f to Color(0xF205070D))))
             Column(Modifier.align(Alignment.TopStart).padding(horizontal = 24.dp, vertical = 20.dp)) {
                 Mono(if (series) "Series" else "Movie", 10.sp, BlueBright, 0.32f)

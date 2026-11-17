@@ -1384,3 +1384,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## 3.9.57 (build 96) — TEST COPY, BUILD-VERIFIED ONLY
 - Continue Watching movie/show cards: reverted the build-95 "whole poster over dimmed copy" look (user disliked it). Real cause of "zoomed in": saved entries often had no backdrop, so the tall poster was cropped into the wide card. Card now looks up the wide backdrop once (Gorilla.enrich, cached in CwArt) and shows it Crop/TopCenter like Coming Soon; poster crop only as fallback when the service has no backdrop.
+
+## 3.9.58 (build 97) — TEST COPY, BUILD-VERIFIED ONLY
+- User rule: wide cards must NEVER show a cropped tall cover; always TMDB wide art. New TmdbArt.kt (rememberWideArt): TMDB backdrop from item / provider details (get_vod_info) / TMDB title+type+year search via backend, cached in prefs "tmdb_art". Used by Continue Watching, hero + full-bleed backdrop, detail page + episode fallback, Coming Soon cards, action sheet, pop-out tiles, Coming Up. With no wide art: plain card (CW), or the tile simply does not pop out. Tall poster tiles unchanged (provider posters are already TMDB: 22,633 of 22,648 movies).

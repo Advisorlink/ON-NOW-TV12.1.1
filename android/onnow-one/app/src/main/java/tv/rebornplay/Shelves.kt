@@ -59,7 +59,9 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     var rested by remember { mutableStateOf(false) }
     LaunchedEffect(focused) { rested = false; if (focused) { kotlinx.coroutines.delay(popDelay); rested = true } }
     val big = focused && (rested || coversOnly)
-    val w by animateDpAsState(if (focused && rested && !coversOnly) tileH * 16 / 9 else posterW, tween(expandMs), label = "w")
+    // Opens wide only when there is wide TMDB art to show; otherwise it stays a cover.
+    val wideArt = if (focused && !coversOnly) rememberWideArt(rich) else null
+    val w by animateDpAsState(if (focused && rested && !coversOnly && wideArt != null) tileH * 16 / 9 else posterW, tween(expandMs), label = "w")
     val req = requester ?: remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
     if (dwell > 0) TrailerDwell(item, focused && TitleActions.item == null, dwell)
@@ -97,8 +99,8 @@ fun PosterTile(item: Item, requester: FocusRequester? = null, onFocus: ((Item) -
     Focusable(keys.zIndex(if (focused) 1f else 0f), onClick = click, requester = req, onFocus = { focused = it; if (it) { onFocus?.invoke(item); rowNav?.focused(row, req) } }) { _ ->
         Box(Modifier.width(w).height(tileH).focusScale(focused, 1.06f).tileFocus(focused, 12.dp).clip(TileShape).background(Bg2)
             .border(1.dp, Color.White.copy(alpha = 0.05f), TileShape)) {
-            if (w > posterW + 40.dp && rich.background != null)
-                AsyncImage(rich.background, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (w > posterW + 40.dp && wideArt != null)
+                AsyncImage(wideArt, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else AsyncImage(item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
             // Vesper: every poster carries its title + year/rating on a bottom fade; the focused card gets a larger one.
@@ -229,8 +231,6 @@ private fun CwTile(e: CwEntry, h: Dp, first: Boolean, row: Int, rowNav: RowNav?,
 }
 
 /** Continue Watching card — 16:9 backdrop, title, play dot + progress bar + minutes left. */
-private val CwArt = java.util.concurrent.ConcurrentHashMap<String, String>()
-
 @Composable
 fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -> Unit)? = null, onRemove: (() -> Unit)? = null, onClick: () -> Unit) {
     var top by remember { mutableStateOf(false) }
@@ -263,10 +263,10 @@ fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -
             }
             else if (e.item.type == "replay" && e.item.background == null) { if (e.item.poster != null) AsyncImage(e.item.poster, e.item.name, Modifier.align(Alignment.Center).fillMaxSize(0.5f), contentScale = ContentScale.Fit) }
             else {
-                // Wide backdrop art like the Coming Soon cards. Older entries only saved the tall cover, so the backdrop is looked up once.
-                var backdrop by remember(e.cwId) { mutableStateOf(e.item.background ?: CwArt[e.item.id]) }
-                LaunchedEffect(e.cwId) { if (backdrop == null) runCatching { Gorilla.enrich(replayCtx, e.item) }.getOrNull()?.background?.let { CwArt[e.item.id] = it; backdrop = it } }
-                AsyncImage(backdrop ?: e.item.poster, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+                // Always the wide TMDB backdrop; with none, a plain card (the tall cover is never stretched into it).
+                val backdrop = rememberWideArt(e.item)
+                if (backdrop != null) AsyncImage(backdrop, e.item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+                else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF182641), Color(0xFF0B1120)))))
             }
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))
             if (e.item.type == "replay") Row(Modifier.align(Alignment.TopStart).padding(8.dp).height(20.dp).clip(CircleShape).background(Bg0.copy(alpha = 0.8f)).border(1.dp, Blue.copy(alpha = 0.7f), CircleShape).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -475,7 +475,7 @@ private fun SoonCard(item: Item, h: Dp, first: Boolean, row: Int, rowNav: RowNav
         if (trailerOn) TitleActions.openInline(item.id, twoChoices = true) else toggle()
     }) { f ->
         Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
-            AsyncImage(item.background ?: item.poster, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+            rememberWideArt(item)?.let { AsyncImage(it, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter) }
             if (trailerOn) TrailerSurface(Modifier.fillMaxSize())
             if (menu) { Box(Modifier.fillMaxSize().background(Color(0x8C05070D))); SoonPills(TitleActions.sel, remind, Modifier.align(Alignment.Center)) }
             if (!menu) Box(Modifier.fillMaxSize().background(Brush.verticalGradient((if (trailerOn) 0.65f else 0.4f) to Color.Transparent, 1f to Bg0.copy(alpha = 0.92f))))

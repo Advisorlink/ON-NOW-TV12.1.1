@@ -87,7 +87,7 @@ private fun ComingUpCard(e: CalEpisode, w: Dp, h: Dp, first: Boolean, row: Int, 
     var top by remember { mutableStateOf(false) }
     val accent = Color(e.colour)
     val (label, day) = remember(e.date) { ComingUp.whenLabel(e.date) }
-    val art = remember(e) { (e.backdrop ?: e.still)?.replace("/t/p/w300/", "/t/p/w780/") ?: e.poster }
+    val art = remember(e) { (e.backdrop ?: e.still)?.replace("/t/p/w300/", "/t/p/w780/") }
     Focusable(Modifier.zIndex(if (top) 1f else 0f), requester = req, onFocus = { top = it; if (it) rowNav?.focused(row, req) }, onClick = onClick) { f ->
         Box(Modifier.width(w).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
             if (art != null) AsyncImage(art, e.showName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
