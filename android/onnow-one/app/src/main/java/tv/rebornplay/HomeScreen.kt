@@ -172,7 +172,8 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
         val heroH = total - bottomPad - 58.dp - tileH
         var bg by remember { mutableStateOf<Item?>(null) }
         FullBleedBackdrop(bg)
-        Column(Modifier.fillMaxSize()) {
+        val dvdShift = remember { if (Prefs.dvdMode(ctx) == 2) Prefs.dvdOffset(ctx) else 0 }
+        Column(Modifier.fillMaxSize().offset(y = dvdShift.dp)) {
             HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }, onHero = { bg = it })
             Box(Modifier.fillMaxWidth().weight(1f).padding(bottom = bottomPad), contentAlignment = Alignment.BottomStart) {
                 AnimatedContent(rowNav.page.coerceIn(0, pageCount - 1), label = "shelf", transitionSpec = {

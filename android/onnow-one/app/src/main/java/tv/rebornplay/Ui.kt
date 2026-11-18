@@ -133,12 +133,12 @@ fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape = CircleShape) =
     clip(shape).background(Bg0.copy(alpha = 0.72f)).border(1.dp, Color.White.copy(alpha = 0.10f), shape)
 
 @Composable
-fun SectionHeader(eyebrow: String, title: String, right: String? = null, modifier: Modifier = Modifier) {
+fun SectionHeader(eyebrow: String, title: String, right: String? = null, modifier: Modifier = Modifier, rightInline: Boolean = false) {
     Row(modifier.fillMaxWidth().padding(start = 64.dp, end = 48.dp, bottom = 14.dp), verticalAlignment = Alignment.Bottom) {
         Eyebrow(eyebrow, Modifier.padding(bottom = 6.dp))
         Spacer(Modifier.width(14.dp))
         Text(title, color = Txt, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, letterSpacing = (-0.4).sp)
-        Spacer(Modifier.weight(1f))
+        if (rightInline) Spacer(Modifier.width(16.dp)) else Spacer(Modifier.weight(1f))
         if (right != null) Mono(right, 10.sp, Txt3, modifier = Modifier.padding(bottom = 6.dp))
     }
 }

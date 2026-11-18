@@ -130,7 +130,7 @@ fun PosterShelf(eyebrow: String, title: String, items: List<Item>, total: Int = 
     val dvd = dvdMode == 1
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
     Column(Modifier.padding(bottom = bottomPad)) {
-        SectionHeader(eyebrow, title, "${items.size} of $total titles", Modifier.padding(horizontal = inset))
+        SectionHeader(eyebrow, title, "${items.size} of $total titles", Modifier.padding(horizontal = inset), rightInline = dvdMode == 2)   // 3D Distance: the big case covers the right-hand side
         if (dvdMode == 2) DvdDistanceRow(items.distinctBy { it.id }, firstRequester, onFocusItem, row, rowNav, tileH, inset, onOpen) else
         if (dvd) DvdRow(items.distinctBy { it.id }, firstRequester, onFocusItem, row, rowNav, tileH, inset, onOpen) else
         AnchoredRow(64.dp + inset + tileH * 2 / 3 + 12.dp) {

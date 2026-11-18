@@ -1438,3 +1438,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 
 ## Build 3.9.67-106 (Nov 18) — Disc play animation (3D Distance open case; not rendered here)
 - Play on the open case sets `TitleActions.launching`; `DvdOpenCase` runs a 1.1 s animation (disc spins up, lifts to the middle, flies away into the screen, fade to black) then calls play. Other choices and the normal card are unchanged. Series "Play Show" still lands on the details page after the animation.
+
+## Build 3.9.68-107 (Nov 18) — 3D Distance tuning + on-TV adjusters (not rendered here)
+- Settings → Appearance: "3D Distance: height" (`Prefs.dvdOffset`, dp, default +20; shifts Home hero + shelf together) and "3D Distance: spacing" (`Prefs.dvdGap`, % of case width, default 90, was 107). User will report preferred numbers → bake in as defaults.
+- Title counter sits beside the row title in Distance (`SectionHeader(rightInline)`), since the front case covers the right side.
+- Reflections: 8×12 px poster smear, flipped, no perspective, + real blur on Android 12+.

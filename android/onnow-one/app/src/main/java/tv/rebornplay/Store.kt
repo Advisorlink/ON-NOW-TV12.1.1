@@ -115,6 +115,14 @@ object Prefs {
     fun dvdMode(ctx: Context) = p(ctx).getInt("dvd_mode", if (p(ctx).getBoolean("dvd_3d", false)) 1 else 0)
     fun cycleDvdMode(ctx: Context): Int { val v = (dvdMode(ctx) + 1) % 3; p(ctx).edit().putInt("dvd_mode", v).apply(); return v }
     fun dvdModeLabel(v: Int) = when (v) { 1 -> "3D Horizontal"; 2 -> "3D Distance"; else -> "Off" }
+    /** 3D Distance: how far the whole Home layout (heading, synopsis, buttons, covers) is moved down (+) or up (−), in dp. */
+    val DVD_OFFSETS = listOf(0, 10, 20, 30, 40, 50, 60, -40, -30, -20, -10)
+    fun dvdOffset(ctx: Context) = p(ctx).getInt("dvd_offset", 20)
+    fun cycleDvdOffset(ctx: Context): Int { val v = DVD_OFFSETS[(DVD_OFFSETS.indexOf(dvdOffset(ctx)) + 1) % DVD_OFFSETS.size]; p(ctx).edit().putInt("dvd_offset", v).apply(); return v }
+    /** 3D Distance: distance between cases, as a percentage of a case's width. */
+    val DVD_GAPS = listOf(90, 95, 100, 105, 110, 75, 80, 85)
+    fun dvdGap(ctx: Context) = p(ctx).getInt("dvd_gap", 90)
+    fun cycleDvdGap(ctx: Context): Int { val v = DVD_GAPS[(DVD_GAPS.indexOf(dvdGap(ctx)) + 1) % DVD_GAPS.size]; p(ctx).edit().putInt("dvd_gap", v).apply(); return v }
     /** How long you rest on a 3D case before it opens by itself. */
     val DVD_DELAYS = listOf(1000L, 1500L, 2000L, 3000L)
     fun dvdDelayMs(ctx: Context) = p(ctx).getLong("dvd_delay", 1500L)

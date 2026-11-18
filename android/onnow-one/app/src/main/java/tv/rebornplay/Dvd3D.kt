@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
@@ -106,10 +107,13 @@ fun DvdCase(year: String?, h: Dp, focused: Boolean, open: Boolean, modifier: Mod
     Box(modifier.size(dvdCaseWidth(h), h).graphicsLayer { val s = 1f + 0.14f * g; scaleX = s; scaleY = s; transformOrigin = TransformOrigin(0.5f, 0.8f) }) {
         // soft, blurred floor reflection
         if (reflect != null) {
-            val rh = h * 0.24f
-            Box(Modifier.align(Alignment.BottomStart).offset(y = rh + 3.dp).size(dvdCaseWidth(h), rh)
-                .graphicsLayer { scaleY = -1f; compositingStrategy = CompositingStrategy.Offscreen; cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = -turn }
-                .drawWithContent { drawContent(); drawRect(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.34f)), blendMode = BlendMode.DstIn) }) { reflect(Modifier.fillMaxSize()) }
+            val rh = h * 0.30f
+            Box(Modifier.align(Alignment.BottomEnd).offset(y = rh + 2.dp).size(dvdCaseWidth(h) * 0.94f, rh)
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent { drawContent(); drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.42f), 0.85f to Color.Transparent), blendMode = BlendMode.DstIn) }) {
+                // a smear of the cover's colours, not a mirror image: upside-down, and blurred right out
+                reflect(Modifier.fillMaxSize().graphicsLayer { scaleY = -1f }.then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(14.dp) else Modifier))
+            }
         }
         // the opening edge: the thick side of the case where the two halves meet
         if (turn > 0.5f) Box(Modifier.align(Alignment.TopEnd).offset(x = depth).size(depth, h)
@@ -246,7 +250,7 @@ fun DvdDistanceRow(items: List<Item>, firstRequester: FocusRequester?, onFocusIt
         val w = with(d) { dvdCaseWidth(bigH).toPx() }
         val front = with(d) { (maxWidth - 40.dp - inset).toPx() } - w * 0.86f     // centre of the highlighted case (room on its right for the disc)
         val c = 0.16f                                                              // how quickly cases shrink with distance
-        val pitch = w * 1.07f                                                      // each case sits one of its own widths (+7 % gap) from its neighbour, at every size
+        val pitch = w * remember { Prefs.dvdGap(ctx) } / 100f                                                      // each case sits one of its own widths (+7 % gap) from its neighbour, at every size
         val count = if (n < 2) 0 else minOf(n - 1, 14)
         Focusable(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
             if (n < 2 || (e.key != Key.DirectionLeft && e.key != Key.DirectionRight)) return@onPreviewKeyEvent false
@@ -267,7 +271,7 @@ fun DvdDistanceRow(items: List<Item>, firstRequester: FocusRequester?, onFocusIt
                         .wrapContentSize(Alignment.BottomStart, unbounded = true)
                         .graphicsLayer { translationX = cx - w / 2f; translationY = -lift; scaleX = sc; scaleY = sc; transformOrigin = TransformOrigin(0.5f, 0.6f); alpha = a },
                         turned = true, grow = false, peek = true, label = false, turnAngle = 22f, depthF = 0.13f,
-                        reflect = { m -> AsyncImage(coil.request.ImageRequest.Builder(ctx).data(item.poster).size(36, 54).build(), null, m, contentScale = ContentScale.Crop, alignment = Alignment.BottomCenter, filterQuality = FilterQuality.Low) }) { m, al -> AsyncImage(item.poster, item.name, m, contentScale = ContentScale.Crop, alignment = al) }
+                        reflect = { m -> AsyncImage(coil.request.ImageRequest.Builder(ctx).data(item.poster).size(8, 12).build(), null, m, contentScale = ContentScale.Crop, alignment = Alignment.BottomCenter, filterQuality = FilterQuality.Low) }) { m, al -> AsyncImage(item.poster, item.name, m, contentScale = ContentScale.Crop, alignment = al) }
                 }
             }
         }
