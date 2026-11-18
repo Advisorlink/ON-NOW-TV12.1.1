@@ -1477,3 +1477,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Safety net: if RebornActivity is stopped under the overlay (ON_STOP while grown) → `LivePreviewSession.hostLost()` → PlayerActivity shows its own view (old behaviour, a pause, not a black screen).
 - RISK: a V2 comment says the translucent overlay "goes black on Fire TV / Shield" with the V2 SurfaceView preview. Here the host is a TextureView (drawn inside the app window) + the fallback above. If the user reports black/frozen full screen, check `reborn_diag` and consider in-activity controls.
 - TextureView trade-off: no HDR passthrough; slightly more GPU work on 4K.
+
+## Build 3.9.75-114 (Nov 18) — Channel list on Down in the full-screen live player (not device-tested)
+- New `livetv/ui/ChannelStrip.kt` (plain Views, built in code, sized as fractions of the screen from the user's mock-up): left column of channel cards (logo + what's on), highlighted one third from top with white border; info card (programme art via /api/epg/art, title, synopsis, start–progress–end, Up next).
+- PlayerActivity: DPAD_DOWN on the bare picture opens it (not in catch-up, not when Settings "Up / Down while watching" = channels, which still zaps). Up/Down move (wraps), OK tunes, Back/Left/Right close, auto-hide 12 s. List = `PlaybackQueue.channels` (the category the channel was opened from). Controls bar is now reached with OK / Left / Right.
+- EPG for rows read from on-box guide files only (`stripEpg`), no network while scrolling.

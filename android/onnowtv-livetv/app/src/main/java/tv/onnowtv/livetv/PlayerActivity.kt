@@ -1154,7 +1154,33 @@ open class PlayerActivity : AppCompatActivity() {
 
     private var softVolIdx = 15
     private var softVolToast: android.widget.Toast? = null
+    /** Down while watching: channels of the current category down the left, with what's on. */
+    private val channelStrip by lazy {
+        tv.onnowtv.livetv.ui.ChannelStrip(this, nowNext = { currentProgramme(it) }, needEpg = { ch, done -> stripEpg(ch, done) },
+            art = { title, done ->
+                val key = title.lowercase(Locale.UK)
+                val hit = upNextArtCache[key]
+                if (hit != null) done(hit) else lifecycleScope.launch(Dispatchers.IO) {
+                    val url = fetchUpNextBackdrop(title); upNextArtCache[key] = url
+                    withContext(Dispatchers.Main) { if (!isFinishing && !isDestroyed) done(url) }
+                }
+            },
+            onPick = { ch -> if (ch.id != currentChannel?.id) { PlaybackQueue.setQueue(PlaybackQueue.channels, ch.id); tuneTo(ch) } })
+    }
+    private val stripEpgTried = mutableSetOf<String>()
+    /** Guide data for a channel in the list, from the on-box guide files only (no network while scrolling). */
+    private fun stripEpg(ch: Channel, done: () -> Unit) {
+        val sid = ch.epgChannelId?.takeIf { it.isNotBlank() } ?: return
+        if (!stripEpgTried.add(sid)) return
+        val appCtx = applicationContext
+        lifecycleScope.launch(Dispatchers.IO) {
+            val got = try { tv.onnowtv.livetv.data.EpgCache.loadChannel(appCtx, sid) } catch (_: Throwable) { null }
+            if (!got.isNullOrEmpty()) withContext(Dispatchers.Main) { diskEpg = diskEpg.toMutableMap().also { it[sid] = got }; if (!isFinishing && !isDestroyed) done() }
+        }
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (channelStrip.visible && channelStrip.key(keyCode)) return true
         when (keyCode) {
             // Fixed-volume boxes (Fire TV, some HDMI boxes) ignore the system slider: scale the player's own sound instead.
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN -> {
@@ -1197,6 +1223,11 @@ open class PlayerActivity : AppCompatActivity() {
                 if (playerOverlay.visibility != View.VISIBLE) {
                     if (tv.onnowtv.livetv.data.Settings.playerUpDown == "channels" && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                         PlaybackQueue.next()?.let { tuneTo(it) }
+                        return true
+                    }
+                    // Down on the bare picture: the channel list for this category (OK / Left / Right still bring up the controls).
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && !catchUp && PlaybackQueue.channels.size > 1) {
+                        channelStrip.show(PlaybackQueue.channels, currentChannel?.id)
                         return true
                     }
                     showControlsBar()

@@ -280,7 +280,7 @@ private fun LiveSettings() {
         ActionRow("Subtitle language", "", subs.firstOrNull { it.first == S.subtitleLanguage }?.second ?: "English") { S.subtitleLanguage = next(subs.map { it.first }, S.subtitleLanguage); t++ }
         val aspects = listOf("Fit", "Zoom", "Fill", "16:9")
         ActionRow("Default picture shape", "How the picture fills the screen when a channel starts.", aspects[S.defaultAspect.coerceIn(0, 3)]) { S.defaultAspect = (S.defaultAspect + 1) % 4; t++ }
-        ActionRow("Up / Down while watching", "", if (S.playerUpDown == "channels") "Channel up / down" else "Up = channel, Down = controls") { S.playerUpDown = if (S.playerUpDown == "channels") "mixed" else "channels"; t++ }
+        ActionRow("Up / Down while watching", "", if (S.playerUpDown == "channels") "Channel up / down" else "Up = channel, Down = channel list") { S.playerUpDown = if (S.playerUpDown == "channels") "mixed" else "channels"; t++ }
 
         SubHead("Guide")
         ActionRow("Guide auto-update", "How often the TV guide refreshes on its own.", "Every ${S.epgIntervalHours} h") { S.epgIntervalHours = next(listOf(3, 6, 12, 24), S.epgIntervalHours); t++ }
