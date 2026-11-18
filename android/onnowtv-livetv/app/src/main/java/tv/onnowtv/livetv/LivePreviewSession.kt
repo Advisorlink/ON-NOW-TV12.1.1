@@ -316,6 +316,9 @@ object LivePreviewSession {
     private var fullscreenHost: java.lang.ref.WeakReference<PlayerView>? = null
     fun setFullscreenHost(view: PlayerView?) { fullscreenHost = view?.let { java.lang.ref.WeakReference(it) } }
     fun fullscreenHost(): PlayerView? = fullscreenHost?.get()
+    /** The grown view went away underneath the full-screen controls (its screen was stopped): they must show the picture themselves. */
+    @Volatile var onHostLost: (() -> Unit)? = null
+    fun hostLost() { if (fullscreenHost?.get() == null) return; fullscreenHost = null; onHostLost?.invoke() }
 
     /** Explicit teardown, including returning from a sports-owned player (not ordinary guide Back). */
     fun release() {

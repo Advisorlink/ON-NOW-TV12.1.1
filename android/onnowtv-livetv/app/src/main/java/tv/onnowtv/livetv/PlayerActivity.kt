@@ -250,6 +250,13 @@ open class PlayerActivity : AppCompatActivity() {
             // The guide's own video window is already full screen underneath us.
             (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)).background = null
             findViewById<View>(R.id.player_view).visibility = View.GONE
+            LivePreviewSession.onHostLost = {
+                if (!isFinishing && !isDestroyed && usingSharedPlayer) {
+                    playerView.visibility = View.VISIBLE
+                    makeOpaque()
+                    LivePreviewSession.attachTo(playerView)
+                }
+            }
         }
 
         // v2.10.15 — Per-channel EPG warms lazily.  The previous
@@ -2118,6 +2125,7 @@ open class PlayerActivity : AppCompatActivity() {
         controlsHideHandler.removeCallbacksAndMessages(null)
         clockHandler.removeCallbacksAndMessages(null)
         ReminderWatcher.detach(this)
+        if (overlayMode) LivePreviewSession.onHostLost = null
         // v2.16.29 — Drop the row from the launcher-admin Live tab
         // the moment the user leaves the player.
         tv.onnowtv.livetv.data.PresenceReporter.stop()
