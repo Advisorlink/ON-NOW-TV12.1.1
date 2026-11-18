@@ -116,7 +116,16 @@ fun DvdCase(year: String?, h: Dp, focused: Boolean, open: Boolean, modifier: Mod
             .graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f - px0, 0.5f); rotationY = if (flip) turn - 90f else 90f - turn; alpha = (1f - sw * 4f).coerceIn(0f, 1f) }
             .clip(RoundedCornerShape(topEnd = h * 0.014f, bottomEnd = h * 0.014f))
             .background(Brush.horizontalGradient(listOf(Color(0xFF3F434C), Color(0xFF17191D), Color(0xFF2C2F36), Color(0xFF08090B))))
-            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(topEnd = h * 0.014f, bottomEnd = h * 0.014f)))
+            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(topEnd = h * 0.014f, bottomEnd = h * 0.014f))
+            .drawBehind {
+                val px = 1.dp.toPx(); val cx = size.width / 2
+                // seam between the front and back halves, with the thumb notch you open it by
+                drawLine(Color.Black.copy(alpha = 0.85f), Offset(cx, 0f), Offset(cx, size.height), px * 1.5f)
+                drawLine(Color.White.copy(alpha = 0.22f), Offset(cx + px * 1.5f, 0f), Offset(cx + px * 1.5f, size.height), px)
+                val nh = size.height * 0.14f
+                drawRoundRect(Color.Black.copy(alpha = 0.8f), Offset(size.width * 0.2f, size.height / 2 - nh / 2), Size(size.width * 0.6f, nh), androidx.compose.ui.geometry.CornerRadius(size.width * 0.3f))
+                drawRoundRect(Color.White.copy(alpha = 0.18f), Offset(size.width * 0.2f, size.height / 2 - nh / 2), Size(size.width * 0.6f, nh), androidx.compose.ui.geometry.CornerRadius(size.width * 0.3f), style = Stroke(px))
+            })
         // inside of the case with the disc, sliding out from behind the cover
         if (t > 0.01f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = (t * 3f).coerceAtMost(1f); if (peek) { cameraDistance = 14f * density; transformOrigin = TransformOrigin(px0, 0.5f); rotationY = bodyTurn } else { translationX = size.width * 0.62f * t; scaleX = 0.95f; scaleY = 0.95f } }) {
             Box(Modifier.fillMaxSize().clip(shape).background(Plastic).border(1.dp, Color.White.copy(alpha = 0.18f), shape)) {

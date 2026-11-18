@@ -1462,3 +1462,5 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Back to biggest on the RIGHT receding left; hero text/headers/backdrop back on the left. Highlight = 2nd from right (`Prefs.dvdSlot`, setting kept, now counted from the right). Left = next.
 - Wide-card rows now share the DVD row's vanishing line: shrink rate c = 0.16 × (card width / DVD case width), scale origin set so the horizon height matches.
 - Removed: rainbow disc rim, seam + thumb notch on the case edge (user said "take away the seal" — unclear, confirm).
+
+## Build 3.9.72-111 (Nov 18) — seam + thumb notch restored on the case edge (user wanted it kept). Rainbow disc rim stays removed. Detailed open case unchanged.
