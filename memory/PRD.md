@@ -1426,3 +1426,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - `DvdDistanceRow` (Dvd3D.kt): single focusable row handling Left/Right itself; highlighted case big on the right, others in true perspective towards a vanishing point on the left (up to 18 shown), endless loop. Left = next title comes forward, Right = back (flip in onPreviewKeyEvent if user wants it reversed).
 - Rest on a case (3D open delay) → `peek`: cover stays shut, tray + disc slide out of the right side.
 - OK → `DvdOpenCase` instead of the card (`TitleActions.caseMode`): open case, cover half with title + the same four choices, tray half with slowly spinning disc. Same key handling as the card.
+
+## Build 3.9.65-104 (Nov 18) — 3D Distance matched to user's target mock-up (not rendered here)
+- Measured from the mock-up: front case 54 % of screen height, shrink factor c = 0.16 per case, vanishing point far off-screen left (gap 1.1 × case width), fixed line at 60 % of case height. Cases overflow upward beside the hero (`wrapContentSize(unbounded)`, Home AnimatedContent `SizeTransform(clip = false)`).
+- Distance cases: gentler turn (22°), thinner edge (0.13), no year/DVD label, peek = disc only (no tray box) sticking out ~¼ case width.

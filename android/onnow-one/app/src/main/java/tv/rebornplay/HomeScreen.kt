@@ -178,7 +178,7 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
                 AnimatedContent(rowNav.page.coerceIn(0, pageCount - 1), label = "shelf", transitionSpec = {
                     val down = targetState > initialState
                     (slideInVertically(tween(260)) { if (down) it / 3 else -it / 3 } + fadeIn(tween(220))) togetherWith
-                        (slideOutVertically(tween(200)) { if (down) -it / 3 else it / 3 } + fadeOut(tween(160)))
+                        (slideOutVertically(tween(200)) { if (down) -it / 3 else it / 3 } + fadeOut(tween(160))) using SizeTransform(clip = false)
                 }) { i ->
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
                         val (key, r) = pages[i]
