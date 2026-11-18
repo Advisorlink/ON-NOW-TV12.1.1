@@ -276,15 +276,19 @@ fun DvdDistanceRow(items: List<Item>, firstRequester: FocusRequester?, onFocusIt
 
 /** 3D Distance, after OK: the case lies open — choices on the cover side, the disc turning slowly in its tray. */
 @Composable
-fun DvdOpenCase(item: Item, series: Boolean, inList: Boolean) {
+fun DvdOpenCase(item: Item, series: Boolean, inList: Boolean, onLaunch: () -> Unit) {
     val a = remember(item.id) { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(item.id) { a.animateTo(1f, tween(620, easing = FastOutSlowInEasing)) }
     val spin by rememberInfiniteTransition(label = "spin").animateFloat(0f, 360f, infiniteRepeatable(tween(11000, easing = LinearEasing)), label = "deg")
+    // Play pressed: the disc spins up, lifts out of the tray to the middle and flies away into the screen, then the film starts
+    val go = remember(item.id) { androidx.compose.animation.core.Animatable(0f) }
+    val launching = TitleActions.launching
+    LaunchedEffect(launching) { if (launching) { go.animateTo(1f, tween(1100, easing = LinearEasing)); onLaunch() } else go.snapTo(0f) }
     val h = 430.dp; val w = 322.dp
     val shape = RoundedCornerShape(14.dp); val inner = RoundedCornerShape(12.dp)
     val art: @Composable (Modifier, Alignment) -> Unit = { m, al -> AsyncImage(item.poster, item.name, m, contentScale = ContentScale.Crop, alignment = al) }
-    Box(Modifier.fillMaxSize().background(Bg0.copy(alpha = 0.78f)), contentAlignment = Alignment.Center) {
-        Row(Modifier.graphicsLayer { val z = 0.62f + 0.38f * a.value; scaleX = z; scaleY = z; alpha = (a.value * 2.5f).coerceAtMost(1f) }) {
+    Box(Modifier.fillMaxSize().background(Bg0.copy(alpha = 0.78f)).background(Color.Black.copy(alpha = ((go.value - 0.35f) / 0.65f).coerceIn(0f, 1f))), contentAlignment = Alignment.Center) {
+        Row(Modifier.graphicsLayer { val z = 0.62f + 0.38f * a.value; scaleX = z; scaleY = z; alpha = (a.value * 2.5f).coerceAtMost(1f) * (1f - go.value * 2.2f).coerceIn(0f, 1f) }) {
             // cover half: swings out flat from on top of the disc
             Box(Modifier.size(w, h).graphicsLayer { cameraDistance = 18f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = 88f * (1f - a.value) }
                 .clip(shape).background(Plastic).border(1.dp, Color.White.copy(alpha = 0.22f), shape).padding(9.dp)) {
@@ -306,8 +310,17 @@ fun DvdOpenCase(item: Item, series: Boolean, inList: Boolean) {
                 Box(Modifier.fillMaxSize().clip(inner).background(Brush.radialGradient(listOf(Color(0xFF1B1D22), Color(0xFF07080A)))).border(1.dp, Color.White.copy(alpha = 0.08f), inner))
                 // moulded ring the disc sits in
                 Box(Modifier.align(Alignment.Center).size(w * 0.93f).clip(CircleShape).background(Color(0xFF0C0D10)).border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape))
-                DvdDisc(w * 0.88f, Modifier.align(Alignment.Center).graphicsLayer { val z = 0.7f + 0.3f * a.value; scaleX = z; scaleY = z; rotationZ = spin }, art)
+                if (!launching) DvdDisc(w * 0.88f, Modifier.align(Alignment.Center).graphicsLayer { val z = 0.7f + 0.3f * a.value; scaleX = z; scaleY = z; rotationZ = spin }, art)
             }
         }
+        if (launching) DvdDisc(w * 0.88f, Modifier.graphicsLayer {
+            val g = go.value
+            val lift = (g / 0.4f).coerceIn(0f, 1f); val e = lift * lift * (3f - 2f * lift)        // out of the tray, to the middle, towards you
+            val dive = ((g - 0.4f) / 0.6f).coerceIn(0f, 1f)                                      // then away into the screen
+            translationX = (w / 2 + 6.dp).toPx() * (1f - e)
+            val z = (1f + 0.28f * e) * (1f - dive * dive * 0.97f); scaleX = z; scaleY = z
+            rotationZ = spin + 2880f * g * g
+            alpha = (1f - (dive - 0.75f) * 4f).coerceIn(0f, 1f)
+        }, art)
     }
 }

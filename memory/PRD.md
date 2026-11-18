@@ -1435,3 +1435,6 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Even spacing: case centre x = front − pitch·ln(1+c·k)/c (pitch = 1.07 × case width) so the gap is the same share of each case's size all along the row.
 - Rest-open ("peek") now opens the front half on the spine (`PEEK_ANGLE` 30°, nested layers: body turn about right edge, cover about left edge); back shell + disc inside, disc slides 0.30 w out through the opening.
 - Blurred floor reflections in Distance only: poster loaded at 36×54 px and upscaled (works on old Fire OS where Modifier.blur does nothing), faded, cases lifted 5.5 % of screen to make room; front case 52 % of screen height.
+
+## Build 3.9.67-106 (Nov 18) — Disc play animation (3D Distance open case; not rendered here)
+- Play on the open case sets `TitleActions.launching`; `DvdOpenCase` runs a 1.1 s animation (disc spins up, lifts to the middle, flies away into the screen, fade to black) then calls play. Other choices and the normal card are unchanged. Series "Play Show" still lands on the details page after the animation.
