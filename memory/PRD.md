@@ -1430,3 +1430,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## Build 3.9.65-104 (Nov 18) — 3D Distance matched to user's target mock-up (not rendered here)
 - Measured from the mock-up: front case 54 % of screen height, shrink factor c = 0.16 per case, vanishing point far off-screen left (gap 1.1 × case width), fixed line at 60 % of case height. Cases overflow upward beside the hero (`wrapContentSize(unbounded)`, Home AnimatedContent `SizeTransform(clip = false)`).
 - Distance cases: gentler turn (22°), thinner edge (0.13), no year/DVD label, peek = disc only (no tray box) sticking out ~¼ case width.
+
+## Build 3.9.66-105 (Nov 18) — 3D Distance tuning (not rendered here)
+- Even spacing: case centre x = front − pitch·ln(1+c·k)/c (pitch = 1.07 × case width) so the gap is the same share of each case's size all along the row.
+- Rest-open ("peek") now opens the front half on the spine (`PEEK_ANGLE` 30°, nested layers: body turn about right edge, cover about left edge); back shell + disc inside, disc slides 0.30 w out through the opening.
+- Blurred floor reflections in Distance only: poster loaded at 36×54 px and upscaled (works on old Fire OS where Modifier.blur does nothing), faded, cases lifted 5.5 % of screen to make room; front case 52 % of screen height.
