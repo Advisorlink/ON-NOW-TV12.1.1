@@ -212,7 +212,7 @@ private fun AppearanceSection(onPickLiveCategory: () -> Unit) {
     var dvdOff by remember { mutableStateOf(Prefs.dvdOffset(ctx)) }
     ActionRow("3D Distance: height", "Moves the heading, synopsis, buttons and covers down (+) or up (−) together. Press OK to step through; tell us the number you like.", (if (dvdOff > 0) "+" else "") + dvdOff) { dvdOff = Prefs.cycleDvdOffset(ctx) }
     var dvdSlot by remember { mutableStateOf(Prefs.dvdSlot(ctx)) }
-    ActionRow("3D Distance: highlighted position", "Which cover in the row is the one that pops out, counted from the left.", listOf("1st", "2nd", "3rd", "4th", "5th")[dvdSlot - 1] + " from left") { dvdSlot = Prefs.cycleDvdSlot(ctx) }
+    ActionRow("3D Distance: highlighted position", "Which cover in the row is the one that pops out, counted from the right.", listOf("1st", "2nd", "3rd", "4th", "5th")[dvdSlot - 1] + " from right") { dvdSlot = Prefs.cycleDvdSlot(ctx) }
     var dvdGap by remember { mutableStateOf(Prefs.dvdGap(ctx)) }
     ActionRow("3D Distance: spacing", "How far apart the cases stand. Lower = closer together.", "$dvdGap") { dvdGap = Prefs.cycleDvdGap(ctx) }
     var dvdDelay by remember { mutableStateOf(Prefs.dvdDelayMs(ctx)) }

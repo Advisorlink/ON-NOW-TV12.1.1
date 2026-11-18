@@ -77,7 +77,6 @@ internal fun DvdDisc(d: Dp, modifier: Modifier, art: @Composable (Modifier, Alig
             val r = size.minDimension / 2
             // light sweeping across the disc surface
             drawCircle(Brush.sweepGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.42f), Color.Transparent, Color(0x3366E0FF), Color.Transparent, Color.White.copy(alpha = 0.30f), Color.Transparent, Color(0x33FF7AD9), Color.Transparent)))
-            drawCircle(Brush.sweepGradient(listOf(Color(0xFF9BE7FF), Color(0xFFFFB3F0), Color(0xFFFFF3A6), Color(0xFFA6FFCB), Color(0xFF9BB8FF), Color(0xFFFFB3F0), Color(0xFF9BE7FF))), r - r * 0.022f, style = Stroke(r * 0.044f), alpha = 0.85f)
             drawCircle(Color.White.copy(alpha = 0.55f), r - 1.dp.toPx(), style = Stroke(1.5.dp.toPx()))
             drawCircle(Color(0xFFCFD5DE).copy(alpha = 0.85f), r * 0.30f)
             drawCircle(Color.White.copy(alpha = 0.7f), r * 0.30f, style = Stroke(1.dp.toPx()))
@@ -117,16 +116,7 @@ fun DvdCase(year: String?, h: Dp, focused: Boolean, open: Boolean, modifier: Mod
             .graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f - px0, 0.5f); rotationY = if (flip) turn - 90f else 90f - turn; alpha = (1f - sw * 4f).coerceIn(0f, 1f) }
             .clip(RoundedCornerShape(topEnd = h * 0.014f, bottomEnd = h * 0.014f))
             .background(Brush.horizontalGradient(listOf(Color(0xFF3F434C), Color(0xFF17191D), Color(0xFF2C2F36), Color(0xFF08090B))))
-            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(topEnd = h * 0.014f, bottomEnd = h * 0.014f))
-            .drawBehind {
-                val px = 1.dp.toPx(); val cx = size.width / 2
-                // seam between the front and back halves, with the thumb notch you open it by
-                drawLine(Color.Black.copy(alpha = 0.85f), Offset(cx, 0f), Offset(cx, size.height), px * 1.5f)
-                drawLine(Color.White.copy(alpha = 0.22f), Offset(cx + px * 1.5f, 0f), Offset(cx + px * 1.5f, size.height), px)
-                val nh = size.height * 0.14f
-                drawRoundRect(Color.Black.copy(alpha = 0.8f), Offset(size.width * 0.2f, size.height / 2 - nh / 2), Size(size.width * 0.6f, nh), androidx.compose.ui.geometry.CornerRadius(size.width * 0.3f))
-                drawRoundRect(Color.White.copy(alpha = 0.18f), Offset(size.width * 0.2f, size.height / 2 - nh / 2), Size(size.width * 0.6f, nh), androidx.compose.ui.geometry.CornerRadius(size.width * 0.3f), style = Stroke(px))
-            })
+            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(topEnd = h * 0.014f, bottomEnd = h * 0.014f)))
         // inside of the case with the disc, sliding out from behind the cover
         if (t > 0.01f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = (t * 3f).coerceAtMost(1f); if (peek) { cameraDistance = 14f * density; transformOrigin = TransformOrigin(px0, 0.5f); rotationY = bodyTurn } else { translationX = size.width * 0.62f * t; scaleX = 0.95f; scaleY = 0.95f } }) {
             Box(Modifier.fillMaxSize().clip(shape).background(Plastic).border(1.dp, Color.White.copy(alpha = 0.18f), shape)) {
@@ -249,26 +239,27 @@ private const val DIST_DEPTH = 0.13f
 fun DistanceSlab(w: Dp, h: Dp, reflectUrl: String?, content: @Composable () -> Unit) {
     val depth = h * DIST_DEPTH
     Box(Modifier.size(w, h)) {
-        Box(Modifier.fillMaxSize().graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(0f, 0.5f); rotationY = DIST_TURN }) {
+        Box(Modifier.fillMaxSize().graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = -DIST_TURN }) {
             FloorReflection(w, h * 0.30f, reflectUrl)
             content()
         }
         // the thick near side of the block
-        Box(Modifier.align(Alignment.TopStart).offset(x = -depth).size(depth, h)
-            .graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = DIST_TURN - 90f }
-            .clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp))
-            .background(Brush.horizontalGradient(listOf(Color(0xFF08090B), Color(0xFF2C2F36), Color(0xFF17191D), Color(0xFF3F434C))))
-            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)))
+        Box(Modifier.align(Alignment.TopEnd).offset(x = depth).size(depth, h)
+            .graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(0f, 0.5f); rotationY = 90f - DIST_TURN }
+            .clip(RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
+            .background(Brush.horizontalGradient(listOf(Color(0xFF3F434C), Color(0xFF17191D), Color(0xFF2C2F36), Color(0xFF08090B))))
+            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)))
     }
 }
 
 /**
- * 3D Distance row: cards stand biggest on the left and run away into the distance on the right. Loops for ever.
+ * 3D Distance row: cards stand biggest on the right and run away into the distance on the left. Loops for ever.
+ * Every row shrinks along the same line as the DVD-case row, whatever the shape of its cards.
  * One focus stop for the whole row; the highlighted card stays in one place (Settings → highlighted position) and pops out; Left / Right move the row through it.
  * [content] draws one card at [w] × [h].
  */
 @Composable
-fun <T> DistanceRow(items: List<T>, row: Int, rowNav: RowNav?, tileH: Dp, inset: Dp, w: Dp, h: Dp, firstRequester: FocusRequester? = null,
+fun <T> DistanceRow(items: List<T>, row: Int, rowNav: RowNav?, tileH: Dp, inset: Dp, w: Dp, h: Dp, firstRequester: FocusRequester? = null, roomRight: Float = 0.14f,
                     restOpen: Boolean = false, forceOpen: (T) -> Boolean = { false }, onFocusItem: ((T) -> Unit)? = null, onHold: ((T) -> Unit)? = null, onClick: (T) -> Unit,
                     content: @Composable (item: T, focused: Boolean, open: Boolean) -> Unit) {
     val ctx = LocalContext.current
@@ -287,13 +278,17 @@ fun <T> DistanceRow(items: List<T>, row: Int, rowNav: RowNav?, tileH: Dp, inset:
     var held by remember { mutableStateOf(false) }
     val lift = with(LocalDensity.current) { (LocalConfiguration.current.screenHeightDp.dp * 0.055f).toPx() }   // room underneath for the reflections
     val gap = remember { Prefs.dvdGap(ctx) }
-    val slot = remember { Prefs.dvdSlot(ctx) - 1 }.coerceIn(0, (n - 1).coerceAtLeast(0))                        // where the highlighted card stands, counted from the left
+    val slot = remember { Prefs.dvdSlot(ctx) - 1 }.coerceIn(0, (n - 1).coerceAtLeast(0))                        // where the highlighted card stands, counted from the right
     BoxWithConstraints(Modifier.fillMaxWidth().height(tileH)) {
         val d = LocalDensity.current
         val wPx = with(d) { w.toPx() }
         val rowW = with(d) { maxWidth.toPx() }
-        val front = with(d) { (48.dp + inset).toPx() } + wPx * 0.62f       // centre of the nearest card (room on its left for its thick side)
-        val c = 0.16f                                                      // how quickly cards shrink with distance
+        val front = rowW - with(d) { (40.dp + inset).toPx() } - wPx * (0.5f + roomRight)   // centre of the nearest card
+        // Same vanishing line as the DVD cases: shrink by distance across the screen, and about the same horizon height.
+        val refH = with(d) { (LocalConfiguration.current.screenHeightDp.dp * 0.52f).toPx() }; val refW = with(d) { dvdCaseWidth(LocalConfiguration.current.screenHeightDp.dp * 0.52f).toPx() }
+        val hPx = with(d) { h.toPx() }
+        val c = 0.16f * wPx / refW
+        val originY = (1f - 0.4f * refH / hPx).coerceIn(0.2f, 0.8f)
         val pitch = wPx * gap / 100f                                       // every card sits the same share of its own width from its neighbour
         val total = minOf(n, 16)
         Focusable(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
@@ -303,20 +298,20 @@ fun <T> DistanceRow(items: List<T>, row: Int, rowNav: RowNav?, tileH: Dp, inset:
                 return@onPreviewKeyEvent if (held) { if (e.type == KeyEventType.KeyUp) held = false; true } else false
             }
             if (n < 2 || (e.key != Key.DirectionLeft && e.key != Key.DirectionRight)) return@onPreviewKeyEvent false
-            if (e.type == KeyEventType.KeyDown) index += if (e.key == Key.DirectionRight) 1 else -1
+            if (e.type == KeyEventType.KeyDown) index += if (e.key == Key.DirectionLeft) 1 else -1
             true
         }, onClick = { onClick(cur) }, requester = req, onFocus = { focused = it; if (it) rowNav?.focused(row, req) }) { _ ->
             val base = kotlin.math.floor(pos).toInt()
             for (j in (base - slot - 1)..(base - slot + total)) key(j) {
-                val pp = j - pos + slot                                     // place in the row: 0 = nearest, on the left
+                val pp = j - pos + slot                                     // place in the row: 0 = nearest, on the right
                 val sc = if (pp >= 0f) 1f / (1f + c * pp) else 1f - pp * 0.10f
-                val cx = if (pp >= 0f) front + pitch * kotlin.math.ln(1f + c * pp) / c else front + pp * wPx * 1.3f
-                if (pp > -1f && pp < total && cx - wPx * sc / 2f < rowW) {
+                val cx = if (pp >= 0f) front - pitch * kotlin.math.ln(1f + c * pp) / c else front - pp * wPx * 1.3f
+                if (pp > -1f && pp < total && cx + wPx * sc / 2f > 0f) {
                     val a = if (pp < 0f) 1f + pp else (total - pp).coerceIn(0f, 1f)
                     val isFront = j == index
                     val out by animateFloatAsState(if (focused && isFront) 1f else 0f, tween(220, easing = FastOutSlowInEasing), label = "out")
                     Box(Modifier.zIndex(sc + if (isFront && focused) 2f else 0f).wrapContentSize(Alignment.BottomStart, unbounded = true)
-                        .graphicsLayer { translationX = cx - wPx / 2f; translationY = -lift; val z = sc * (1f + 0.10f * out); scaleX = z; scaleY = z; transformOrigin = TransformOrigin(0.5f, 0.6f); alpha = a }) {
+                        .graphicsLayer { translationX = cx - wPx / 2f; translationY = -lift; val z = sc * (1f + 0.10f * out); scaleX = z; scaleY = z; transformOrigin = TransformOrigin(0.5f, originY); alpha = a }) {
                         content(items[Math.floorMod(j, n)], focused && isFront, open && isFront)
                     }
                 }
@@ -331,13 +326,13 @@ fun DvdDistanceRow(items: List<Item>, firstRequester: FocusRequester?, onFocusIt
     val ctx = LocalContext.current
     // The nearest case stands over half the screen tall and rises up beside the billboard; the row only reserves its usual height.
     val bigH = LocalConfiguration.current.screenHeightDp.dp * 0.52f
-    DistanceRow(items, row, rowNav, tileH, inset, dvdCaseWidth(bigH), bigH, firstRequester, restOpen = true, forceOpen = { TitleActions.item?.id == it.id }, onFocusItem = onFocusItem, onClick = { cur ->
+    DistanceRow(items, row, rowNav, tileH, inset, dvdCaseWidth(bigH), bigH, firstRequester, roomRight = 0.36f, restOpen = true, forceOpen = { TitleActions.item?.id == it.id }, onFocusItem = onFocusItem, onClick = { cur ->
         if (cur.id.startsWith("tmdb:")) {
             val on = NotifyList.toggle(ctx, cur)
             android.widget.Toast.makeText(ctx, if (on) "We'll let you know when ${cur.name} arrives in HD" else "Reminder removed", android.widget.Toast.LENGTH_SHORT).show()
         } else { onOpen(cur); TitleActions.caseMode = true }
     }) { item, f, open ->
-        DvdCase(item.year, bigH, f, open, turned = true, grow = false, peek = true, label = false, turnAngle = DIST_TURN, depthF = DIST_DEPTH, reflectUrl = item.poster, flip = true) { m, al -> AsyncImage(item.poster, item.name, m, contentScale = ContentScale.Crop, alignment = al) }
+        DvdCase(item.year, bigH, f, open, turned = true, grow = false, peek = true, label = false, turnAngle = DIST_TURN, depthF = DIST_DEPTH, reflectUrl = item.poster) { m, al -> AsyncImage(item.poster, item.name, m, contentScale = ContentScale.Crop, alignment = al) }
     }
 }
 

@@ -171,11 +171,11 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
         val tileH = ((total - total * 0.52f - bottomPad - 58.dp) * scale).coerceIn(120.dp, total * 0.58f)
         val heroH = total - bottomPad - 58.dp - tileH
         var bg by remember { mutableStateOf<Item?>(null) }
-        FullBleedBackdrop(bg, flip = remember { Prefs.dvdMode(ctx) == 2 })
+        FullBleedBackdrop(bg)
         val distance = remember { Prefs.dvdMode(ctx) == 2 }   // everything below is untouched unless 3D Distance is on
         val dvdShift = remember { if (distance) Prefs.dvdOffset(ctx) else 0 }
         Column(Modifier.fillMaxSize().offset(y = dvdShift.dp)) {
-            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, dots = !distance, flip = distance, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }, onHero = { bg = it })
+            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, dots = !distance, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }, onHero = { bg = it })
             Box(Modifier.fillMaxWidth().weight(1f).padding(bottom = bottomPad), contentAlignment = Alignment.BottomStart) {
                 AnimatedContent(rowNav.page.coerceIn(0, pageCount - 1), label = "shelf", transitionSpec = {
                     val down = targetState > initialState

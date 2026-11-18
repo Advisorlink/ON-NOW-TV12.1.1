@@ -1457,3 +1457,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - `DvdCase(flip)`: spine side nearest (thick edge on left), cover hinges on spine, disc slides out right. All wide rows use `DistanceSlab` at the same 22° / 0.13 depth (`DIST_TURN`, `DIST_DEPTH`), wide cards 40 % of screen height, same baseline.
 - Open case: moulded shell (groove, latch, jointed hinge), recessed tray with well + 4 clips + hub, holographic disc rim.
 - DISK: /app ~97 % full; .git has ~3.5 GB of loose objects from committed APKs (40 MB per build). Needs platform-side cleanup; do not rewrite history here.
+
+## Build 3.9.71-110 (Nov 18) — 3D Distance un-flipped (not rendered here)
+- Back to biggest on the RIGHT receding left; hero text/headers/backdrop back on the left. Highlight = 2nd from right (`Prefs.dvdSlot`, setting kept, now counted from the right). Left = next.
+- Wide-card rows now share the DVD row's vanishing line: shrink rate c = 0.16 × (card width / DVD case width), scale origin set so the horizon height matches.
+- Removed: rainbow disc rim, seam + thumb notch on the case edge (user said "take away the seal" — unclear, confirm).
