@@ -184,8 +184,11 @@ object LivePreviewSession {
      *  `setVideoTextureView(tv)` directly here forces ExoPlayer to
      *  re-read the current SurfaceTexture. */
     fun attachTo(view: PlayerView) {
+        // Already waiting for this view's surface: let that hand-over finish, don't start a second one.
+        if (pendingBind?.get() === view && view.player !== player && bindWaiting) return
         rebind(view, force = false)
     }
+    private var bindWaiting = false
 
     // ── "Is the picture really on screen?" guard ────────────────────────────────────────
     // A surface handed over mid-layout (preview just un-hidden, activity swap) can leave the
@@ -248,9 +251,11 @@ object LivePreviewSession {
         val sv = view.videoSurfaceView as? android.view.SurfaceView
         val ready = tv?.isAvailable ?: sv?.holder?.surface?.isValid ?: true
         if (!force && !ready && waits < 60) {
+            bindWaiting = true
             main.postDelayed({ rebind(view, false, waits + 1) }, 25L)
             return
         }
+        if (!force) bindWaiting = false
         if (force) { p.clearVideoSurface(); view.player = null }
         when (val surface = view.videoSurfaceView) {
             is android.view.TextureView -> p.setVideoTextureView(surface)
@@ -291,7 +296,7 @@ object LivePreviewSession {
     /** Let go of the view showing the picture BEFORE another screen opens (what the stats screen does, and
      *  the order Fire TV handles cleanly). The stream itself keeps running; only the picture target moves. */
     fun detachCurrent() {
-        pendingBind = null
+        pendingBind = null; bindWaiting = false
         main.removeCallbacks(frameCheck)
         bound?.get()?.let { runCatching { it.player = null } }
         bound = null

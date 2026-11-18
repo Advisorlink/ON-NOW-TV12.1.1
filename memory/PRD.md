@@ -1464,3 +1464,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Removed: rainbow disc rim, seam + thumb notch on the case edge (user said "take away the seal" — unclear, confirm).
 
 ## Build 3.9.72-111 (Nov 18) — seam + thumb notch restored on the case edge (user wanted it kept). Rainbow disc rim stays removed. Detailed open case unchanged.
+
+## Build 3.9.73-112 (Nov 18) — ALL 3D REMOVED; cover shine + side disc; full-screen pause root cause (not device-tested)
+- 3D DVD cases / 3D Distance fully removed: the 8 touched files were restored from commit 68b385e2~1 and Dvd3D.kt deleted. Do not re-add.
+- New `CoverFx.kt`: `Modifier.focusShine` (one glass sweep when a cover is highlighted) and `SideDisc` + `SideDiscLayer` (Home only): after the pop-out delay the rested cover's disc slides out of the right edge and turns slowly; OK = normal pop-up; Play = pop-up closes, disc retracts (1.1 s), then `TitleActions.play`. Toggle: Settings → Appearance → "Cover shine & disc" (`Prefs.discFx`, default on).
+- FULL-SCREEN PAUSE root cause found by reading code: `PlayerActivity.onResume` did `playerView.player = p` on first open, before the new screen's surface existed → ExoPlayer video output set to null → decoder parked/re-initialised (waits for next key-frame on Fire TV). This defeated LivePreviewSession's one-step swap. Now onResume uses `LivePreviewSession.attachTo` (waits for surface); `detachCurrent()` before opening was removed again.
+- Still expected to pause on Fire TV Cube (AFTA/AFTR) + Fire TV 3 (AFTN): Media3 re-creates the decoder on any surface change for those models. Only fix there = never change surface (in-activity fullscreen), a big rework.

@@ -131,7 +131,7 @@ fun HomeScreen(nav: Nav, rowNav: RowNav, onPlayHero: (Hero) -> Unit, onResume: (
                     key == "live" -> LiveRow(1 + i, rowNav, 200.dp, onChannel)
                     key == "calendar" -> ComingUpShelf(coming, 1 + i, rowNav, 200.dp) { nav.open(it) }
                     key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, 200.dp)
-                    else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav, home = true) { nav.open(it) }
+                    else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, row = 1 + i, rowNav = rowNav) { nav.open(it) }
                 }
             }
         }
@@ -172,15 +172,14 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
         val heroH = total - bottomPad - 58.dp - tileH
         var bg by remember { mutableStateOf<Item?>(null) }
         FullBleedBackdrop(bg)
-        val distance = remember { Prefs.dvdMode(ctx) == 2 }   // everything below is untouched unless 3D Distance is on
-        val dvdShift = remember { if (distance) Prefs.dvdOffset(ctx) else 0 }
-        Column(Modifier.fillMaxSize().offset(y = dvdShift.dp)) {
-            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, dots = !distance, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }, onHero = { bg = it })
+        SideDiscLayer()
+        Column(Modifier.fillMaxSize()) {
+            HeroBillboard(d.heroes, "New on Reborn", if (restore > 0) null else playReq, rowNav, height = heroH, preview = preview, onPlay = onPlayHero, onInfo = { nav.go(Route.Detail(it.item)) }, onHero = { bg = it })
             Box(Modifier.fillMaxWidth().weight(1f).padding(bottom = bottomPad), contentAlignment = Alignment.BottomStart) {
                 AnimatedContent(rowNav.page.coerceIn(0, pageCount - 1), label = "shelf", transitionSpec = {
                     val down = targetState > initialState
                     (slideInVertically(tween(260)) { if (down) it / 3 else -it / 3 } + fadeIn(tween(220))) togetherWith
-                        (slideOutVertically(tween(200)) { if (down) -it / 3 else it / 3 } + fadeOut(tween(160))) using SizeTransform(clip = !distance)
+                        (slideOutVertically(tween(200)) { if (down) -it / 3 else it / 3 } + fadeOut(tween(160)))
                 }) { i ->
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
                         val (key, r) = pages[i]
@@ -189,7 +188,7 @@ private fun PagedHome(d: HomeData, pages: List<Pair<String, Triple<String, Strin
                             key == "live" -> LiveRow(1 + i, rowNav, tileH, onChannel)
                             key == "calendar" -> ComingUpShelf(ComingUp.eps.value, 1 + i, rowNav, tileH) { nav.open(it) }
                             key == "coming_soon" -> ComingSoonShelf(r!!.first, r.second, r.third, 1 + i, rowNav, tileH) { preview = it }
-                            else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 0.dp, home = true) { nav.open(it) }
+                            else -> PosterShelf(r!!.first, r.second, r.third, r.third.size, onFocusItem = { preview = it }, row = 1 + i, rowNav = rowNav, tileH = tileH, bottomPad = 0.dp) { nav.open(it) }
                         }
                     }
                 }

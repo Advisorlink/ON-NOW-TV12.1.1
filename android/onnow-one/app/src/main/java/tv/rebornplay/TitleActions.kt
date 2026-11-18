@@ -39,11 +39,7 @@ object TitleActions {
     var details: (Item) -> Unit = {}
     internal var activate: () -> Unit = {}
     private var armed = false
-    /** Opened from a 3D Distance case: shown as the open DVD case instead of the card. */
-    var caseMode by mutableStateOf(false)
-    /** Play was pressed on the open case: the disc is spinning up and flying in before the film starts. */
-    var launching by mutableStateOf(false)
-    fun open(it: Item) { sel = 0; armed = false; caseMode = false; launching = false; item = it }
+    fun open(it: Item) { sel = 0; armed = false; item = it }
     fun expand(it: Item) { TrailerPlayer.fullscreen = it }
     /** Layout is [0] / [1] / [2 | 3]. */
     fun move(from: Int, key: Key): Int = when (key) {
@@ -111,8 +107,9 @@ fun TitleActionsSheet(activity: Activity, onDetails: (Item) -> Unit) {
     fun close() { TitleActions.item = null }
     SideEffect {
         TitleActions.activate = {
-            if (!TitleActions.launching) when (TitleActions.sel) {
-                0 -> if (TitleActions.caseMode) TitleActions.launching = true else { close(); TitleActions.play(item) }
+            when (TitleActions.sel) {
+                // With this title's disc out: the pop-up goes, the disc slides back into the side, then it plays.
+                0 -> { close(); if (SideDisc.isOutFor(item)) SideDisc.onRetracted = { TitleActions.play(item) } else TitleActions.play(item) }
                 1 -> { close(); TitleActions.expand(item) }
                 2 -> inList = Library.toggle(ctx, item)
                 else -> { close(); onDetails(item) }
@@ -122,7 +119,6 @@ fun TitleActionsSheet(activity: Activity, onDetails: (Item) -> Unit) {
     BackHandler { close() }   // focus never left the cover, so Back lands exactly where you were
     val rich = Gorilla.cachedInfo(item) ?: item
     val shape = RoundedCornerShape(22.dp)
-    if (TitleActions.caseMode) DvdOpenCase(item, series, inList) { TitleActions.launching = false; close(); TitleActions.play(item) } else
     Box(Modifier.fillMaxSize().background(Bg0.copy(alpha = 0.72f)), contentAlignment = Alignment.Center) {
         Box(Modifier.width(520.dp).height(400.dp).blueGlow(true, shape, 26.dp, 0.55f).clip(shape).background(Color(0xFF0B1220)).border(1.5.dp, BlueBright.copy(alpha = 0.55f), shape)) {
             AsyncImage(rememberWideArt(rich), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)

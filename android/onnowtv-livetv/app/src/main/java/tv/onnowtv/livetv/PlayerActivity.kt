@@ -2065,7 +2065,9 @@ open class PlayerActivity : AppCompatActivity() {
             }
             val host = videoView()
             if (host !== playerView) { if (host.player !== p) LivePreviewSession.attachTo(host) }
-            else if (playerView.player !== p) playerView.player = p
+            // NOT `playerView.player = p`: on first open this screen's surface does not exist yet, and binding to it
+            // early points the decoder at nothing (the pause on opening full screen). attachTo waits for the surface.
+            else if (playerView.player !== p) LivePreviewSession.attachTo(playerView)
             p.playWhenReady = true
             return
         }

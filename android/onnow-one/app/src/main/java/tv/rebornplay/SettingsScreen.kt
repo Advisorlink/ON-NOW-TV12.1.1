@@ -207,18 +207,10 @@ private fun AppearanceSection(onPickLiveCategory: () -> Unit) {
         }
     }
     SubHead("Covers & trailers")
-    var dvd by remember { mutableStateOf(Prefs.dvdMode(ctx)) }
-    ActionRow("3D effect", "Covers on the Movies & TV screen become 3D DVD cases. Horizontal: a flat row. Distance: the row runs off into the distance and OK opens the case with the disc spinning.", Prefs.dvdModeLabel(dvd)) { dvd = Prefs.cycleDvdMode(ctx) }
-    var dvdOff by remember { mutableStateOf(Prefs.dvdOffset(ctx)) }
-    ActionRow("3D Distance: height", "Moves the heading, synopsis, buttons and covers down (+) or up (−) together. Press OK to step through; tell us the number you like.", (if (dvdOff > 0) "+" else "") + dvdOff) { dvdOff = Prefs.cycleDvdOffset(ctx) }
-    var dvdSlot by remember { mutableStateOf(Prefs.dvdSlot(ctx)) }
-    ActionRow("3D Distance: highlighted position", "Which cover in the row is the one that pops out, counted from the right.", listOf("1st", "2nd", "3rd", "4th", "5th")[dvdSlot - 1] + " from right") { dvdSlot = Prefs.cycleDvdSlot(ctx) }
-    var dvdGap by remember { mutableStateOf(Prefs.dvdGap(ctx)) }
-    ActionRow("3D Distance: spacing", "How far apart the cases stand. Lower = closer together.", "$dvdGap") { dvdGap = Prefs.cycleDvdGap(ctx) }
-    var dvdDelay by remember { mutableStateOf(Prefs.dvdDelayMs(ctx)) }
-    ActionRow("3D open delay", "How long you rest on a 3D case before it opens by itself.", Prefs.popDelayLabel(dvdDelay)) { dvdDelay = Prefs.cycleDvdDelay(ctx) }
     var covers by remember { mutableStateOf(Prefs.coversOnly(ctx)) }
     ToggleRow("Pop-out preview", "Resting on a cover slides it open into a wide card with its backdrop and trailer. Off = covers only, no wide card, no trailers.", !covers) { covers = !covers; Prefs.setCoversOnly(ctx, covers) }
+    var discFx by remember { mutableStateOf(Prefs.discFx(ctx)) }
+    ToggleRow("Cover shine & disc", "A glass shine sweeps across the cover you move onto. Rest on it and its disc slides out of the side of the screen, turning slowly; press Play and it slides back in before the film starts.", discFx) { discFx = !discFx; Prefs.setDiscFx(ctx, discFx) }
     var delay by remember { mutableStateOf(Prefs.trailerDelayMs(ctx)) }
     var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
     var pop by remember { mutableStateOf(Prefs.popDelayMs(ctx)) }
