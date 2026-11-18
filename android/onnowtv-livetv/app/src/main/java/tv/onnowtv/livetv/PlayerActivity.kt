@@ -1179,8 +1179,19 @@ open class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    // While the channel list is showing it gets every key first; otherwise the focused picture view takes OK as a click and opens the controls.
+    private var stripAte = -1
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && channelStrip.visible) {
+            val code = event.keyCode
+            val ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER
+            if (ok && event.repeatCount > 0) return true
+            if (channelStrip.key(code)) { stripAte = code; return true }
+        } else if (event.action == KeyEvent.ACTION_UP && event.keyCode == stripAte) { stripAte = -1; return true }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (channelStrip.visible && channelStrip.key(keyCode)) return true
         when (keyCode) {
             // Fixed-volume boxes (Fire TV, some HDMI boxes) ignore the system slider: scale the player's own sound instead.
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN -> {
