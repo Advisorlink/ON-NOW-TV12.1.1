@@ -123,6 +123,9 @@ object Prefs {
     val DVD_GAPS = listOf(90, 95, 100, 105, 110, 75, 80, 85)
     fun dvdGap(ctx: Context) = p(ctx).getInt("dvd_gap", 90)
     fun cycleDvdGap(ctx: Context): Int { val v = DVD_GAPS[(DVD_GAPS.indexOf(dvdGap(ctx)) + 1) % DVD_GAPS.size]; p(ctx).edit().putInt("dvd_gap", v).apply(); return v }
+    /** 3D Distance: which place in the row, counted from the left, is the highlighted one. */
+    fun dvdSlot(ctx: Context) = p(ctx).getInt("dvd_slot", 2)
+    fun cycleDvdSlot(ctx: Context): Int { val v = dvdSlot(ctx) % 5 + 1; p(ctx).edit().putInt("dvd_slot", v).apply(); return v }
     /** How long you rest on a 3D case before it opens by itself. */
     val DVD_DELAYS = listOf(1000L, 1500L, 2000L, 3000L)
     fun dvdDelayMs(ctx: Context) = p(ctx).getLong("dvd_delay", 1500L)

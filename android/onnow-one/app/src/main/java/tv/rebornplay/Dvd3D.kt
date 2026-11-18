@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
@@ -76,6 +77,7 @@ internal fun DvdDisc(d: Dp, modifier: Modifier, art: @Composable (Modifier, Alig
             val r = size.minDimension / 2
             // light sweeping across the disc surface
             drawCircle(Brush.sweepGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.42f), Color.Transparent, Color(0x3366E0FF), Color.Transparent, Color.White.copy(alpha = 0.30f), Color.Transparent, Color(0x33FF7AD9), Color.Transparent)))
+            drawCircle(Brush.sweepGradient(listOf(Color(0xFF9BE7FF), Color(0xFFFFB3F0), Color(0xFFFFF3A6), Color(0xFFA6FFCB), Color(0xFF9BB8FF), Color(0xFFFFB3F0), Color(0xFF9BE7FF))), r - r * 0.022f, style = Stroke(r * 0.044f), alpha = 0.85f)
             drawCircle(Color.White.copy(alpha = 0.55f), r - 1.dp.toPx(), style = Stroke(1.5.dp.toPx()))
             drawCircle(Color(0xFFCFD5DE).copy(alpha = 0.85f), r * 0.30f)
             drawCircle(Color.White.copy(alpha = 0.7f), r * 0.30f, style = Stroke(1.dp.toPx()))
@@ -89,7 +91,7 @@ internal fun DvdDisc(d: Dp, modifier: Modifier, art: @Composable (Modifier, Alig
 
 /** One DVD case: plastic shell and glossy sleeve. Focused = turned so the opening edge faces you; [open] swings the cover and brings the tray + disc out. */
 @Composable
-fun DvdCase(year: String?, h: Dp, focused: Boolean, open: Boolean, modifier: Modifier = Modifier, turned: Boolean = focused, grow: Boolean = true, peek: Boolean = false, label: Boolean = true, turnAngle: Float = TURN_ANGLE, depthF: Float = DEPTH, reflectUrl: String? = null, art: @Composable (Modifier, Alignment) -> Unit) {
+fun DvdCase(year: String?, h: Dp, focused: Boolean, open: Boolean, modifier: Modifier = Modifier, turned: Boolean = focused, grow: Boolean = true, peek: Boolean = false, label: Boolean = true, turnAngle: Float = TURN_ANGLE, depthF: Float = DEPTH, reflectUrl: String? = null, flip: Boolean = false, art: @Composable (Modifier, Alignment) -> Unit) {
     val rim = h * RIM
     val posterW = (h - rim * 2) * 2 / 3
     val depth = h * depthF
@@ -104,12 +106,15 @@ fun DvdCase(year: String?, h: Dp, focused: Boolean, open: Boolean, modifier: Mod
     // spine side turns away, opening edge comes towards you
     val turn = turnAngle * f * (1f - sw)
     val angle = -(turn + OPEN_ANGLE * sw)
+    // flip (3D Distance): the row runs away to the right, so the spine side is nearest and the case turns the other way
+    val px0 = if (flip) 0f else 1f
+    val bodyTurn = if (flip) turn else -turn
     Box(modifier.size(dvdCaseWidth(h), h).graphicsLayer { val s = 1f + 0.14f * g; scaleX = s; scaleY = s; transformOrigin = TransformOrigin(0.5f, 0.8f) }) {
         // soft, blurred floor reflection — lies in the same turned plane as the case, so it lines up underneath it
-        if (reflectUrl != null) Box(Modifier.fillMaxSize().graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = -turn }) { FloorReflection(dvdCaseWidth(h), h * 0.30f, reflectUrl) }
+        if (reflectUrl != null) Box(Modifier.fillMaxSize().graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(px0, 0.5f); rotationY = bodyTurn }) { FloorReflection(dvdCaseWidth(h), h * 0.30f, reflectUrl) }
         // the opening edge: the thick side of the case where the two halves meet
-        if (turn > 0.5f) Box(Modifier.align(Alignment.TopEnd).offset(x = depth).size(depth, h)
-            .graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(0f, 0.5f); rotationY = 90f - turn; alpha = (1f - sw * 4f).coerceIn(0f, 1f) }
+        if (turn > 0.5f) Box(Modifier.align(if (flip) Alignment.TopStart else Alignment.TopEnd).offset(x = if (flip) -depth else depth).size(depth, h)
+            .graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f - px0, 0.5f); rotationY = if (flip) turn - 90f else 90f - turn; alpha = (1f - sw * 4f).coerceIn(0f, 1f) }
             .clip(RoundedCornerShape(topEnd = h * 0.014f, bottomEnd = h * 0.014f))
             .background(Brush.horizontalGradient(listOf(Color(0xFF3F434C), Color(0xFF17191D), Color(0xFF2C2F36), Color(0xFF08090B))))
             .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(topEnd = h * 0.014f, bottomEnd = h * 0.014f))
@@ -123,7 +128,7 @@ fun DvdCase(year: String?, h: Dp, focused: Boolean, open: Boolean, modifier: Mod
                 drawRoundRect(Color.White.copy(alpha = 0.18f), Offset(size.width * 0.2f, size.height / 2 - nh / 2), Size(size.width * 0.6f, nh), androidx.compose.ui.geometry.CornerRadius(size.width * 0.3f), style = Stroke(px))
             })
         // inside of the case with the disc, sliding out from behind the cover
-        if (t > 0.01f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = (t * 3f).coerceAtMost(1f); if (peek) { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = angle } else { translationX = size.width * 0.62f * t; scaleX = 0.95f; scaleY = 0.95f } }) {
+        if (t > 0.01f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = (t * 3f).coerceAtMost(1f); if (peek) { cameraDistance = 14f * density; transformOrigin = TransformOrigin(px0, 0.5f); rotationY = bodyTurn } else { translationX = size.width * 0.62f * t; scaleX = 0.95f; scaleY = 0.95f } }) {
             Box(Modifier.fillMaxSize().clip(shape).background(Plastic).border(1.dp, Color.White.copy(alpha = 0.18f), shape)) {
                 Box(Modifier.fillMaxSize().padding(rim * 2.5f).clip(RoundedCornerShape(h * 0.012f)).background(Color(0xFF050607)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(h * 0.012f)))
             }
@@ -136,7 +141,7 @@ fun DvdCase(year: String?, h: Dp, focused: Boolean, open: Boolean, modifier: Mod
         }
         // the cover (turns about the opening edge while closed, about the spine as it opens)
         // peek: the whole case keeps its turn, and the front half swings open on the spine towards you, showing the disc inside
-        Box(Modifier.fillMaxSize().then(if (peek) Modifier.graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = angle } else Modifier)) {
+        Box(Modifier.fillMaxSize().then(if (peek) Modifier.graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(px0, 0.5f); rotationY = bodyTurn } else Modifier)) {
         Box(Modifier.fillMaxSize().graphicsLayer { cameraDistance = 14f * density
                 if (peek) { transformOrigin = TransformOrigin(0f, 0.5f); rotationY = -PEEK_ANGLE * t } else { transformOrigin = TransformOrigin(1f - sw, 0.5f); rotationY = angle } }
             .then(if (focused) Modifier.tileFocus(true, h * 0.014f) else Modifier)
@@ -159,7 +164,8 @@ fun DvdCase(year: String?, h: Dp, focused: Boolean, open: Boolean, modifier: Mod
                 drawPath(sheen, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.02f)), start = Offset.Zero, end = Offset(size.width * 0.42f, size.height * 0.26f)))
                 drawRect(Brush.linearGradient(0f to Color.White.copy(alpha = 0.10f), 0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.22f), start = Offset.Zero, end = Offset(size.width, size.height)))
                 // the far (spine) side falls into shade as the case turns
-                drawRect(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.34f * (turn / turnAngle).coerceIn(0f, 1f)), 0.7f to Color.Transparent))
+                if (flip) drawRect(Brush.horizontalGradient(0.3f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.34f * (turn / turnAngle).coerceIn(0f, 1f))))
+                else drawRect(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.34f * (turn / turnAngle).coerceIn(0f, 1f)), 0.7f to Color.Transparent))
                 drawLine(Color.White.copy(alpha = 0.5f), Offset(px * 3, px / 2), Offset(size.width - px * 3, px / 2), px)
             }.border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.38f), Color.White.copy(alpha = 0.06f))), shape))
         }
@@ -233,31 +239,36 @@ fun distanceMode(): Boolean { val ctx = LocalContext.current; return !isCompact(
 
 /** Height of the front card in a 3D Distance row of wide cards. */
 @Composable
-fun distanceCardH(): Dp = LocalConfiguration.current.screenHeightDp.dp * 0.34f
+fun distanceCardH(): Dp = LocalConfiguration.current.screenHeightDp.dp * 0.40f
 
-/** A wide card standing in a 3D Distance row: turned like the DVD cases, with a thick edge and a blurred floor reflection. */
+private const val DIST_TURN = 22f     // every 3D Distance row stands at this same angle
+private const val DIST_DEPTH = 0.13f
+
+/** A wide card standing in a 3D Distance row: a thick block turned to the same angle as the DVD cases, with a blurred floor reflection. */
 @Composable
 fun DistanceSlab(w: Dp, h: Dp, reflectUrl: String?, content: @Composable () -> Unit) {
-    val turn = 15f; val depth = h * 0.09f
+    val depth = h * DIST_DEPTH
     Box(Modifier.size(w, h)) {
-        Box(Modifier.fillMaxSize().graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = -turn }) {
-            FloorReflection(w, h * 0.34f, reflectUrl)
+        Box(Modifier.fillMaxSize().graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(0f, 0.5f); rotationY = DIST_TURN }) {
+            FloorReflection(w, h * 0.30f, reflectUrl)
             content()
         }
-        Box(Modifier.align(Alignment.TopEnd).offset(x = depth).size(depth, h)
-            .graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(0f, 0.5f); rotationY = 90f - turn }
-            .clip(RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp))
-            .background(Brush.horizontalGradient(listOf(Color(0xFF3F434C), Color(0xFF17191D), Color(0xFF2C2F36), Color(0xFF08090B))))
-            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)))
+        // the thick near side of the block
+        Box(Modifier.align(Alignment.TopStart).offset(x = -depth).size(depth, h)
+            .graphicsLayer { cameraDistance = 14f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = DIST_TURN - 90f }
+            .clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp))
+            .background(Brush.horizontalGradient(listOf(Color(0xFF08090B), Color(0xFF2C2F36), Color(0xFF17191D), Color(0xFF3F434C))))
+            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)))
     }
 }
 
 /**
- * 3D Distance row: the highlighted card stands big on the right and the rest run away into the distance on the left. Loops for ever.
- * One focus stop for the whole row; Left / Right walk along it. [content] draws one card at [w] × [h].
+ * 3D Distance row: cards stand biggest on the left and run away into the distance on the right. Loops for ever.
+ * One focus stop for the whole row; the highlighted card stays in one place (Settings → highlighted position) and pops out; Left / Right move the row through it.
+ * [content] draws one card at [w] × [h].
  */
 @Composable
-fun <T> DistanceRow(items: List<T>, row: Int, rowNav: RowNav?, tileH: Dp, inset: Dp, w: Dp, h: Dp, firstRequester: FocusRequester? = null, roomRight: Float = 0.12f,
+fun <T> DistanceRow(items: List<T>, row: Int, rowNav: RowNav?, tileH: Dp, inset: Dp, w: Dp, h: Dp, firstRequester: FocusRequester? = null,
                     restOpen: Boolean = false, forceOpen: (T) -> Boolean = { false }, onFocusItem: ((T) -> Unit)? = null, onHold: ((T) -> Unit)? = null, onClick: (T) -> Unit,
                     content: @Composable (item: T, focused: Boolean, open: Boolean) -> Unit) {
     val ctx = LocalContext.current
@@ -276,13 +287,15 @@ fun <T> DistanceRow(items: List<T>, row: Int, rowNav: RowNav?, tileH: Dp, inset:
     var held by remember { mutableStateOf(false) }
     val lift = with(LocalDensity.current) { (LocalConfiguration.current.screenHeightDp.dp * 0.055f).toPx() }   // room underneath for the reflections
     val gap = remember { Prefs.dvdGap(ctx) }
+    val slot = remember { Prefs.dvdSlot(ctx) - 1 }.coerceIn(0, (n - 1).coerceAtLeast(0))                        // where the highlighted card stands, counted from the left
     BoxWithConstraints(Modifier.fillMaxWidth().height(tileH)) {
         val d = LocalDensity.current
         val wPx = with(d) { w.toPx() }
-        val front = with(d) { (maxWidth - 40.dp - inset).toPx() } - wPx * (0.5f + roomRight)   // centre of the highlighted card
-        val c = 0.16f                                                                          // how quickly cards shrink with distance
-        val pitch = wPx * gap / 100f                                                           // every card sits the same share of its own width from its neighbour
-        val count = if (n < 2) 0 else minOf(n - 1, 14)
+        val rowW = with(d) { maxWidth.toPx() }
+        val front = with(d) { (48.dp + inset).toPx() } + wPx * 0.62f       // centre of the nearest card (room on its left for its thick side)
+        val c = 0.16f                                                      // how quickly cards shrink with distance
+        val pitch = wPx * gap / 100f                                       // every card sits the same share of its own width from its neighbour
+        val total = minOf(n, 16)
         Focusable(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
             if (onHold != null && (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter)) {
                 if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) held = false
@@ -290,20 +303,20 @@ fun <T> DistanceRow(items: List<T>, row: Int, rowNav: RowNav?, tileH: Dp, inset:
                 return@onPreviewKeyEvent if (held) { if (e.type == KeyEventType.KeyUp) held = false; true } else false
             }
             if (n < 2 || (e.key != Key.DirectionLeft && e.key != Key.DirectionRight)) return@onPreviewKeyEvent false
-            // Left walks into the row (next one comes forward), Right walks back.
-            if (e.type == KeyEventType.KeyDown) index += if (e.key == Key.DirectionLeft) 1 else -1
+            if (e.type == KeyEventType.KeyDown) index += if (e.key == Key.DirectionRight) 1 else -1
             true
         }, onClick = { onClick(cur) }, requester = req, onFocus = { focused = it; if (it) rowNav?.focused(row, req) }) { _ ->
             val base = kotlin.math.floor(pos).toInt()
-            for (j in (base + count + 1) downTo (base - 1)) key(j) {
-                val dk = j - pos
-                val sc = if (dk >= 0f) 1f / (1f + c * dk) else 1f - dk * 0.10f
-                val cx = if (dk >= 0f) front - pitch * kotlin.math.ln(1f + c * dk) / c else front - dk * wPx * 1.3f
-                if (dk > -1f && dk <= count + 0.999f && cx + wPx * sc > 0f) {
-                    val a = if (dk < 0f) 1f + dk else (count + 1f - dk).coerceIn(0f, 1f)
+            for (j in (base - slot - 1)..(base - slot + total)) key(j) {
+                val pp = j - pos + slot                                     // place in the row: 0 = nearest, on the left
+                val sc = if (pp >= 0f) 1f / (1f + c * pp) else 1f - pp * 0.10f
+                val cx = if (pp >= 0f) front + pitch * kotlin.math.ln(1f + c * pp) / c else front + pp * wPx * 1.3f
+                if (pp > -1f && pp < total && cx - wPx * sc / 2f < rowW) {
+                    val a = if (pp < 0f) 1f + pp else (total - pp).coerceIn(0f, 1f)
                     val isFront = j == index
-                    Box(Modifier.zIndex(if (dk < 0f) 0f else sc).wrapContentSize(Alignment.BottomStart, unbounded = true)
-                        .graphicsLayer { translationX = cx - wPx / 2f; translationY = -lift; scaleX = sc; scaleY = sc; transformOrigin = TransformOrigin(0.5f, 0.6f); alpha = a }) {
+                    val out by animateFloatAsState(if (focused && isFront) 1f else 0f, tween(220, easing = FastOutSlowInEasing), label = "out")
+                    Box(Modifier.zIndex(sc + if (isFront && focused) 2f else 0f).wrapContentSize(Alignment.BottomStart, unbounded = true)
+                        .graphicsLayer { translationX = cx - wPx / 2f; translationY = -lift; val z = sc * (1f + 0.10f * out); scaleX = z; scaleY = z; transformOrigin = TransformOrigin(0.5f, 0.6f); alpha = a }) {
                         content(items[Math.floorMod(j, n)], focused && isFront, open && isFront)
                     }
                 }
@@ -316,15 +329,15 @@ fun <T> DistanceRow(items: List<T>, row: Int, rowNav: RowNav?, tileH: Dp, inset:
 @Composable
 fun DvdDistanceRow(items: List<Item>, firstRequester: FocusRequester?, onFocusItem: ((Item) -> Unit)?, row: Int, rowNav: RowNav?, tileH: Dp, inset: Dp, onOpen: (Item) -> Unit) {
     val ctx = LocalContext.current
-    // The front case stands over half the screen tall and rises up beside the billboard; the row only reserves its usual height.
+    // The nearest case stands over half the screen tall and rises up beside the billboard; the row only reserves its usual height.
     val bigH = LocalConfiguration.current.screenHeightDp.dp * 0.52f
-    DistanceRow(items, row, rowNav, tileH, inset, dvdCaseWidth(bigH), bigH, firstRequester, roomRight = 0.36f, restOpen = true, forceOpen = { TitleActions.item?.id == it.id }, onFocusItem = onFocusItem, onClick = { cur ->
+    DistanceRow(items, row, rowNav, tileH, inset, dvdCaseWidth(bigH), bigH, firstRequester, restOpen = true, forceOpen = { TitleActions.item?.id == it.id }, onFocusItem = onFocusItem, onClick = { cur ->
         if (cur.id.startsWith("tmdb:")) {
             val on = NotifyList.toggle(ctx, cur)
             android.widget.Toast.makeText(ctx, if (on) "We'll let you know when ${cur.name} arrives in HD" else "Reminder removed", android.widget.Toast.LENGTH_SHORT).show()
         } else { onOpen(cur); TitleActions.caseMode = true }
     }) { item, f, open ->
-        DvdCase(item.year, bigH, f, open, turned = true, grow = false, peek = true, label = false, turnAngle = 22f, depthF = 0.13f, reflectUrl = item.poster) { m, al -> AsyncImage(item.poster, item.name, m, contentScale = ContentScale.Crop, alignment = al) }
+        DvdCase(item.year, bigH, f, open, turned = true, grow = false, peek = true, label = false, turnAngle = DIST_TURN, depthF = DIST_DEPTH, reflectUrl = item.poster, flip = true) { m, al -> AsyncImage(item.poster, item.name, m, contentScale = ContentScale.Crop, alignment = al) }
     }
 }
 
@@ -338,14 +351,14 @@ fun DvdOpenCase(item: Item, series: Boolean, inList: Boolean, onLaunch: () -> Un
     val go = remember(item.id) { androidx.compose.animation.core.Animatable(0f) }
     val launching = TitleActions.launching
     LaunchedEffect(launching) { if (launching) { go.animateTo(1f, tween(1100, easing = LinearEasing)); onLaunch() } else go.snapTo(0f) }
-    val h = 430.dp; val w = 322.dp
-    val shape = RoundedCornerShape(14.dp); val inner = RoundedCornerShape(12.dp)
+    val h = 440.dp; val w = 322.dp
+    val shape = RoundedCornerShape(16.dp); val inner = RoundedCornerShape(14.dp)
     val art: @Composable (Modifier, Alignment) -> Unit = { m, al -> AsyncImage(item.poster, item.name, m, contentScale = ContentScale.Crop, alignment = al) }
     Box(Modifier.fillMaxSize().background(Bg0.copy(alpha = 0.78f)).background(Color.Black.copy(alpha = ((go.value - 0.35f) / 0.65f).coerceIn(0f, 1f))), contentAlignment = Alignment.Center) {
         Row(Modifier.graphicsLayer { val z = 0.62f + 0.38f * a.value; scaleX = z; scaleY = z; alpha = (a.value * 2.5f).coerceAtMost(1f) * (1f - go.value * 2.2f).coerceIn(0f, 1f) }) {
             // cover half: swings out flat from on top of the disc
             Box(Modifier.size(w, h).graphicsLayer { cameraDistance = 18f * density; transformOrigin = TransformOrigin(1f, 0.5f); rotationY = 88f * (1f - a.value) }
-                .clip(shape).background(Plastic).border(1.dp, Color.White.copy(alpha = 0.22f), shape).padding(9.dp)) {
+                .clip(shape).background(Plastic).border(1.5.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.10f))), shape).caseShell(latchRight = false).padding(13.dp)) {
                 Box(Modifier.fillMaxSize().blueGlow(true, inner, 18.dp, 0.5f).clip(inner).background(Color(0xFF0B1220)).border(1.5.dp, BlueBright.copy(alpha = 0.7f), inner)) {
                     art(Modifier.fillMaxSize(), Alignment.TopCenter)
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0xB305070D), 0.28f to Color(0x3305070D), 0.5f to Color(0x8C05070D), 1f to Color(0xF505070D))))
@@ -357,17 +370,46 @@ fun DvdOpenCase(item: Item, series: Boolean, inList: Boolean, onLaunch: () -> Un
                     ActionPills(TitleActions.sel, series, inList, compact = false, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp))
                 }
             }
-            // hinge
-            Box(Modifier.size(12.dp, h).background(Brush.horizontalGradient(listOf(Color(0xFF07080A), Color(0xFF3A3E46), Color(0xFF07080A)))))
-            // tray half with the disc
-            Box(Modifier.size(w, h).clip(shape).background(Plastic).border(1.dp, Color.White.copy(alpha = 0.22f), shape).padding(9.dp)) {
-                Box(Modifier.fillMaxSize().clip(inner).background(Brush.radialGradient(listOf(Color(0xFF1B1D22), Color(0xFF07080A)))).border(1.dp, Color.White.copy(alpha = 0.08f), inner))
-                // moulded ring the disc sits in
-                Box(Modifier.align(Alignment.Center).size(w * 0.93f).clip(CircleShape).background(Color(0xFF0C0D10)).border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape))
-                if (!launching) DvdDisc(w * 0.88f, Modifier.align(Alignment.Center).graphicsLayer { val z = 0.7f + 0.3f * a.value; scaleX = z; scaleY = z; rotationZ = spin }, art)
+            // hinge: a moulded strip with two joints
+            Box(Modifier.size(14.dp, h).background(Brush.horizontalGradient(listOf(Color(0xFF050607), Color(0xFF3A3E46), Color(0xFF15171B), Color(0xFF3A3E46), Color(0xFF050607)))).drawBehind {
+                val jh = size.height * 0.07f
+                for (y in listOf(size.height * 0.20f, size.height * 0.80f)) {
+                    drawRoundRect(Color(0xFF2B2E35), Offset(-2.dp.toPx(), y - jh / 2), Size(size.width + 4.dp.toPx(), jh), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
+                    drawRoundRect(Color.White.copy(alpha = 0.22f), Offset(-2.dp.toPx(), y - jh / 2), Size(size.width + 4.dp.toPx(), jh), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()), style = Stroke(1.dp.toPx()))
+                }
+            })
+            // tray half: recessed panel, moulded well, four clips and the hub the disc sits on
+            Box(Modifier.size(w, h).clip(shape).background(Plastic).border(1.5.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.10f))), shape).caseShell(latchRight = true).padding(13.dp)) {
+                Box(Modifier.fillMaxSize().clip(inner).background(Brush.verticalGradient(listOf(Color(0xFF16181C), Color(0xFF0B0C0E)))).border(1.dp, Color.Black.copy(alpha = 0.9f), inner).drawBehind {
+                    val px = 1.dp.toPx(); val cx = size.width / 2; val cy = size.height / 2; val r = size.width * 0.49f
+                    // shadow along the top and left of the recess
+                    drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.55f), 0.06f to Color.Transparent))
+                    drawRect(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.45f), 0.05f to Color.Transparent))
+                    // the well
+                    drawCircle(Brush.radialGradient(listOf(Color(0xFF1D2025), Color(0xFF0A0B0D)), Offset(cx, cy), r), r, Offset(cx, cy))
+                    drawCircle(Color.Black.copy(alpha = 0.9f), r, Offset(cx, cy), style = Stroke(px * 2))
+                    drawCircle(Color.White.copy(alpha = 0.10f), r + px * 2, Offset(cx, cy), style = Stroke(px))
+                    // clips that hold the disc
+                    for (deg in listOf(45f, 135f, 225f, 315f)) rotate(deg, Offset(cx, cy)) {
+                        val cw = size.width * 0.20f; val ch = size.width * 0.085f
+                        drawRoundRect(Color(0xFF24272D), Offset(cx - cw / 2, cy - r - ch * 0.55f), Size(cw, ch), androidx.compose.ui.geometry.CornerRadius(ch / 2))
+                        drawRoundRect(Color.White.copy(alpha = 0.16f), Offset(cx - cw / 2, cy - r - ch * 0.55f), Size(cw, ch), androidx.compose.ui.geometry.CornerRadius(ch / 2), style = Stroke(px))
+                        drawRoundRect(Color.Black.copy(alpha = 0.6f), Offset(cx - cw * 0.3f, cy - r - ch * 0.1f), Size(cw * 0.6f, ch * 0.3f), androidx.compose.ui.geometry.CornerRadius(ch / 4))
+                    }
+                })
+                if (!launching) DvdDisc(w * 0.86f, Modifier.align(Alignment.Center).graphicsLayer { val z = 0.7f + 0.3f * a.value; scaleX = z; scaleY = z; rotationZ = spin; shadowElevation = 10.dp.toPx(); this.shape = CircleShape; clip = true }, art)
+                // the hub poking through the middle of the disc
+                Canvas(Modifier.align(Alignment.Center).size(w * 0.86f * 0.20f)) {
+                    val r = size.minDimension / 2; val px = 1.dp.toPx()
+                    drawCircle(Brush.radialGradient(listOf(Color(0xFF3A3E46), Color(0xFF0C0D10))), r)
+                    drawCircle(Color.White.copy(alpha = 0.28f), r - px, style = Stroke(px))
+                    for (k in 0 until 6) rotate(k * 60f) { drawLine(Color.Black.copy(alpha = 0.8f), Offset(center.x, center.y - r * 0.9f), Offset(center.x, center.y - r * 0.45f), px * 2) }
+                    drawCircle(Color(0xFF050607), r * 0.42f)
+                    drawCircle(Color.White.copy(alpha = 0.18f), r * 0.42f, style = Stroke(px))
+                }
             }
         }
-        if (launching) DvdDisc(w * 0.88f, Modifier.graphicsLayer {
+        if (launching) DvdDisc(w * 0.86f, Modifier.graphicsLayer {
             val g = go.value
             val lift = (g / 0.4f).coerceIn(0f, 1f); val e = lift * lift * (3f - 2f * lift)        // out of the tray, to the middle, towards you
             val dive = ((g - 0.4f) / 0.6f).coerceIn(0f, 1f)                                      // then away into the screen
@@ -377,4 +419,15 @@ fun DvdOpenCase(item: Item, series: Boolean, inList: Boolean, onLaunch: () -> Un
             alpha = (1f - (dive - 0.75f) * 4f).coerceIn(0f, 1f)
         }, art)
     }
+}
+
+/** Moulded plastic shell of an open case half: bevel light, inner groove and the little latch on its outer edge. */
+private fun Modifier.caseShell(latchRight: Boolean): Modifier = drawWithContent {
+    drawContent()
+    val px = 1.dp.toPx(); val g = 8.dp.toPx()
+    drawRoundRect(Color.Black.copy(alpha = 0.75f), Offset(g, g), Size(size.width - g * 2, size.height - g * 2), androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()), style = Stroke(px * 1.5f))
+    drawRoundRect(Color.White.copy(alpha = 0.10f), Offset(g + px * 1.5f, g + px * 1.5f), Size(size.width - g * 2 - px * 3, size.height - g * 2 - px * 3), androidx.compose.ui.geometry.CornerRadius(11.dp.toPx()), style = Stroke(px))
+    val lh = size.height * 0.10f; val lw = 5.dp.toPx(); val x = if (latchRight) size.width - lw - px else px
+    drawRoundRect(Color(0xFF34373F), Offset(x, size.height / 2 - lh / 2), Size(lw, lh), androidx.compose.ui.geometry.CornerRadius(lw / 2))
+    drawRoundRect(Color.White.copy(alpha = 0.25f), Offset(x, size.height / 2 - lh / 2), Size(lw, lh), androidx.compose.ui.geometry.CornerRadius(lw / 2), style = Stroke(px))
 }

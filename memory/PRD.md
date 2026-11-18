@@ -1450,3 +1450,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Reflections: now inside the same turned layer as the case (were flat and offset), tiny decode forced with its own Coil memoryCacheKey (the 8×12 request was being served the full-size cached poster, hence sharp).
 - Hero page dots hidden and shelf overflow un-clipped ONLY in 3D Distance.
 - Known trade-off: Coming Soon in Distance has no in-card trailer / two-choice menu (OK = reminder only).
+
+## Build 3.9.70-109 (Nov 18) — 3D Distance flipped (not rendered here)
+- Rows now biggest on the LEFT, receding to the right; Right = next. Hero text + row headers right-aligned and backdrop mirrored in Distance only (`HeroBillboard(flip)`, `FullBleedBackdrop(flip)`, `SectionHeader(rightInline)`).
+- Highlight slot selectable: Settings → "3D Distance: highlighted position" (`Prefs.dvdSlot`, 1–5 from left, default 2). Highlighted card pops ×1.10.
+- `DvdCase(flip)`: spine side nearest (thick edge on left), cover hinges on spine, disc slides out right. All wide rows use `DistanceSlab` at the same 22° / 0.13 depth (`DIST_TURN`, `DIST_DEPTH`), wide cards 40 % of screen height, same baseline.
+- Open case: moulded shell (groove, latch, jointed hinge), recessed tray with well + 4 clips + hub, holographic disc rim.
+- DISK: /app ~97 % full; .git has ~3.5 GB of loose objects from committed APKs (40 MB per build). Needs platform-side cleanup; do not rewrite history here.
