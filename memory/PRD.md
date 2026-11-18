@@ -1443,3 +1443,10 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Settings → Appearance: "3D Distance: height" (`Prefs.dvdOffset`, dp, default +20; shifts Home hero + shelf together) and "3D Distance: spacing" (`Prefs.dvdGap`, % of case width, default 90, was 107). User will report preferred numbers → bake in as defaults.
 - Title counter sits beside the row title in Distance (`SectionHeader(rightInline)`), since the front case covers the right side.
 - Reflections: 8×12 px poster smear, flipped, no perspective, + real blur on Android 12+.
+
+## Build 3.9.69-108 (Nov 18) — 3D Distance on every Home row (not rendered here; user photos are the only check)
+- Generic `DistanceRow<T>` + `DistanceSlab` + `FloorReflection` in Dvd3D.kt; `DvdDistanceRow` now sits on top of it.
+- Continue Watching, Live TV row (all three styles), Coming Up (calendar) and Coming Soon use it when `distanceMode()`; card bodies were split out as `CwFace`, `ProgrammeFace`, `LiveNowFace`, `LogoFace`, `SoonFace`, `ComingUpFace` (normal rows call the same faces, so look is unchanged when 3D is off).
+- Reflections: now inside the same turned layer as the case (were flat and offset), tiny decode forced with its own Coil memoryCacheKey (the 8×12 request was being served the full-size cached poster, hence sharp).
+- Hero page dots hidden and shelf overflow un-clipped ONLY in 3D Distance.
+- Known trade-off: Coming Soon in Distance has no in-card trailer / two-choice menu (OK = reminder only).

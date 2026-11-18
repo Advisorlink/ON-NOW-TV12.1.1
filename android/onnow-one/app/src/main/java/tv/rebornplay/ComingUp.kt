@@ -68,6 +68,16 @@ fun ComingUpShelf(eps: List<CalEpisode>, row: Int, rowNav: RowNav?, tileH: Dp, o
     if (eps.isEmpty()) return
     val inset = safeInset()
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
+    if (distanceMode()) {
+        val bh = distanceCardH() * 0.9f; val bw = bh * 2.4f
+        Column {
+            SectionHeader("From your calendar", "Coming Up", "Next 7 days · ${eps.size} new episode${if (eps.size == 1) "" else "s"}", Modifier.padding(horizontal = inset), rightInline = true)
+            DistanceRow(eps, row, rowNav, tileH, inset, bw, bh, onClick = { e -> ComingUp.byImdb[e.imdbId]?.let(onOpen) }) { e, f, _ ->
+                DistanceSlab(bw, bh, (e.backdrop ?: e.still)) { ComingUpFace(e, bw, bh, f) }
+            }
+        }
+        return
+    }
     val h = (tileH * 0.72f).coerceAtMost(164.dp)
     val w = h * 2.4f
     Column {
@@ -85,10 +95,15 @@ private fun ComingUpCard(e: CalEpisode, w: Dp, h: Dp, first: Boolean, row: Int, 
     val req = remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
     var top by remember { mutableStateOf(false) }
+    Focusable(Modifier.zIndex(if (top) 1f else 0f), requester = req, onFocus = { top = it; if (it) rowNav?.focused(row, req) }, onClick = onClick) { f -> ComingUpFace(e, w, h, f) }
+}
+
+@Composable
+internal fun ComingUpFace(e: CalEpisode, w: Dp, h: Dp, f: Boolean) {
     val accent = Color(e.colour)
     val (label, day) = remember(e.date) { ComingUp.whenLabel(e.date) }
     val art = remember(e) { (e.backdrop ?: e.still)?.replace("/t/p/w300/", "/t/p/w780/") }
-    Focusable(Modifier.zIndex(if (top) 1f else 0f), requester = req, onFocus = { top = it; if (it) rowNav?.focused(row, req) }, onClick = onClick) { f ->
+    run {
         Box(Modifier.width(w).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
             if (art != null) AsyncImage(art, e.showName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
             Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg0.copy(alpha = 0.96f), 0.34f to Bg0.copy(alpha = 0.78f), 0.72f to Color.Transparent)))

@@ -209,6 +209,16 @@ fun CwLiveRow(cw: List<CwEntry>, live: List<tv.onnowtv.livetv.data.Channel>, row
     val inset = safeInset()
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
     LaunchedEffect(live) { live.forEach { ch -> runCatching { LiveStore.programmes(ctx, ch) } } }
+    if (distanceMode() && cw.isNotEmpty()) {
+        val bh = distanceCardH(); val bw = bh * 16 / 9
+        Column {
+            SectionHeader("Pick up where you left off", "Continue Watching", "${cw.size} in progress · hold OK to remove", Modifier.padding(horizontal = inset), rightInline = true)
+            DistanceRow(cw, row, rowNav, tileH, inset, bw, bh, onHold = { e -> Confirm.show("Remove from Continue Watching?", "${e.item.name} will disappear from this row. Your place in it is forgotten.", "Remove", true) { onRemove(e) } }, onClick = onResume) { e, f, _ ->
+                DistanceSlab(bw, bh, rememberWideArt(e.item)) { CwFace(e, bh, f) }
+            }
+        }
+        return
+    }
     val h = (tileH * 0.84f).coerceAtMost(190.dp)
     Row(Modifier.fillMaxWidth().padding(end = 48.dp + inset), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         if (cw.isNotEmpty()) Column(Modifier.weight(1.4f)) {
@@ -247,7 +257,12 @@ fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -
         if (ev.type == KeyEventType.KeyDown && !held && ev.nativeKeyEvent.repeatCount >= 6) { held = true; Confirm.show("Remove from Continue Watching?", "${e.item.name} will disappear from this row. Your place in it is forgotten.", "Remove", true, onRemove) }
         if (held) { if (ev.type == KeyEventType.KeyUp) held = false; true } else false
     }
-    Focusable(hold.zIndex(if (top) 1f else 0f), onClick = onClick, requester = req, onFocus = { top = it; onFocus?.invoke(it) }) { f ->
+    Focusable(hold.zIndex(if (top) 1f else 0f), onClick = onClick, requester = req, onFocus = { top = it; onFocus?.invoke(it) }) { f -> CwFace(e, h, f) }
+}
+
+@Composable
+internal fun CwFace(e: CwEntry, h: Dp, f: Boolean) {
+    run {
         Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
             val replayCtx = LocalContext.current
             val replay = remember(e.cwId) { if (e.item.type == "replay") tv.onnowtv.livetv.data.ReplayResume.get(replayCtx, e.cwId.removePrefix("replay:")) else null }
@@ -296,9 +311,14 @@ fun CwCard(e: CwEntry, h: Dp, req: FocusRequester? = null, onFocus: ((Boolean) -
 private fun LiveNowTile(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onClick: () -> Unit) {
     val req = remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
+    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f -> LiveNowFace(ch, h, f) }
+}
+
+@Composable
+internal fun LiveNowFace(ch: tv.onnowtv.livetv.data.Channel, h: Dp, f: Boolean) {
     val (now, _) = LiveStore.nowNext(ch)
     val frac = now?.let { ((System.currentTimeMillis() - it.startMs).toFloat() / (it.stopMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
-    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f ->
+    run {
         Column(Modifier.width(h * 1.45f).height(h).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(TileShape).background(Bg1).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape).padding(12.dp)) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize(0.8f), contentScale = ContentScale.Fit)
@@ -324,12 +344,22 @@ fun LiveRow(row: Int, rowNav: RowNav?, tileH: Dp, onChannel: (tv.onnowtv.livetv.
     LaunchedEffect(channels) { channels.take(24).forEach { ch -> runCatching { LiveStore.programmes(ctx, ch) } }; epgTick++ }
     val eyebrow = when (LiveRowPrefs.source(ctx)) { "favourites" -> "Live TV · favourites"; "sports" -> "Live TV · sport"; "category" -> "Live TV · category"; else -> "Live TV · on now" }
     val h = when (style) { "logos" -> (tileH * 0.62f).coerceIn(84.dp, 110.dp); else -> (tileH * 0.74f).coerceAtMost(170.dp) }   // a touch smaller than Continue Watching
+    val distance = distanceMode()
     Column {
-        SectionHeader(eyebrow, title, if (channels.isEmpty()) "nothing here yet" else "${channels.size} channels", Modifier.padding(horizontal = inset))
+        SectionHeader(eyebrow, title, if (channels.isEmpty()) "nothing here yet" else "${channels.size} channels", Modifier.padding(horizontal = inset), rightInline = distance)
         if (channels.isEmpty()) {
             Text(when (LiveRowPrefs.source(ctx)) { "favourites" -> "Add favourites in Live TV and they'll show here."; "category" -> "Pick a category in Settings → Live TV row."; else -> "Live TV hasn't loaded yet." }, color = Txt3, fontFamily = Geist, fontSize = 13.sp, modifier = Modifier.padding(start = 64.dp + inset, top = 6.dp))
             return
         }
+        if (distance) {
+            val bh = distanceCardH() * (if (style == "logos") 0.8f else 1f)
+            val bw = when (style) { "logos" -> bh * 0.8f; "cards" -> bh * 1.45f; else -> bh * 16 / 9 }
+            DistanceRow(channels, row, rowNav, tileH, inset, bw, bh, onClick = onChannel) { ch, f, _ ->
+                DistanceSlab(bw, bh, if (style == "logos" || style == "cards") null else LiveStore.nowNext(ch).first?.title?.let { EpgArt.cached(it) }) {
+                    when (style) { "logos" -> LogoFace(ch, bh, f); "cards" -> LiveNowFace(ch, bh, f); else -> ProgrammeFace(ch, bh, f) }
+                }
+            }
+        } else
         AnchoredRow(64.dp + inset + (if (style == "logos") h else h * 16 / 9) + 12.dp) {
             LazyRow(contentPadding = PaddingValues(start = 64.dp + inset, end = 64.dp + inset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
@@ -384,13 +414,18 @@ private val V2Now = Color(0xFF5DC8FF)        // livetv_now_line
 private fun ProgrammeCard(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onFocus: ((Boolean) -> Unit)? = null, onClick: () -> Unit) {
     val req = remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
+    Focusable(Modifier.zIndex(0f), onClick = onClick, requester = req, onFocus = { onFocus?.invoke(it); if (it) rowNav?.focused(row, req) }) { f -> ProgrammeFace(ch, h, f) }
+}
+
+@Composable
+internal fun ProgrammeFace(ch: tv.onnowtv.livetv.data.Channel, h: Dp, f: Boolean) {
     val (now, next) = LiveStore.nowNext(ch)
     val t = System.currentTimeMillis()
     val frac = now?.let { ((t - it.startMs).toFloat() / (it.stopMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
     val fmt = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()) }
     var art by remember(now?.title) { mutableStateOf(now?.title?.let { EpgArt.cached(it) }) }
     LaunchedEffect(now?.title) { if (art == null && now != null) art = EpgArt.fetch(now.title) }
-    Focusable(Modifier.zIndex(0f), onClick = onClick, requester = req, onFocus = { onFocus?.invoke(it); if (it) rowNav?.focused(row, req) }) { f ->
+    run {
         Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(TileShape).background(Color(0xFF141C2A)).border(1.dp, Color.White.copy(alpha = 0.10f), TileShape)) {
             when {
                 art != null -> AsyncImage(art, now?.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -426,8 +461,13 @@ private fun ProgrammeCard(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Bool
 private fun LogoTile(ch: tv.onnowtv.livetv.data.Channel, h: Dp, first: Boolean, row: Int, rowNav: RowNav?, onClick: () -> Unit) {
     val req = remember { FocusRequester() }
     if (first) rowNav?.register(row, req)
+    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f -> LogoFace(ch, h, f) }
+}
+
+@Composable
+internal fun LogoFace(ch: tv.onnowtv.livetv.data.Channel, h: Dp, f: Boolean) {
     val side = (h * 0.8f)
-    Focusable(onClick = onClick, requester = req, onFocus = { if (it) rowNav?.focused(row, req) }) { f ->
+    run {
         Column(Modifier.width(side).height(h).focusScale(f, 1.06f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 if (ch.logoUrl != null) AsyncImage(ch.logoUrl, ch.name, Modifier.fillMaxSize(0.85f), contentScale = ContentScale.Fit)
@@ -445,6 +485,21 @@ fun ComingSoonShelf(eyebrow: String, title: String, items: List<Item>, row: Int,
     if (items.isEmpty()) return
     val inset = safeInset()
     if (rowNav != null) DisposableEffect(row) { onDispose { rowNav.forget(row) } }
+    if (distanceMode()) {
+        val ctx = LocalContext.current
+        val bh = distanceCardH(); val bw = bh * 16 / 9
+        var tick by remember { mutableStateOf(0) }
+        Column {
+            SectionHeader(eyebrow, title, "${items.size} on the way", Modifier.padding(horizontal = inset), rightInline = true)
+            DistanceRow(items, row, rowNav, tileH, inset, bw, bh, onFocusItem = onFocusItem, onClick = { item ->
+                val on = NotifyList.toggle(ctx, item); tick++
+                android.widget.Toast.makeText(ctx, if (on) "We'll let you know when ${item.name} arrives in HD" else "Reminder removed", android.widget.Toast.LENGTH_SHORT).show()
+            }) { item, f, _ ->
+                DistanceSlab(bw, bh, rememberWideArt(item)) { SoonFace(item, bh, f, remember(item.id, tick) { NotifyList.has(ctx, item.id) }) }
+            }
+        }
+        return
+    }
     val h = (tileH * 0.84f).coerceAtMost(190.dp)
     Column {
         SectionHeader(eyebrow, title, "${items.size} on the way", Modifier.padding(horizontal = inset))
@@ -478,7 +533,12 @@ private fun SoonCard(item: Item, h: Dp, first: Boolean, row: Int, rowNav: RowNav
     if (menu) SideEffect { TitleActions.activate = { if (TitleActions.sel == 0) { TitleActions.inlineId = null; TitleActions.expand(item) } else toggle() } }
     Focusable(Modifier.zIndex(if (top) 1f else 0f), requester = req, onFocus = { top = it; if (it) { rowNav?.focused(row, req); onFocusItem?.invoke(item) } }, onClick = {
         if (trailerOn) TitleActions.openInline(item.id, twoChoices = true) else toggle()
-    }) { f ->
+    }) { f -> SoonFace(item, h, f, remind, trailerOn, menu) }
+}
+
+@Composable
+internal fun SoonFace(item: Item, h: Dp, f: Boolean, remind: Boolean, trailerOn: Boolean = false, menu: Boolean = false) {
+    run {
         Box(Modifier.width(h * 16 / 9).height(h).focusScale(f, 1.04f).tileFocus(f, 12.dp).clip(TileShape).background(Bg2).border(1.dp, Color.White.copy(alpha = 0.06f), TileShape)) {
             rememberWideArt(item)?.let { AsyncImage(it, item.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter) }
             if (trailerOn) TrailerSurface(Modifier.fillMaxSize())

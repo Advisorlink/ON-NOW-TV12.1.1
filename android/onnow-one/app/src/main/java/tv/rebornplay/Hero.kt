@@ -29,7 +29,7 @@ import kotlinx.coroutines.delay
 
 /** Rotating billboard — same layout as HeroBillboard.jsx (title, meta line, synopsis, Play / More Info / My List, dots). */
 @Composable
-fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, height: androidx.compose.ui.unit.Dp? = null, resume: CwEntry? = null, onResume: (CwEntry) -> Unit = {}, preview: Item? = null, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit, onHero: ((Item) -> Unit)? = null) {
+fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusRequester?, rowNav: RowNav? = null, height: androidx.compose.ui.unit.Dp? = null, resume: CwEntry? = null, onResume: (CwEntry) -> Unit = {}, preview: Item? = null, dots: Boolean = true, onPlay: (Hero) -> Unit, onInfo: (Hero) -> Unit, onHero: ((Item) -> Unit)? = null) {
     if (heroes.isEmpty()) { Spacer(Modifier.height(80.dp)); return }
     val ctx = LocalContext.current
     var idx by remember(heroes) { mutableStateOf(0) }
@@ -73,7 +73,7 @@ fun HeroBillboard(heroes: List<Hero>, eyebrow: String, playRequester: FocusReque
                 Pill(if (inList) "In My List" else "My List", icon = if (inList) Lucide.Check else Lucide.Plus, requester = listReq, onFocus = { if (it) rowNav?.focused(0, listReq) }) { inList = Library.toggle(ctx, hero.item) }
             }
         }
-        Row(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 34.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (dots) Row(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 34.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             heroes.take(6).forEachIndexed { i, _ ->
                 Box(Modifier.height(3.dp).width(if (i == idx) 26.dp else 6.dp).clip(CircleShape).background(if (i == idx) Blue else Txt3.copy(alpha = 0.6f)))
             }
