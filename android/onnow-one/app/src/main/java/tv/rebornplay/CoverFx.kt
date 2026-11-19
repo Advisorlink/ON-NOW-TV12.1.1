@@ -72,7 +72,10 @@ fun BoxScope.SideDiscLayer() {
         if (target != null) out.animateTo(1f, tween(750, easing = FastOutSlowInEasing))
     }
     val item = shown ?: return
-    val spin by rememberInfiniteTransition(label = "disc").animateFloat(0f, 360f, infiniteRepeatable(tween(26000, easing = LinearEasing)), label = "deg")
+    // The disc turns only while no trailer is playing: redrawing it every frame made trailers stutter on TV boxes.
+    val trailerOn = TrailerPlayer.playingId != null || TrailerPlayer.fullscreen != null
+    val spinA = remember { Animatable(0f) }
+    LaunchedEffect(trailerOn) { if (!trailerOn) while (true) { spinA.animateTo(spinA.value + 360f, tween(26000, easing = LinearEasing)) } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val d = maxHeight * 0.5f
         Box(Modifier.align(Alignment.TopEnd).padding(top = maxHeight * 0.09f).size(d)
@@ -80,7 +83,7 @@ fun BoxScope.SideDiscLayer() {
             // soft shadow behind the disc
             Box(Modifier.fillMaxSize().graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }.background(Brush.radialGradient(0.86f to Color.Black.copy(alpha = 0.55f), 1f to Color.Transparent), CircleShape))
             // the printed side: the cover art, turning slowly (and rolling as it slides)
-            Box(Modifier.fillMaxSize().graphicsLayer { rotationZ = spin - 110f * (1f - out.value) }.clip(CircleShape).background(Bg2)) {
+            Box(Modifier.fillMaxSize().graphicsLayer { rotationZ = spinA.value % 360f - 110f * (1f - out.value) }.clip(CircleShape).background(Bg2)) {
                 AsyncImage(item.poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
             }
             // light and the centre hub stay still while the print turns
