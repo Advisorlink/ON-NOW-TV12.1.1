@@ -103,10 +103,7 @@ object LiveStore {
         if (LivePreviewSession.currentChannel?.id != ch.id) LivePreviewSession.setChannel(activity, ch)
         PlaybackQueue.setQueue(if (list.any { it.id == ch.id }) list else bundle.value?.channels ?: list, ch.id)
         lastChannelId = ch.id
-        LivePreviewSession.markHandover()
-        // On the guide the preview window itself grows to full screen (same picture, nothing reloads); elsewhere the player opens as before.
-        val grow = LiveVideoLayer.grow(activity)
-        activity.startActivity(Intent(activity, if (grow) tv.onnowtv.livetv.LiveOverlayActivity::class.java else PlayerActivity::class.java).apply {
+        activity.startActivity(Intent(activity, PlayerActivity::class.java).apply {
             putExtra(PlayerActivity.EXTRA_URL, ch.streamUrl)
             putExtra(PlayerActivity.EXTRA_TITLE, ch.name)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, ch.id)

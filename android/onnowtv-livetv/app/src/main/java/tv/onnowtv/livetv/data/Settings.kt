@@ -12,6 +12,16 @@ object Settings {
     private const val FILE = "livetv_settings"
     fun prefs(ctx: Context): SharedPreferences = ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
+    /** Back to how Live TV ships: player, guide, remote, start-up and appearance choices. Favourites, group order, hidden groups and the PIN are kept. */
+    fun resetToDefaults(ctx: Context) {
+        val keep = setOf("group_order", "hidden_groups", "fav_order", "last_channel_id", "pin_for_settings")
+        val e = prefs(ctx).edit()
+        prefs(ctx).all.keys.filter { it !in keep }.forEach { e.remove(it) }
+        e.apply()
+        PlayerPrefs.setBackend(ctx, PlayerPrefs.Backend.EXO)
+        dirty = true
+    }
+
     // ---- Channels & groups ------------------------------------------
     fun groupOrder(ctx: Context): List<String> = list(ctx, "group_order")
     fun setGroupOrder(ctx: Context, ids: List<String>) { putList(ctx, "group_order", ids); dirty = true }

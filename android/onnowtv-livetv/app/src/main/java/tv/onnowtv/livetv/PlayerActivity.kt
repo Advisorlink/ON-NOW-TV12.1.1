@@ -250,13 +250,6 @@ open class PlayerActivity : AppCompatActivity() {
             // The guide's own video window is already full screen underneath us.
             (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)).background = null
             findViewById<View>(R.id.player_view).visibility = View.GONE
-            LivePreviewSession.onHostLost = {
-                if (!isFinishing && !isDestroyed && usingSharedPlayer) {
-                    playerView.visibility = View.VISIBLE
-                    makeOpaque()
-                    LivePreviewSession.attachTo(playerView)
-                }
-            }
         }
 
         // v2.10.15 — Per-channel EPG warms lazily.  The previous
@@ -427,8 +420,8 @@ open class PlayerActivity : AppCompatActivity() {
             LivePreviewSession.fullscreenHost()?.let { if (it.player !== p) LivePreviewSession.attachTo(it) }
         } else {
             // Full rebind + picture guard (a plain `playerView.player = p` could keep a stale surface).
-            // Binds as soon as this screen's surface exists; until then the stream keeps running on the preview's surface.
-            LivePreviewSession.attachTo(playerView)
+            if (playerView.isLaidOut && playerView.width > 0) LivePreviewSession.attachTo(playerView)
+            else { playerView.player = p; playerView.doOnLayout { LivePreviewSession.attachTo(playerView) } }
         }
         // Per user request: full-screen playback must stay full
         // colour — no controller overlay, no dimming.
@@ -2114,9 +2107,7 @@ open class PlayerActivity : AppCompatActivity() {
             }
             val host = videoView()
             if (host !== playerView) { if (host.player !== p) LivePreviewSession.attachTo(host) }
-            // NOT `playerView.player = p`: on first open this screen's surface does not exist yet, and binding to it
-            // early points the decoder at nothing (the pause on opening full screen). attachTo waits for the surface.
-            else if (playerView.player !== p) LivePreviewSession.attachTo(playerView)
+            else if (playerView.player !== p) playerView.player = p
             p.playWhenReady = true
             return
         }
@@ -2167,7 +2158,6 @@ open class PlayerActivity : AppCompatActivity() {
         controlsHideHandler.removeCallbacksAndMessages(null)
         clockHandler.removeCallbacksAndMessages(null)
         ReminderWatcher.detach(this)
-        if (overlayMode) LivePreviewSession.onHostLost = null
         // v2.16.29 — Drop the row from the launcher-admin Live tab
         // the moment the user leaves the player.
         tv.onnowtv.livetv.data.PresenceReporter.stop()

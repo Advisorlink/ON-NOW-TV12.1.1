@@ -276,8 +276,6 @@ fun RebornApp(activity: Activity, route: () -> String?, consumeRoute: () -> Unit
                             onSpeedTest = { HomePip.close(); TrailerPlayer.stop(); SpeedTest.show() }, onRefresh = askRefreshAll, onProfile = { stage = "profiles" })
                     } } }
                 }
-                // Live TV picture: one view above the pages, over the guide's preview window, growing in place for full screen.
-                LiveVideoHost()
                 // Mini player floats over every page (same spot as on Home) until something is played or Back closes it on Home.
                 LaunchedEffect(cur) { if (cur is Route.Live) HomePip.close() }
                 if (cur !is Route.Live) HomePipWindow(activity, onHome = cur is Route.Home && nav.stack.size == 1)

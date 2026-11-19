@@ -136,25 +136,17 @@ fun LiveTvScreen(activity: Activity, onLoad: () -> Unit) {
         val obs = LifecycleEventObserver { _, e ->
             when (e) {
                 Lifecycle.Event.ON_RESUME -> playerView?.let { v ->
-                    LiveVideoLayer.shrink()
                     LivePreviewSession.currentChannel?.let { ch -> if (ch.id != focused?.id) focused = ch; preview = ch }
-                    // Grown-in-place view still has the picture: leave it alone (re-binding would restart the decoder on some Fire TVs).
-                    if (LivePreviewSession.isAlive()) { if (!(LiveVideoLayer.enabled && v.player === LivePreviewSession.player())) LivePreviewSession.attachTo(v); LivePreviewSession.getOrCreate(ctx).playWhenReady = true }
+                    if (LivePreviewSession.isAlive()) { LivePreviewSession.attachTo(v); LivePreviewSession.getOrCreate(ctx).playWhenReady = true }
                     else preview?.let { LivePreviewSession.setChannel(ctx, it); LivePreviewSession.attachTo(v) }
                 }
-                Lifecycle.Event.ON_STOP -> playerView?.let {
-                    // The system hid this screen under the full-screen controls: they take the picture over themselves.
-                    if (LiveVideoLayer.grown) LivePreviewSession.hostLost()
-                    if (LivePreviewSession.isAlive()) LivePreviewSession.detachWithoutRelease(it)
-                }
+                Lifecycle.Event.ON_STOP -> playerView?.let { if (LivePreviewSession.isAlive()) LivePreviewSession.detachWithoutRelease(it) }
                 else -> {}
             }
         }
         owner.lifecycle.addObserver(obs)
         onDispose { owner.lifecycle.removeObserver(obs); LivePreviewSession.release() }
     }
-    DisposableEffect(Unit) { onDispose { LiveVideoLayer.rect = null; LiveVideoLayer.overlay = null; LiveVideoLayer.visible = false; LiveVideoLayer.obscured = false } }
-    SideEffect { LiveVideoLayer.obscured = gate != null }
     if (channels.isNotEmpty() && !sportMode) FocusOnShow(firstRow, catId)
 
     fun selectCategory(c: Category?) {
@@ -280,22 +272,6 @@ private fun LiveHero(ch: Channel?, previewCh: Channel?, favs: Set<String>, fmt: 
         Row(Modifier.align(Alignment.BottomStart).padding(start = side, bottom = 12.dp, end = side).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             val pShape = RoundedCornerShape(10.dp)
             Box(Modifier.width(prevW).height(prevH).clip(pShape).background(Color.Black).border(1.5.dp, Color.White.copy(alpha = 0.16f), pShape)) {
-                if (LiveVideoLayer.enabled) {
-                    // The picture is drawn by the app-level view sitting exactly over this window (see LiveVideoHost).
-                    val locals = currentCompositionLocalContext
-                    val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
-                    val bar = if (previewing) playingNow else now
-                    Box(Modifier.fillMaxSize().onGloballyPositioned { LiveVideoLayer.rect = it.boundsInRoot() })
-                    SideEffect {
-                        LiveVideoLayer.cornerPx = corner; LiveVideoLayer.visible = previewing
-                        LiveVideoLayer.overlay = { CompositionLocalProvider(locals) {
-                            Box(Modifier.fillMaxSize().border(1.5.dp, Color.White.copy(alpha = 0.16f), pShape))
-                            Box(Modifier.align(Alignment.TopStart).padding(8.dp)) { LiveBadge(true, big = true) }
-                            PreviewBar(bar, true, Modifier.align(Alignment.BottomCenter))
-                        } }
-                    }
-                    LaunchedEffect(LiveVideoLayer.view) { LiveVideoLayer.view?.let(onPlayerView) }
-                } else
                 AndroidView(factory = { c -> PlayerView(c).apply { useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM; setShutterBackgroundColor(android.graphics.Color.BLACK); onPlayerView(this) } }, modifier = Modifier.fillMaxSize())
                 if (!previewing) {
                     if (art != null) AsyncImage(art, now?.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)

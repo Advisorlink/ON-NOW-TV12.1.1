@@ -268,6 +268,12 @@ private fun LiveSettings() {
     var t by remember { mutableStateOf(0) }
     fun on(b: Boolean) = if (b) "On" else "Off"
     key(t) {
+        ActionRow("Reset all Live TV settings", "Puts the player, guide, remote and start-up choices back to how they come. Favourites, group order, hidden groups and your PIN are kept.", "Reset") {
+            Confirm.show("Reset Live TV settings?", "Every Live TV setting on this page goes back to its default. Favourites, group order, hidden groups and your PIN are kept.", "Reset", true) {
+                S.resetToDefaults(ctx); t++
+                android.widget.Toast.makeText(ctx, "Live TV settings reset", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
         SubHead("Player")
         val eng = tv.onnowtv.livetv.data.PlayerPrefs.getBackend(ctx)
         ActionRow("Video engine", "ExoPlayer is fastest; LibVLC plays unusual streams.", if (eng.token == "exo") "ExoPlayer" else "LibVLC") { tv.onnowtv.livetv.data.PlayerPrefs.setBackend(ctx, next(tv.onnowtv.livetv.data.PlayerPrefs.Backend.values().toList(), eng)); t++ }

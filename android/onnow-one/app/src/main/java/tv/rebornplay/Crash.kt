@@ -18,20 +18,6 @@ object Crash {
             runCatching { file.writeText(android.util.Log.getStackTraceString(e).take(12_000)) }
             previous?.uncaughtException(t, e)
         }
-        // Timing of each "open full screen" (no login details): lets slow starts on particular boxes be traced.
-        tv.onnowtv.livetv.LivePreviewSession.onHandover = { j ->
-            val body = j.put("version", BuildConfig.VERSION_NAME + "-" + BuildConfig.VERSION_CODE)
-                .put("device", android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " / Android " + android.os.Build.VERSION.RELEASE).toString().toByteArray()
-            Thread {
-                for (host in listOf(BuildConfig.DL_BASE, "https://rebrand-app-5.emergent.host").filter { it.isNotBlank() }) {
-                    val ok = runCatching {
-                        val c = (URL("$host/api/reborn/diag").openConnection() as HttpURLConnection).apply { requestMethod = "POST"; doOutput = true; connectTimeout = 8_000; readTimeout = 15_000; setRequestProperty("Content-Type", "application/json") }
-                        try { c.outputStream.use { it.write(body) }; c.responseCode in 200..299 } finally { c.disconnect() }
-                    }.getOrDefault(false)
-                    if (ok) break
-                }
-            }.start()
-        }
         if (file.exists()) Thread {
             val body = JSONObject().put("version", BuildConfig.VERSION_NAME + "-" + BuildConfig.VERSION_CODE)
                 .put("device", android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " / Android " + android.os.Build.VERSION.RELEASE)

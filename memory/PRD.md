@@ -1483,3 +1483,9 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - PlayerActivity: DPAD_DOWN on the bare picture opens it (not in catch-up, not when Settings "Up / Down while watching" = channels, which still zaps). Up/Down move (wraps), OK tunes, Back/Left/Right close, auto-hide 12 s. List = `PlaybackQueue.channels` (the category the channel was opened from). Controls bar is now reached with OK / Left / Right.
 - EPG for rows read from on-box guide files only (`stripEpg`), no network while scrolling.
 - 3.9.76-115: channel list keys now taken in PlayerActivity.dispatchKeyEvent (OK was reaching the focused view / controls).
+
+## Build 3.9.77-116 (Nov 19) — Live TV player handed back to the V2 code path (not device-tested)
+- User reported grow-in-place (build 113) = black screen. REMOVED: LiveVideoHost.kt, reborn_live_texture.xml, all LiveVideoLayer hooks. Do NOT retry the translucent LiveOverlayActivity on non-HK1 boxes.
+- LivePreviewSession.kt, LiveStore.kt, Crash.kt restored from 828b6603~1 (before any of this fork's full-screen "fixes"); PlayerActivity hand-over hunks restored to the same state (ChannelStrip kept). Full screen from the guide now = exactly V2 EpgActivity's non-HK1 path: opaque PlayerActivity + EXTRA_USE_SHARED_PLAYER.
+- The original Fire Stick ~10 s freeze in Reborn at that state is still UNEXPLAINED (V2 reportedly fine with the same module). Next step if it returns: get user to confirm V2 app version on the same box, compare Reborn LiveTvScreen preview lifecycle with V2 EpgActivity.onResume/onStop.
+- Settings → Live TV → "Reset all Live TV settings" (`Settings.resetToDefaults`): clears livetv_settings except group_order, hidden_groups, fav_order, last_channel_id, pin_for_settings; engine back to ExoPlayer.
