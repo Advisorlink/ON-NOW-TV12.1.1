@@ -135,7 +135,7 @@ class DockState(
 )
 
 /** An app built on this player can supply its own control bar; left null, the standard one is used. */
-object PlayerDockSkin { var dock: (@Composable (DockState) -> Unit)? = null }
+object PlayerDockSkin { var dock: (@Composable (DockState) -> Unit)? = null; var logo: (() -> String)? = null; var brand: String = "ON NOW TV V2" }
 
 data class TrackOption(val id: String, val label: String, val selected: Boolean)
 data class StreamOption(
@@ -345,7 +345,7 @@ fun PlayerOverlay(
             visible = showFullLoader,
             enter = fadeIn(tween(200)),
             exit  = fadeOut(tween(400)),
-        ) { LoadingScreen(info, error, logoUrlValue) }
+        ) { LoadingScreen(info, error, logoUrlValue.ifBlank { PlayerDockSkin.logo?.invoke().orEmpty() }) }
 
         // ── Mid-playback rebuffer: tiny corner spinner ─────────────
         AnimatedVisibility(
@@ -680,7 +680,7 @@ private fun LoadingScreen(info: PlayerInfo, error: String?, logoUrl: String = ""
                     Spacer(Modifier.height(20.dp))
                 }
                 Text(
-                    text = "NOW PLAYING · ON NOW TV V2",
+                    text = "NOW PLAYING · ${PlayerDockSkin.brand}",
                     color = CyanPrimary,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
@@ -741,7 +741,7 @@ private fun LoadingScreen(info: PlayerInfo, error: String?, logoUrl: String = ""
 private fun StatusLabel(error: String?) {
     // v2.7.44 — border + background removed per user request.  Just text.
     val text = if (error.isNullOrBlank()) {
-        "ON NOW TV V2 is loading your program"
+        "${PlayerDockSkin.brand} is loading your program"
     } else {
         "Could not start: $error"
     }

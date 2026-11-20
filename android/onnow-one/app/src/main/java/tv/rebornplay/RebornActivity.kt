@@ -49,7 +49,7 @@ class RebornActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Rebrand.install(application); Crash.install(application)
-        tv.vesper.app.PlayerDockSkin.dock = { RebornPlayerDock(it) }   // movies & shows get Reborn Play's own control bar
+        tv.vesper.app.PlayerDockSkin.dock = { RebornPlayerDock(it) }; tv.vesper.app.PlayerDockSkin.logo = { PlayerLogo.url }; tv.vesper.app.PlayerDockSkin.brand = "REBORN PLAY"   // movies & shows get Reborn Play's own control bar
         Lockdown.enforce(this)
         // Same as V2: release builds block OS screenshots / screen recording / cast mirroring (HDMI output is unaffected).
         if (!tv.vesper.app.BuildConfig.DEBUG) window.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)

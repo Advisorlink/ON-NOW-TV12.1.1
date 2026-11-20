@@ -109,20 +109,20 @@ fun RebornPlayerDock(st: DockState) {
 
             // ── title logo · synopsis · year / runtime / quality
             Column(Modifier.padding(start = d(47f))) {
-                Box(Modifier.width(d(520f)).height(d(100f)), contentAlignment = Alignment.BottomStart) {
+                Box(Modifier.width(d(640f)).height(d(132f)), contentAlignment = Alignment.BottomStart) {
                     if (logo.isNotBlank()) AsyncImage(logo, st.info.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit, alignment = Alignment.BottomStart)
-                    else Text(st.info.title.uppercase(), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Black, fontSize = f(54f), lineHeight = f(60f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    else Text(st.info.title.uppercase(), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Black, fontSize = f(64f), lineHeight = f(70f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (st.info.synopsis.isNotBlank()) Text(st.info.synopsis, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(19f), lineHeight = f(28f), maxLines = 3, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = d(18f)).width(d(660f)))
+                if (st.info.synopsis.isNotBlank()) Text(st.info.synopsis, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(22f), lineHeight = f(32f), maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = d(20f)).width(d(720f)))
                 Row(Modifier.padding(top = d(14f)), verticalAlignment = Alignment.CenterVertically) {
                     val meta = listOfNotNull(st.info.year.takeIf { it.isNotBlank() }, st.info.runtime.takeIf { it.isNotBlank() }?.let { "Runtime $it" }).joinToString("  ·  ")
-                    if (meta.isNotBlank()) { Text(meta, color = Color(0xFFE8EBF0), fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(17f), maxLines = 1); Spacer(Modifier.width(d(12f))) }
+                    if (meta.isNotBlank()) { Text(meta, color = Color(0xFFE8EBF0), fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(20f), maxLines = 1); Spacer(Modifier.width(d(12f))) }
                     val src = (st.info.quality + " " + (st.streams.firstOrNull { it.selected }?.let { it.label + " " + it.quality } ?: "")).lowercase()
                     val q = when { "2160" in src || "4k" in src || "uhd" in src -> "4K"; "1080" in src -> "FULL HD"; "720" in src -> "HD"; else -> null }
                     val hdr = when { "dolby vision" in src || Regex("\\b(dv|dovi)\\b").containsMatchIn(src) -> "DOLBY VISION"; "hdr" in src -> "HDR"; else -> null }
                     listOfNotNull(q, hdr).forEach {
-                        Text(it, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = f(14f), letterSpacing = f(1.1f), maxLines = 1,
+                        Text(it, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = f(16f), letterSpacing = f(1.2f), maxLines = 1,
                             modifier = Modifier.padding(end = d(8f)).border(d(1.8f), Color.White.copy(alpha = 0.9f), RoundedCornerShape(d(8f))).padding(horizontal = d(9f), vertical = d(4f)))
                     }
                 }
@@ -133,8 +133,8 @@ fun RebornPlayerDock(st: DockState) {
                 val dur = st.durationMs.coerceAtLeast(1L)
                 val shown = pending ?: st.positionMs
                 var barOn by remember { mutableStateOf(false) }
-                Text(clock(shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(18f), maxLines = 1, modifier = Modifier.widthIn(min = d(62f)))
-                BoxWithConstraints(Modifier.weight(1f).height(d(30f)).onFocusChanged { barOn = it.isFocused }.focusable().onKeyEvent { e ->
+                Text(clock(shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(21f), maxLines = 1, modifier = Modifier.widthIn(min = d(72f)))
+                BoxWithConstraints(Modifier.weight(1f).height(d(34f)).onFocusChanged { barOn = it.isFocused }.focusable().onKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                     when (e.key) {
                         Key.DirectionLeft, Key.DirectionRight -> {
@@ -147,24 +147,24 @@ fun RebornPlayerDock(st: DockState) {
                     }
                 }, contentAlignment = Alignment.CenterStart) {
                     val frac = (shown.toFloat() / dur).coerceIn(0f, 1f)
-                    val thumb = d(if (barOn) 26f else 20f)
-                    Box(Modifier.fillMaxWidth().height(d(7f)).clip(CircleShape).background(Color.White.copy(alpha = 0.34f))) {
+                    val thumb = d(if (barOn) 30f else 24f)
+                    Box(Modifier.fillMaxWidth().height(d(8f)).clip(CircleShape).background(Color.White.copy(alpha = 0.34f))) {
                         Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(if (barOn) Blue else Color.White))
                     }
                     Box(Modifier.offset(x = ((maxWidth - thumb) * frac)).size(thumb).clip(CircleShape).background(Color.White).then(if (barOn) Modifier.border(d(3f), Blue, CircleShape) else Modifier))
                 }
-                Text("-" + clock(st.durationMs - shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(18f), maxLines = 1,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.widthIn(min = d(90f)))
+                Text("-" + clock(st.durationMs - shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(21f), maxLines = 1,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.widthIn(min = d(104f)))
             }
 
             // ── controls
-            Row(Modifier.fillMaxWidth().padding(start = d(50f), end = d(50f), top = d(14f)).height(d(90f)), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = d(50f), end = d(50f), top = d(16f)).height(d(104f)), verticalAlignment = Alignment.CenterVertically) {
                 Round(Icons.Filled.Replay, "10m", u) { st.onSeekBy(-600_000L) }
                 Spacer(Modifier.width(d(12f)))
                 var playOn by remember { mutableStateOf(false) }
-                Box(Modifier.size(d(90f)).then(if (playOn) Modifier.border(d(3f), Blue, CircleShape) else Modifier).padding(d(6f)).clip(CircleShape).background(Color(0xFFF4FBFF))
+                Box(Modifier.size(d(104f)).then(if (playOn) Modifier.border(d(3f), Blue, CircleShape) else Modifier).padding(d(6f)).clip(CircleShape).background(Color(0xFFF4FBFF))
                     .focusRequester(playFocus).onFocusChanged { playOn = it.isFocused }.focusable().onOk(st.onPlayPause), contentAlignment = Alignment.Center) {
-                    Icon(if (st.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (st.isPlaying) "Pause" else "Play", tint = Ink, modifier = Modifier.size(d(42f)))
+                    Icon(if (st.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (st.isPlaying) "Pause" else "Play", tint = Ink, modifier = Modifier.size(d(48f)))
                 }
                 Spacer(Modifier.width(d(12f)))
                 Round(Icons.Filled.Refresh, "10m", u) { st.onSeekBy(600_000L) }
@@ -192,7 +192,7 @@ fun RebornPlayerDock(st: DockState) {
 /** Round outlined button; [caption] sits under a smaller icon (the 10m skips). Highlight = blue outline. */
 @Composable
 private fun Round(icon: ImageVector, caption: String?, u0: Float, onClick: () -> Unit) {
-    val u = u0 * 0.68f   // controls are drawn smaller than the design mock-up, in line with the rest of the app
+    val u = u0 * 0.78f   // controls are drawn smaller than the design mock-up, in line with the rest of the app
     var on by remember { mutableStateOf(false) }
     Box(Modifier.size((94 * u).dp).btn(on, u).onFocusChanged { on = it.isFocused }.focusable().onOk(onClick), contentAlignment = Alignment.Center) {
         if (caption == null) Icon(icon, null, tint = Color.White, modifier = Modifier.size((44 * u).dp))
@@ -205,7 +205,7 @@ private fun Round(icon: ImageVector, caption: String?, u0: Float, onClick: () ->
 
 @Composable
 private fun Pill(icon: ImageVector, label: String, u0: Float, onClick: () -> Unit) {
-    val u = u0 * 0.68f   // controls are drawn smaller than the design mock-up, in line with the rest of the app
+    val u = u0 * 0.78f   // controls are drawn smaller than the design mock-up, in line with the rest of the app
     var on by remember { mutableStateOf(false) }
     Row(Modifier.height((94 * u).dp).btn(on, u).onFocusChanged { on = it.isFocused }.focusable().onOk(onClick)
         .padding(start = (28 * u).dp, end = (30 * u).dp), verticalAlignment = Alignment.CenterVertically) {
@@ -218,7 +218,7 @@ private fun Pill(icon: ImageVector, label: String, u0: Float, onClick: () -> Uni
 /** Speaker button + level. OK on the speaker switches the level on: then Left / Right change the volume, OK again to finish. */
 @Composable
 private fun Volume(ctx: Context, u0: Float, onActivity: () -> Unit) {
-    val u = u0 * 0.68f   // controls are drawn smaller than the design mock-up, in line with the rest of the app
+    val u = u0 * 0.78f   // controls are drawn smaller than the design mock-up, in line with the rest of the app
     val am = remember { ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val max = remember { am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
     var level by remember { mutableStateOf(am.getStreamVolume(AudioManager.STREAM_MUSIC)) }

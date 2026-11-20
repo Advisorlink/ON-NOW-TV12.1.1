@@ -1505,3 +1505,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - 120: `ChannelStrip.kt` rebuilt to the "Slim Icons" mock-up (1913-px design units): left fade, LIVE TV header + "n of N", rows = white logo tile + "CH n · NAME" + programme + gold progress, highlighted row 4th from top in a glass outline; info card (art with "NOW ON" + title overlaid, synopsis, bar, start / "31m left" / end, UP NEXT + time); LIVE + clock pills top right; playing title bottom right; key hints bottom left. Gold accent as in the mock-up.
 - 121: `RebornPlayerDock` rebuilt to the Ocean's Eleven mock-up (1890-px units): no panel; soft black scrim left + bottom; big logo, 6-line synopsis, year · Runtime + quality badge; white scrubber; outlined round buttons, white play, volume; highlight = blue outline only (no glow).
 - 3.9.83-122: VOD player controls/text scaled to ~68% of the mock-up (user: far too big); synopsis 3 lines.
+
+## Build 3.9.85-124 (Nov 20) — not device-tested
+- VOD player bar ~15 % bigger than build 122 (button scale 0.78, logo box 640×132, synopsis 22).
+- VOD loading screen: title logo now shows for Reborn (`PlayerDockSkin.logo` → `PlayerLogo.url`). FOUND + FIXED: loading screen text said "ON NOW TV V2" (Compose text, not caught by Rebrand's TextView walker) → `PlayerDockSkin.brand = "REBORN PLAY"`. Other Compose text in shared vesper-tv screens may still carry old branding — audit pending.
+- Live player: "FIX NO AUDIO" gradient pill next to Swap Back (`addFixAudioButton`). Switches this channel to LibVLC without saving the setting (`audioFixOn`); next tuneTo or leaving the player returns to the saved engine. Hidden when engine already LibVLC or in catch-up.

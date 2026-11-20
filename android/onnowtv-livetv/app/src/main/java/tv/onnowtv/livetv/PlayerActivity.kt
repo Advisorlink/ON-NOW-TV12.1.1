@@ -676,7 +676,37 @@ open class PlayerActivity : AppCompatActivity() {
     /** Tear down the active backend, build the other one, and
      *  re-tune the current channel — all without leaving the
      *  activity or dismissing the overlay. */
-    private fun switchBackend(newBackend: PlayerPrefs.Backend) {
+    // "Fix no audio": this channel only is played with LibVLC; the next channel (or leaving the player) goes back to the chosen engine.
+    private var audioFixOn = false
+    private var btnFixAudio: android.widget.TextView? = null
+    private fun addFixAudioButton() {
+        val row = btnSwap.parent as? android.view.ViewGroup ?: return
+        val d = resources.displayMetrics.density
+        fun face(focused: Boolean) = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xFF2F6BFF.toInt(), 0xFF7A3CFF.toInt())).apply {
+            cornerRadius = 100f * d; if (focused) setStroke((2.5f * d).toInt(), android.graphics.Color.WHITE) }
+        val b = android.widget.TextView(this).apply {
+            text = "♪  FIX NO AUDIO"; setTextColor(android.graphics.Color.WHITE); textSize = 12f; typeface = android.graphics.Typeface.DEFAULT_BOLD; letterSpacing = 0.08f
+            setPadding((18 * d).toInt(), (11 * d).toInt(), (18 * d).toInt(), (11 * d).toInt())
+            isFocusable = true; isClickable = true; tag = "player-fix-audio"
+            background = face(false)
+            setOnFocusChangeListener { v, f -> v.background = face(f); v.scaleX = if (f) 1.06f else 1f; v.scaleY = if (f) 1.06f else 1f; if (f) bumpControlsHide() }
+            setOnClickListener {
+                if (backend != PlayerPrefs.Backend.VLC) {
+                    audioFixOn = true
+                    switchBackend(PlayerPrefs.Backend.VLC)
+                    android.widget.Toast.makeText(this@PlayerActivity, "Audio fix on for this channel", android.widget.Toast.LENGTH_SHORT).show()
+                    refreshFixAudio(); btnPlayPause.requestFocus()
+                }
+                bumpControlsHide()
+            }
+        }
+        row.addView(b, row.indexOfChild(btnSwap) + 1, android.widget.LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (14 * d).toInt() })
+        btnFixAudio = b
+        refreshFixAudio()
+    }
+    private fun refreshFixAudio() { btnFixAudio?.visibility = if (catchUp || backend == PlayerPrefs.Backend.VLC) View.GONE else View.VISIBLE }
+
+    private fun switchBackend(newBackend: PlayerPrefs.Backend, retune: Boolean = true) {
         if (playbackBlocked()) return
         if (newBackend == backend) return
         status.text = "Switching player…"
@@ -709,6 +739,8 @@ open class PlayerActivity : AppCompatActivity() {
             playerView.visibility = View.VISIBLE
             buildPlayer()
         }
+        refreshFixAudio()
+        if (!retune) return
         val ch = currentChannel ?: return
         status.text = "Tuning…"
         val url = tv.onnowtv.livetv.data.AuthStore.rewriteStreamUrl(this, ch.streamUrl)
@@ -790,6 +822,7 @@ open class PlayerActivity : AppCompatActivity() {
      */
     private fun tuneTo(channel: Channel, initial: Boolean = false) {
         if (playbackBlocked()) return
+        if (audioFixOn && !initial) { audioFixOn = false; switchBackend(PlayerPrefs.getBackend(this), retune = false) }
         // v2.18.0 — Companion now-playing refresh on every zap.
         if (!initial) broadcastNowPlaying(channel)
         // v2.16.9 — SWAP BACK memory lives in a process-scoped
@@ -1305,6 +1338,7 @@ open class PlayerActivity : AppCompatActivity() {
         btnChUp.setOnClickListener { channelStep(forward = true); bumpControlsHide() }
         btnChDown.setOnClickListener { channelStep(forward = false); bumpControlsHide() }
         btnSwap.setOnClickListener { if (catchUp) jumpToKickoff() else swapToPreviousChannel(); bumpControlsHide() }
+        addFixAudioButton()
         btnFavorite.setOnClickListener { toggleFavorite(); bumpControlsHide() }
         // Legacy aspect/info buttons live as hidden 0×0 views so we
         // don't break old code paths, but they no longer receive
