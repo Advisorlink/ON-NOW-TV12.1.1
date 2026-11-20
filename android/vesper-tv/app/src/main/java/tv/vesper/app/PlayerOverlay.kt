@@ -125,6 +125,18 @@ data class PlayerInfo(
     val poster: String = "",
 )
 
+/** Everything a replacement control bar needs (see [PlayerDockSkin]). */
+class DockState(
+    val info: PlayerInfo, val logoUrl: String, val isPlaying: Boolean, val positionMs: Long, val durationMs: Long, val bufferedMs: Long,
+    val audios: List<TrackOption>, val subs: List<TrackOption>, val streams: List<StreamOption>, val hasNextEp: Boolean,
+    val onPlayPause: () -> Unit, val onSeekBy: (Long) -> Unit, val onSeekTo: (Long) -> Unit,
+    val onAudio: () -> Unit, val onSubs: () -> Unit, val onInfo: () -> Unit, val onSettings: () -> Unit, val onAspect: () -> Unit,
+    val onNextEp: () -> Unit, val onActivity: () -> Unit,
+)
+
+/** An app built on this player can supply its own control bar; left null, the standard one is used. */
+object PlayerDockSkin { var dock: (@Composable (DockState) -> Unit)? = null }
+
 data class TrackOption(val id: String, val label: String, val selected: Boolean)
 data class StreamOption(
     val idx: Int,
@@ -361,6 +373,15 @@ fun PlayerOverlay(
             exit     = fadeOut(tween(280)),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
+            val skin = PlayerDockSkin.dock
+            if (skin != null) skin(DockState(
+                info = info, logoUrl = logoUrlValue, isPlaying = playing, positionMs = pos, durationMs = dur, bufferedMs = pos + bufAhead,
+                audios = audios, subs = subs, streams = streamList, hasNextEp = hasNext,
+                onPlayPause = { bump(); onPlayPause() }, onSeekBy = { dt -> bump(); onSeekBy(dt) }, onSeekTo = { t -> bump(); onSeekTo(t) },
+                onAudio = { bump(); sheet = SheetKind.Audio }, onSubs = { bump(); sheet = SheetKind.Subs }, onInfo = { bump(); sheet = SheetKind.Info },
+                onSettings = { bump(); sheet = SheetKind.Engine }, onAspect = { bump(); sheet = SheetKind.Aspect },
+                onNextEp = { bump(); onNextEpisode() }, onActivity = bump,
+            )) else
             ControlDock(
                 info        = info,
                 isPlaying   = playing,
@@ -480,7 +501,7 @@ fun PlayerOverlay(
         // Rides in/out with the rest of the overlay (`dockVisible`),
         // stays focus-reachable from the dock via D-pad UP.
         AnimatedVisibility(
-            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None,
+            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None && PlayerDockSkin.dock == null,
             enter    = fadeIn(tween(220)),
             exit     = fadeOut(tween(280)),
             modifier = Modifier
@@ -518,7 +539,7 @@ fun PlayerOverlay(
         // active engine's video-surface aspect between Fit / Fill /
         // Zoom / Stretch through the AspectPickerSheet.
         AnimatedVisibility(
-            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None,
+            visible  = !inParty && !showFullLoader && dockVisible && sheet == SheetKind.None && PlayerDockSkin.dock == null,
             enter    = fadeIn(tween(220)),
             exit     = fadeOut(tween(280)),
             modifier = Modifier

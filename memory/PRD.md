@@ -1490,3 +1490,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - The original Fire Stick ~10 s freeze in Reborn at that state is still UNEXPLAINED (V2 reportedly fine with the same module). Next step if it returns: get user to confirm V2 app version on the same box, compare Reborn LiveTvScreen preview lifecycle with V2 EpgActivity.onResume/onStop.
 - Settings → Live TV → "Reset all Live TV settings" (`Settings.resetToDefaults`): clears livetv_settings except group_order, hidden_groups, fav_order, last_channel_id, pin_for_settings; engine back to ExoPlayer.
 - 3.9.78-117: side disc stops turning while a trailer is playing (per-frame redraw made trailers stutter); resumes when the trailer ends. Not device-tested.
+
+## Build 3.9.79-118 (Nov 20) — Reborn's own VOD control bar (not device-tested / not rendered)
+- Hook in shared vesper-tv `PlayerOverlay.kt`: `PlayerDockSkin.dock` + `DockState`; null in Vesper (its look unchanged). When set, replaces ControlDock and hides the two corner cogs.
+- `tv/rebornplay/PlayerDock.kt` `RebornPlayerDock`: glass panel sized in 1968-px design units from the user's mock-up (logo, synopsis, year·Runtime·rating, quality/HDR badges, gold scrubber, ±10m, cream play, volume, Subs, Audio·layout, info, settings→engine sheet, fullscreen→aspect sheet, Next episode pill). Registered in RebornActivity.onCreate.
+- Not real blur (video is on a SurfaceView); pop-up sheets (audio/subs/info/engine/aspect) and loading screen still shared Vesper style. Volume control hidden effect on fixed-volume boxes (uses AudioManager only).
