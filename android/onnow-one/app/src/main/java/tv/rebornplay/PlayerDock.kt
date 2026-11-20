@@ -105,36 +105,36 @@ fun RebornPlayerDock(st: DockState) {
             val cy = size.height * 0.58f
             scale(1.9f, 1f, Offset(0f, cy)) { drawCircle(Brush.radialGradient(0f to Color.Black.copy(alpha = 0.80f), 0.55f to Color.Black.copy(alpha = 0.50f), 1f to Color.Transparent, center = Offset(0f, cy), radius = cy), cy, Offset(0f, cy)) }
             drawRect(Brush.verticalGradient(0.55f to Color.Transparent, 0.8f to Color.Black.copy(alpha = 0.55f), 1f to Color.Black.copy(alpha = 0.85f)))
-        }.padding(top = d(150f), bottom = d(34f))) {
+        }.padding(top = d(110f), bottom = d(26f))) {
 
             // ── title logo · synopsis · year / runtime / quality
             Column(Modifier.padding(start = d(47f))) {
-                Box(Modifier.width(d(650f)).height(d(120f)), contentAlignment = Alignment.BottomStart) {
+                Box(Modifier.width(d(520f)).height(d(100f)), contentAlignment = Alignment.BottomStart) {
                     if (logo.isNotBlank()) AsyncImage(logo, st.info.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit, alignment = Alignment.BottomStart)
-                    else Text(st.info.title.uppercase(), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Black, fontSize = f(72f), lineHeight = f(78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    else Text(st.info.title.uppercase(), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Black, fontSize = f(54f), lineHeight = f(60f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (st.info.synopsis.isNotBlank()) Text(st.info.synopsis, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(27f), lineHeight = f(42f), maxLines = 6, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = d(30f)).width(d(560f)))
-                Row(Modifier.padding(top = d(24f)), verticalAlignment = Alignment.CenterVertically) {
+                if (st.info.synopsis.isNotBlank()) Text(st.info.synopsis, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(19f), lineHeight = f(28f), maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = d(18f)).width(d(660f)))
+                Row(Modifier.padding(top = d(14f)), verticalAlignment = Alignment.CenterVertically) {
                     val meta = listOfNotNull(st.info.year.takeIf { it.isNotBlank() }, st.info.runtime.takeIf { it.isNotBlank() }?.let { "Runtime $it" }).joinToString("  ·  ")
-                    if (meta.isNotBlank()) { Text(meta, color = Color(0xFFE8EBF0), fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(25f), maxLines = 1); Spacer(Modifier.width(d(16f))) }
+                    if (meta.isNotBlank()) { Text(meta, color = Color(0xFFE8EBF0), fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(17f), maxLines = 1); Spacer(Modifier.width(d(12f))) }
                     val src = (st.info.quality + " " + (st.streams.firstOrNull { it.selected }?.let { it.label + " " + it.quality } ?: "")).lowercase()
                     val q = when { "2160" in src || "4k" in src || "uhd" in src -> "4K"; "1080" in src -> "FULL HD"; "720" in src -> "HD"; else -> null }
                     val hdr = when { "dolby vision" in src || Regex("\\b(dv|dovi)\\b").containsMatchIn(src) -> "DOLBY VISION"; "hdr" in src -> "HDR"; else -> null }
                     listOfNotNull(q, hdr).forEach {
-                        Text(it, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = f(20f), letterSpacing = f(1.6f), maxLines = 1,
-                            modifier = Modifier.padding(end = d(10f)).border(d(2.5f), Color.White.copy(alpha = 0.9f), RoundedCornerShape(d(12f))).padding(horizontal = d(13f), vertical = d(6f)))
+                        Text(it, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = f(14f), letterSpacing = f(1.1f), maxLines = 1,
+                            modifier = Modifier.padding(end = d(8f)).border(d(1.8f), Color.White.copy(alpha = 0.9f), RoundedCornerShape(d(8f))).padding(horizontal = d(9f), vertical = d(4f)))
                     }
                 }
             }
 
             // ── scrubber
-            Row(Modifier.fillMaxWidth().padding(start = d(62f), end = d(60f), top = d(86f)), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = d(50f), end = d(50f), top = d(36f)), verticalAlignment = Alignment.CenterVertically) {
                 val dur = st.durationMs.coerceAtLeast(1L)
                 val shown = pending ?: st.positionMs
                 var barOn by remember { mutableStateOf(false) }
-                Text(clock(shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(26f), maxLines = 1, modifier = Modifier.widthIn(min = d(86f)))
-                BoxWithConstraints(Modifier.weight(1f).height(d(44f)).onFocusChanged { barOn = it.isFocused }.focusable().onKeyEvent { e ->
+                Text(clock(shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(18f), maxLines = 1, modifier = Modifier.widthIn(min = d(62f)))
+                BoxWithConstraints(Modifier.weight(1f).height(d(30f)).onFocusChanged { barOn = it.isFocused }.focusable().onKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                     when (e.key) {
                         Key.DirectionLeft, Key.DirectionRight -> {
@@ -147,42 +147,42 @@ fun RebornPlayerDock(st: DockState) {
                     }
                 }, contentAlignment = Alignment.CenterStart) {
                     val frac = (shown.toFloat() / dur).coerceIn(0f, 1f)
-                    val thumb = d(if (barOn) 40f else 34f)
-                    Box(Modifier.fillMaxWidth().height(d(12f)).clip(CircleShape).background(Color.White.copy(alpha = 0.34f))) {
+                    val thumb = d(if (barOn) 26f else 20f)
+                    Box(Modifier.fillMaxWidth().height(d(7f)).clip(CircleShape).background(Color.White.copy(alpha = 0.34f))) {
                         Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(if (barOn) Blue else Color.White))
                     }
-                    Box(Modifier.offset(x = ((maxWidth - thumb) * frac)).size(thumb).clip(CircleShape).background(Color.White).then(if (barOn) Modifier.border(d(4f), Blue, CircleShape) else Modifier))
+                    Box(Modifier.offset(x = ((maxWidth - thumb) * frac)).size(thumb).clip(CircleShape).background(Color.White).then(if (barOn) Modifier.border(d(3f), Blue, CircleShape) else Modifier))
                 }
-                Text("-" + clock(st.durationMs - shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(26f), maxLines = 1,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.widthIn(min = d(124f)))
+                Text("-" + clock(st.durationMs - shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(18f), maxLines = 1,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.widthIn(min = d(90f)))
             }
 
             // ── controls
-            Row(Modifier.fillMaxWidth().padding(start = d(62f), end = d(60f), top = d(30f)).height(d(134f)), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = d(50f), end = d(50f), top = d(14f)).height(d(90f)), verticalAlignment = Alignment.CenterVertically) {
                 Round(Icons.Filled.Replay, "10m", u) { st.onSeekBy(-600_000L) }
-                Spacer(Modifier.width(d(18f)))
+                Spacer(Modifier.width(d(12f)))
                 var playOn by remember { mutableStateOf(false) }
-                Box(Modifier.size(d(134f)).then(if (playOn) Modifier.border(d(4f), Blue, CircleShape) else Modifier).padding(d(8f)).clip(CircleShape).background(Color(0xFFF4FBFF))
+                Box(Modifier.size(d(90f)).then(if (playOn) Modifier.border(d(3f), Blue, CircleShape) else Modifier).padding(d(6f)).clip(CircleShape).background(Color(0xFFF4FBFF))
                     .focusRequester(playFocus).onFocusChanged { playOn = it.isFocused }.focusable().onOk(st.onPlayPause), contentAlignment = Alignment.Center) {
-                    Icon(if (st.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (st.isPlaying) "Pause" else "Play", tint = Ink, modifier = Modifier.size(d(62f)))
+                    Icon(if (st.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (st.isPlaying) "Pause" else "Play", tint = Ink, modifier = Modifier.size(d(42f)))
                 }
-                Spacer(Modifier.width(d(18f)))
+                Spacer(Modifier.width(d(12f)))
                 Round(Icons.Filled.Refresh, "10m", u) { st.onSeekBy(600_000L) }
-                Spacer(Modifier.width(d(18f)))
+                Spacer(Modifier.width(d(12f)))
                 Volume(ctx, u, st.onActivity)
                 Spacer(Modifier.weight(1f))
-                if (st.hasNextEp) { Pill(Icons.Filled.SkipNext, "Next episode", u, st.onNextEp); Spacer(Modifier.width(d(18f))) }
+                if (st.hasNextEp) { Pill(Icons.Filled.SkipNext, "Next episode", u, st.onNextEp); Spacer(Modifier.width(d(12f))) }
                 Pill(Icons.Outlined.ClosedCaption, "Subs", u, st.onSubs)
-                Spacer(Modifier.width(d(18f)))
+                Spacer(Modifier.width(d(12f)))
                 val layout = st.audios.firstOrNull { it.selected }?.label.orEmpty().lowercase().let { l ->
                     when { "atmos" in l -> "Atmos"; "7.1" in l -> "7.1"; "5.1" in l || "6ch" in l || "6 ch" in l -> "5.1"; "stereo" in l || "2.0" in l || "2ch" in l -> "Stereo"; else -> null }
                 }
                 Pill(Icons.Filled.MusicNote, if (layout != null) "Audio · $layout" else "Audio", u, st.onAudio)
-                Spacer(Modifier.width(d(18f)))
+                Spacer(Modifier.width(d(12f)))
                 Round(Icons.Outlined.Info, null, u, st.onInfo)
-                Spacer(Modifier.width(d(18f)))
+                Spacer(Modifier.width(d(12f)))
                 Round(Icons.Filled.Settings, null, u, st.onSettings)
-                Spacer(Modifier.width(d(18f)))
+                Spacer(Modifier.width(d(12f)))
                 Round(Icons.Filled.Fullscreen, null, u, st.onAspect)
             }
         }
@@ -191,7 +191,8 @@ fun RebornPlayerDock(st: DockState) {
 
 /** Round outlined button; [caption] sits under a smaller icon (the 10m skips). Highlight = blue outline. */
 @Composable
-private fun Round(icon: ImageVector, caption: String?, u: Float, onClick: () -> Unit) {
+private fun Round(icon: ImageVector, caption: String?, u0: Float, onClick: () -> Unit) {
+    val u = u0 * 0.68f   // controls are drawn smaller than the design mock-up, in line with the rest of the app
     var on by remember { mutableStateOf(false) }
     Box(Modifier.size((94 * u).dp).btn(on, u).onFocusChanged { on = it.isFocused }.focusable().onOk(onClick), contentAlignment = Alignment.Center) {
         if (caption == null) Icon(icon, null, tint = Color.White, modifier = Modifier.size((44 * u).dp))
@@ -203,7 +204,8 @@ private fun Round(icon: ImageVector, caption: String?, u: Float, onClick: () -> 
 }
 
 @Composable
-private fun Pill(icon: ImageVector, label: String, u: Float, onClick: () -> Unit) {
+private fun Pill(icon: ImageVector, label: String, u0: Float, onClick: () -> Unit) {
+    val u = u0 * 0.68f   // controls are drawn smaller than the design mock-up, in line with the rest of the app
     var on by remember { mutableStateOf(false) }
     Row(Modifier.height((94 * u).dp).btn(on, u).onFocusChanged { on = it.isFocused }.focusable().onOk(onClick)
         .padding(start = (28 * u).dp, end = (30 * u).dp), verticalAlignment = Alignment.CenterVertically) {
@@ -215,7 +217,8 @@ private fun Pill(icon: ImageVector, label: String, u: Float, onClick: () -> Unit
 
 /** Speaker button + level. OK on the speaker switches the level on: then Left / Right change the volume, OK again to finish. */
 @Composable
-private fun Volume(ctx: Context, u: Float, onActivity: () -> Unit) {
+private fun Volume(ctx: Context, u0: Float, onActivity: () -> Unit) {
+    val u = u0 * 0.68f   // controls are drawn smaller than the design mock-up, in line with the rest of the app
     val am = remember { ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val max = remember { am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
     var level by remember { mutableStateOf(am.getStreamVolume(AudioManager.STREAM_MUSIC)) }
