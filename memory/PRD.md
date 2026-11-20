@@ -1495,3 +1495,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Hook in shared vesper-tv `PlayerOverlay.kt`: `PlayerDockSkin.dock` + `DockState`; null in Vesper (its look unchanged). When set, replaces ControlDock and hides the two corner cogs.
 - `tv/rebornplay/PlayerDock.kt` `RebornPlayerDock`: glass panel sized in 1968-px design units from the user's mock-up (logo, synopsis, year·Runtime·rating, quality/HDR badges, gold scrubber, ±10m, cream play, volume, Subs, Audio·layout, info, settings→engine sheet, fullscreen→aspect sheet, Next episode pill). Registered in RebornActivity.onCreate.
 - Not real blur (video is on a SurfaceView); pop-up sheets (audio/subs/info/engine/aspect) and loading screen still shared Vesper style. Volume control hidden effect on fixed-volume boxes (uses AudioManager only).
+
+## Build 3.9.80-119 (Nov 20) — VOD player bar v2 (user: v1 "way too big", no logo, buttons dead)
+- Bar ~26 % of screen height (was ~41 %), app palette (navy glass, blue accent + blueGlow, gloss sheen) instead of gold/cream.
+- Buttons act on OK key-DOWN (key-up never reached them in ExoPlayerActivity).
+- Logo: Reborn item ids are provider ids, not IMDb, so the shared player's logo fetch never ran. `PlayerLogo.load` (PlayerDock.kt, called from launchPlayer): item.logo → cached → TMDB search by name/type/year → /api/tmdb/imdb → /api/tmdb/logo. Not device-tested.
