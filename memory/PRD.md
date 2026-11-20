@@ -1500,3 +1500,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Bar ~26 % of screen height (was ~41 %), app palette (navy glass, blue accent + blueGlow, gloss sheen) instead of gold/cream.
 - Buttons act on OK key-DOWN (key-up never reached them in ExoPlayerActivity).
 - Logo: Reborn item ids are provider ids, not IMDb, so the shared player's logo fetch never ran. `PlayerLogo.load` (PlayerDock.kt, called from launchPlayer): item.logo → cached → TMDB search by name/type/year → /api/tmdb/imdb → /api/tmdb/logo. Not device-tested.
+
+## Builds 3.9.81-120 / 3.9.82-121 (Nov 20) — from user mock-ups, not rendered / not device-tested
+- 120: `ChannelStrip.kt` rebuilt to the "Slim Icons" mock-up (1913-px design units): left fade, LIVE TV header + "n of N", rows = white logo tile + "CH n · NAME" + programme + gold progress, highlighted row 4th from top in a glass outline; info card (art with "NOW ON" + title overlaid, synopsis, bar, start / "31m left" / end, UP NEXT + time); LIVE + clock pills top right; playing title bottom right; key hints bottom left. Gold accent as in the mock-up.
+- 121: `RebornPlayerDock` rebuilt to the Ocean's Eleven mock-up (1890-px units): no panel; soft black scrim left + bottom; big logo, 6-line synopsis, year · Runtime + quality badge; white scrubber; outlined round buttons, white play, volume; highlight = blue outline only (no glow).

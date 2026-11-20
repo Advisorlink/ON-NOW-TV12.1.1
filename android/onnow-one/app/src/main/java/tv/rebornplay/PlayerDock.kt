@@ -18,6 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -78,14 +81,17 @@ private fun Modifier.onOk(action: () -> Unit) = onKeyEvent { e ->
     if (e.key == Key.Enter || e.key == Key.DirectionCenter || e.key == Key.NumPadEnter) { if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) action(); true } else false
 }
 
+private val Face = Color(0x66060B14)                       // dark see-through button face
+private val Edge = Color.White.copy(alpha = 0.38f)
+private fun Modifier.btn(on: Boolean, u: Float) = clip(CircleShape).background(Face).border((if (on) 4f else 2.5f).times(u).dp, if (on) Blue else Edge, CircleShape)
+
 @Composable
 fun RebornPlayerDock(st: DockState) {
     val ctx = LocalContext.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val u = maxWidth.value / 1968f                 // every size below is in pixels of the 1968-wide design
+        val u = maxWidth.value / 1890f                 // every size below is in pixels of the 1890-wide design
         fun d(px: Float): Dp = (px * u).dp
         fun f(px: Float) = (px * u).sp
-        val panel = RoundedCornerShape(d(30f))
         val logo = st.logoUrl.ifBlank { PlayerLogo.url }
         val playFocus = remember { FocusRequester() }
         LaunchedEffect(Unit) { runCatching { playFocus.requestFocus() } }
@@ -94,114 +100,104 @@ fun RebornPlayerDock(st: DockState) {
         var pending by remember { mutableStateOf<Long?>(null) }
         LaunchedEffect(pending) { val t = pending ?: return@LaunchedEffect; delay(260); st.onSeekTo(t); pending = null }
 
-        Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f))).padding(start = d(72f), end = d(72f), top = d(40f), bottom = d(30f))) {
-            Column(Modifier.fillMaxWidth().clip(panel)
-                .background(Brush.verticalGradient(listOf(Color(0xD9172540), Color(0xEB0A1222))))
-                .background(Brush.verticalGradient(0f to Color.White.copy(alpha = 0.13f), 0.38f to Color.White.copy(alpha = 0.02f), 1f to Color.Transparent))   // gloss across the top
-                .background(Brush.horizontalGradient(0.55f to Color.Transparent, 1f to Blue.copy(alpha = 0.10f)))
-                .border(d(1.5f), Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.06f))), panel)
-                .padding(start = d(34f), end = d(34f), top = d(24f), bottom = d(24f))) {
+        Column(Modifier.fillMaxWidth().drawBehind {
+            // soft black behind the words on the left, and along the bottom behind the controls
+            val cy = size.height * 0.58f
+            scale(1.9f, 1f, Offset(0f, cy)) { drawCircle(Brush.radialGradient(0f to Color.Black.copy(alpha = 0.80f), 0.55f to Color.Black.copy(alpha = 0.50f), 1f to Color.Transparent, center = Offset(0f, cy), radius = cy), cy, Offset(0f, cy)) }
+            drawRect(Brush.verticalGradient(0.55f to Color.Transparent, 0.8f to Color.Black.copy(alpha = 0.55f), 1f to Color.Black.copy(alpha = 0.85f)))
+        }.padding(top = d(150f), bottom = d(34f))) {
 
-                // ── title logo · synopsis · badges
-                Row(Modifier.fillMaxWidth().height(d(92f)), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.width(d(230f)).fillMaxHeight().padding(vertical = d(2f)), contentAlignment = Alignment.CenterStart) {
-                        if (logo.isNotBlank()) AsyncImage(logo, st.info.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit, alignment = Alignment.CenterStart)
-                        else Text(st.info.title, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Black, fontSize = f(26f), lineHeight = f(30f), maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    }
-                    Spacer(Modifier.width(d(28f)))
-                    Column(Modifier.weight(1f)) {
-                        if (st.info.synopsis.isNotBlank()) Text(st.info.synopsis, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(19f), lineHeight = f(27f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        val meta = listOfNotNull(st.info.year.takeIf { it.isNotBlank() }, st.info.runtime.takeIf { it.isNotBlank() }?.let { "Runtime $it" }, st.info.rating.takeIf { it.isNotBlank() }).joinToString(" · ")
-                        if (meta.isNotBlank()) Text(meta, color = Txt2, fontFamily = Geist, fontSize = f(16f), maxLines = 1, modifier = Modifier.padding(top = d(6f)))
-                    }
-                    Spacer(Modifier.width(d(28f)))
-                    Row(horizontalArrangement = Arrangement.spacedBy(d(10f))) {
-                        val src = (st.info.quality + " " + (st.streams.firstOrNull { it.selected }?.let { it.label + " " + it.quality } ?: "")).lowercase()
-                        val q = when { "2160" in src || "4k" in src || "uhd" in src -> "4K HD"; "1080" in src -> "FULL HD"; "720" in src -> "HD"; else -> null }
-                        val hdr = when { "dolby vision" in src || Regex("\\b(dv|dovi)\\b").containsMatchIn(src) -> "DOLBY VISION"; "hdr" in src -> "HDR"; else -> null }
-                        listOfNotNull(q, hdr).forEach {
-                            Text(it, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = f(15f), letterSpacing = f(1.2f), maxLines = 1,
-                                modifier = Modifier.border(d(1.8f), Color.White.copy(alpha = 0.9f), RoundedCornerShape(d(8f))).padding(horizontal = d(12f), vertical = d(5f)))
-                        }
+            // ── title logo · synopsis · year / runtime / quality
+            Column(Modifier.padding(start = d(47f))) {
+                Box(Modifier.width(d(650f)).height(d(120f)), contentAlignment = Alignment.BottomStart) {
+                    if (logo.isNotBlank()) AsyncImage(logo, st.info.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit, alignment = Alignment.BottomStart)
+                    else Text(st.info.title.uppercase(), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Black, fontSize = f(72f), lineHeight = f(78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (st.info.synopsis.isNotBlank()) Text(st.info.synopsis, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(27f), lineHeight = f(42f), maxLines = 6, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = d(30f)).width(d(560f)))
+                Row(Modifier.padding(top = d(24f)), verticalAlignment = Alignment.CenterVertically) {
+                    val meta = listOfNotNull(st.info.year.takeIf { it.isNotBlank() }, st.info.runtime.takeIf { it.isNotBlank() }?.let { "Runtime $it" }).joinToString("  ·  ")
+                    if (meta.isNotBlank()) { Text(meta, color = Color(0xFFE8EBF0), fontFamily = Geist, fontWeight = FontWeight.Medium, fontSize = f(25f), maxLines = 1); Spacer(Modifier.width(d(16f))) }
+                    val src = (st.info.quality + " " + (st.streams.firstOrNull { it.selected }?.let { it.label + " " + it.quality } ?: "")).lowercase()
+                    val q = when { "2160" in src || "4k" in src || "uhd" in src -> "4K"; "1080" in src -> "FULL HD"; "720" in src -> "HD"; else -> null }
+                    val hdr = when { "dolby vision" in src || Regex("\\b(dv|dovi)\\b").containsMatchIn(src) -> "DOLBY VISION"; "hdr" in src -> "HDR"; else -> null }
+                    listOfNotNull(q, hdr).forEach {
+                        Text(it, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = f(20f), letterSpacing = f(1.6f), maxLines = 1,
+                            modifier = Modifier.padding(end = d(10f)).border(d(2.5f), Color.White.copy(alpha = 0.9f), RoundedCornerShape(d(12f))).padding(horizontal = d(13f), vertical = d(6f)))
                     }
                 }
+            }
 
-                // ── scrubber
-                Row(Modifier.fillMaxWidth().padding(top = d(14f)), verticalAlignment = Alignment.CenterVertically) {
-                    val dur = st.durationMs.coerceAtLeast(1L)
-                    val shown = pending ?: st.positionMs
-                    var barOn by remember { mutableStateOf(false) }
-                    Text(clock(shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(19f), maxLines = 1, modifier = Modifier.widthIn(min = d(74f)))
-                    BoxWithConstraints(Modifier.weight(1f).padding(horizontal = d(4f)).height(d(30f)).onFocusChanged { barOn = it.isFocused }.focusable().onKeyEvent { e ->
-                        if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
-                        when (e.key) {
-                            Key.DirectionLeft, Key.DirectionRight -> {
-                                st.onActivity()
-                                val step = if (e.nativeKeyEvent.repeatCount > 12) 60_000L else if (e.nativeKeyEvent.repeatCount > 4) 30_000L else 10_000L
-                                pending = ((pending ?: st.positionMs) + if (e.key == Key.DirectionRight) step else -step).coerceIn(0L, st.durationMs.coerceAtLeast(0L)); true
-                            }
-                            Key.Enter, Key.DirectionCenter, Key.NumPadEnter -> { pending?.let { st.onSeekTo(it); pending = null } ?: st.onPlayPause(); true }
-                            else -> false
+            // ── scrubber
+            Row(Modifier.fillMaxWidth().padding(start = d(62f), end = d(60f), top = d(86f)), verticalAlignment = Alignment.CenterVertically) {
+                val dur = st.durationMs.coerceAtLeast(1L)
+                val shown = pending ?: st.positionMs
+                var barOn by remember { mutableStateOf(false) }
+                Text(clock(shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(26f), maxLines = 1, modifier = Modifier.widthIn(min = d(86f)))
+                BoxWithConstraints(Modifier.weight(1f).height(d(44f)).onFocusChanged { barOn = it.isFocused }.focusable().onKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (e.key) {
+                        Key.DirectionLeft, Key.DirectionRight -> {
+                            st.onActivity()
+                            val step = if (e.nativeKeyEvent.repeatCount > 12) 60_000L else if (e.nativeKeyEvent.repeatCount > 4) 30_000L else 10_000L
+                            pending = ((pending ?: st.positionMs) + if (e.key == Key.DirectionRight) step else -step).coerceIn(0L, st.durationMs.coerceAtLeast(0L)); true
                         }
-                    }, contentAlignment = Alignment.CenterStart) {
-                        val frac = (shown.toFloat() / dur).coerceIn(0f, 1f)
-                        val buf = (st.bufferedMs.toFloat() / dur).coerceIn(0f, 1f)
-                        val trackH = d(if (barOn) 9f else 6f); val thumb = d(if (barOn) 28f else 20f)
-                        Box(Modifier.fillMaxWidth().height(trackH).clip(CircleShape).background(Color.White.copy(alpha = 0.22f))) {
-                            Box(Modifier.fillMaxHeight().fillMaxWidth(buf).background(Color.White.copy(alpha = 0.16f)))
-                            Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(Gold))
-                        }
-                        Box(Modifier.offset(x = ((maxWidth - thumb) * frac)).size(thumb).clip(CircleShape).background(Color.White)
-                            .then(if (barOn) Modifier.border(d(3f), Gold, CircleShape) else Modifier))
+                        Key.Enter, Key.DirectionCenter, Key.NumPadEnter -> { if (e.nativeKeyEvent.repeatCount == 0) { pending?.let { st.onSeekTo(it); pending = null } ?: st.onPlayPause() }; true }
+                        else -> false
                     }
-                    Text("-" + clock(st.durationMs - shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(19f), maxLines = 1,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.widthIn(min = d(96f)))
+                }, contentAlignment = Alignment.CenterStart) {
+                    val frac = (shown.toFloat() / dur).coerceIn(0f, 1f)
+                    val thumb = d(if (barOn) 40f else 34f)
+                    Box(Modifier.fillMaxWidth().height(d(12f)).clip(CircleShape).background(Color.White.copy(alpha = 0.34f))) {
+                        Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(if (barOn) Blue else Color.White))
+                    }
+                    Box(Modifier.offset(x = ((maxWidth - thumb) * frac)).size(thumb).clip(CircleShape).background(Color.White).then(if (barOn) Modifier.border(d(4f), Blue, CircleShape) else Modifier))
                 }
+                Text("-" + clock(st.durationMs - shown), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = f(26f), maxLines = 1,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.widthIn(min = d(124f)))
+            }
 
-                // ── controls
-                Row(Modifier.fillMaxWidth().padding(top = d(12f)).height(d(84f)), verticalAlignment = Alignment.CenterVertically) {
-                    Round(Icons.Filled.Replay, "10m", d(62f), u) { st.onSeekBy(-600_000L) }
-                    Spacer(Modifier.width(d(12f)))
-                    // play / pause: the big cream button
-                    var playOn by remember { mutableStateOf(false) }
-                    Box(Modifier.size(d(84f)).blueGlow(playOn, CircleShape, d(16f)).clip(CircleShape).background(if (playOn) Gold else Color.White.copy(alpha = 0.16f)).padding(d(4f)).clip(CircleShape).background(Cream)
-                        .focusRequester(playFocus).onFocusChanged { playOn = it.isFocused }.focusable().onOk(st.onPlayPause), contentAlignment = Alignment.Center) {
-                        Icon(if (st.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (st.isPlaying) "Pause" else "Play", tint = Ink, modifier = Modifier.size(d(44f)))
-                    }
-                    Spacer(Modifier.width(d(12f)))
-                    Round(Icons.Filled.Refresh, "10m", d(62f), u) { st.onSeekBy(600_000L) }
-                    Spacer(Modifier.width(d(12f)))
-                    Volume(ctx, u, st.onActivity)
-                    Spacer(Modifier.weight(1f))
-                    if (st.hasNextEp) { Pill(Icons.Filled.SkipNext, "Next episode", u, st.onNextEp); Spacer(Modifier.width(d(12f))) }
-                    Pill(Icons.Outlined.ClosedCaption, "Subs", u, st.onSubs)
-                    Spacer(Modifier.width(d(12f)))
-                    val layout = st.audios.firstOrNull { it.selected }?.label.orEmpty().lowercase().let { l ->
-                        when { "atmos" in l -> "Atmos"; "7.1" in l -> "7.1"; "5.1" in l || "6ch" in l || "6 ch" in l -> "5.1"; "stereo" in l || "2.0" in l || "2ch" in l -> "Stereo"; else -> null }
-                    }
-                    Pill(Icons.Filled.MusicNote, if (layout != null) "Audio · $layout" else "Audio", u, st.onAudio)
-                    Spacer(Modifier.width(d(12f)))
-                    Round(Icons.Outlined.Info, null, d(92f), u, st.onInfo)
-                    Spacer(Modifier.width(d(12f)))
-                    Round(Icons.Filled.Settings, null, d(92f), u, st.onSettings)
-                    Spacer(Modifier.width(d(12f)))
-                    Round(Icons.Filled.Fullscreen, null, d(92f), u, st.onAspect)
+            // ── controls
+            Row(Modifier.fillMaxWidth().padding(start = d(62f), end = d(60f), top = d(30f)).height(d(134f)), verticalAlignment = Alignment.CenterVertically) {
+                Round(Icons.Filled.Replay, "10m", u) { st.onSeekBy(-600_000L) }
+                Spacer(Modifier.width(d(18f)))
+                var playOn by remember { mutableStateOf(false) }
+                Box(Modifier.size(d(134f)).then(if (playOn) Modifier.border(d(4f), Blue, CircleShape) else Modifier).padding(d(8f)).clip(CircleShape).background(Color(0xFFF4FBFF))
+                    .focusRequester(playFocus).onFocusChanged { playOn = it.isFocused }.focusable().onOk(st.onPlayPause), contentAlignment = Alignment.Center) {
+                    Icon(if (st.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (st.isPlaying) "Pause" else "Play", tint = Ink, modifier = Modifier.size(d(62f)))
                 }
+                Spacer(Modifier.width(d(18f)))
+                Round(Icons.Filled.Refresh, "10m", u) { st.onSeekBy(600_000L) }
+                Spacer(Modifier.width(d(18f)))
+                Volume(ctx, u, st.onActivity)
+                Spacer(Modifier.weight(1f))
+                if (st.hasNextEp) { Pill(Icons.Filled.SkipNext, "Next episode", u, st.onNextEp); Spacer(Modifier.width(d(18f))) }
+                Pill(Icons.Outlined.ClosedCaption, "Subs", u, st.onSubs)
+                Spacer(Modifier.width(d(18f)))
+                val layout = st.audios.firstOrNull { it.selected }?.label.orEmpty().lowercase().let { l ->
+                    when { "atmos" in l -> "Atmos"; "7.1" in l -> "7.1"; "5.1" in l || "6ch" in l || "6 ch" in l -> "5.1"; "stereo" in l || "2.0" in l || "2ch" in l -> "Stereo"; else -> null }
+                }
+                Pill(Icons.Filled.MusicNote, if (layout != null) "Audio · $layout" else "Audio", u, st.onAudio)
+                Spacer(Modifier.width(d(18f)))
+                Round(Icons.Outlined.Info, null, u, st.onInfo)
+                Spacer(Modifier.width(d(18f)))
+                Round(Icons.Filled.Settings, null, u, st.onSettings)
+                Spacer(Modifier.width(d(18f)))
+                Round(Icons.Filled.Fullscreen, null, u, st.onAspect)
             }
         }
     }
 }
 
-/** Round glass button; [caption] sits under a smaller icon (the 10m skips). */
+/** Round outlined button; [caption] sits under a smaller icon (the 10m skips). Highlight = blue outline. */
 @Composable
-private fun Round(icon: ImageVector, caption: String?, size: Dp, u: Float, onClick: () -> Unit) {
+private fun Round(icon: ImageVector, caption: String?, u: Float, onClick: () -> Unit) {
     var on by remember { mutableStateOf(false) }
-    Box(Modifier.size(size).blueGlow(on, CircleShape, (12 * u).dp).clip(CircleShape).then(if (on) Modifier.background(Gold) else Modifier.background(Glass).border((1.2f * u).dp, Color.White.copy(alpha = 0.16f), CircleShape)).onFocusChanged { on = it.isFocused }.focusable().onOk(onClick), contentAlignment = Alignment.Center) {
-        val tint = if (on) Ink else Color.White
-        if (caption == null) Icon(icon, null, tint = tint, modifier = Modifier.size((32 * u).dp))
+    Box(Modifier.size((94 * u).dp).btn(on, u).onFocusChanged { on = it.isFocused }.focusable().onOk(onClick), contentAlignment = Alignment.Center) {
+        if (caption == null) Icon(icon, null, tint = Color.White, modifier = Modifier.size((44 * u).dp))
         else Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size((28 * u).dp))
-            Text(caption, color = tint, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = (14 * u).sp, lineHeight = (15 * u).sp, modifier = Modifier.offset(y = (-2 * u).dp))
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size((40 * u).dp))
+            Text(caption, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Bold, fontSize = (19 * u).sp, lineHeight = (20 * u).sp, modifier = Modifier.offset(y = (-3 * u).dp))
         }
     }
 }
@@ -209,12 +205,11 @@ private fun Round(icon: ImageVector, caption: String?, size: Dp, u: Float, onCli
 @Composable
 private fun Pill(icon: ImageVector, label: String, u: Float, onClick: () -> Unit) {
     var on by remember { mutableStateOf(false) }
-    val tint = if (on) Ink else Color.White
-    Row(Modifier.height((60 * u).dp).blueGlow(on, CircleShape, (12 * u).dp).clip(CircleShape).then(if (on) Modifier.background(Gold) else Modifier.background(Glass).border((1.2f * u).dp, Color.White.copy(alpha = 0.16f), CircleShape)).onFocusChanged { on = it.isFocused }.focusable().onOk(onClick)
-        .padding(start = (20 * u).dp, end = (24 * u).dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size((30 * u).dp))
-        Spacer(Modifier.width((10 * u).dp))
-        Text(label, color = tint, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = (19 * u).sp, maxLines = 1)
+    Row(Modifier.height((94 * u).dp).btn(on, u).onFocusChanged { on = it.isFocused }.focusable().onOk(onClick)
+        .padding(start = (28 * u).dp, end = (30 * u).dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size((32 * u).dp))
+        Spacer(Modifier.width((12 * u).dp))
+        Text(label, color = Color.White, fontFamily = Geist, fontWeight = FontWeight.SemiBold, fontSize = (26 * u).sp, maxLines = 1)
     }
 }
 
@@ -242,17 +237,17 @@ private fun Volume(ctx: Context, u: Float, onActivity: () -> Unit) {
             else -> false
         }
     }, verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size((62 * u).dp).blueGlow(on, CircleShape, (12 * u).dp).clip(CircleShape).then(if (on) Modifier.background(Gold) else Modifier.background(Glass).border((1.2f * u).dp, Color.White.copy(alpha = 0.16f), CircleShape)), contentAlignment = Alignment.Center) {
-            Icon(if (level == 0) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp, "Volume", tint = if (on) Ink else Color.White, modifier = Modifier.size((30 * u).dp))
+        Box(Modifier.size((94 * u).dp).btn(on, u), contentAlignment = Alignment.Center) {
+            Icon(if (level == 0) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp, "Volume", tint = Color.White, modifier = Modifier.size((40 * u).dp))
         }
-        Spacer(Modifier.width((12 * u).dp))
-        BoxWithConstraints(Modifier.width((110 * u).dp).height((28 * u).dp), contentAlignment = Alignment.CenterStart) {
+        Spacer(Modifier.width((18 * u).dp))
+        BoxWithConstraints(Modifier.width((136 * u).dp).height((34 * u).dp), contentAlignment = Alignment.CenterStart) {
             val frac = level.toFloat() / max
-            val thumb = (24 * u).dp
-            Box(Modifier.fillMaxWidth().height((10 * u).dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f))) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(Gold))
+            val thumb = (30 * u).dp
+            Box(Modifier.fillMaxWidth().height((12 * u).dp).clip(CircleShape).background(Color.White.copy(alpha = 0.34f))) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(Color.White))
             }
-            Box(Modifier.offset(x = (maxWidth - thumb) * frac).size(thumb).clip(CircleShape).background(Gold).then(if (adjust) Modifier.border((3 * u).dp, Color.White, CircleShape) else Modifier))
+            Box(Modifier.offset(x = (maxWidth - thumb) * frac).size(thumb).clip(CircleShape).background(Blue).then(if (adjust) Modifier.border((3 * u).dp, Color.White, CircleShape) else Modifier))
         }
     }
 }
