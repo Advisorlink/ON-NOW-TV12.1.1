@@ -23,13 +23,17 @@ import coil.load
 import tv.onnowtv.livetv.data.Channel
 import tv.onnowtv.livetv.data.Programme
 
+/** A category offered in the channel list (Left from the channels). */
+class StripGroup(val id: String, val name: String, val count: Int, val channels: () -> List<Channel>)
+object StripGroups { @Volatile var provider: (() -> List<StripGroup>)? = null }
+
 /** Down while watching: the channels of the current category down the left of the picture, with what's on for the highlighted one. */
 class ChannelStrip(
     private val activity: Activity,
     private val nowNext: (Channel) -> Pair<Programme?, Programme?>,
     private val needEpg: (Channel, () -> Unit) -> Unit,
     private val art: (String, (String) -> Unit) -> Unit,
-    private val onPick: (Channel) -> Unit,
+    private val onPick: (Channel, List<Channel>) -> Unit,
 ) {
     private val ui = Handler(Looper.getMainLooper())
     private val dm = activity.resources.displayMetrics
@@ -44,6 +48,12 @@ class ChannelStrip(
     private var channels: List<Channel> = emptyList()
     private var sel = 0
     private var playing: Channel? = null
+    private var groups: List<StripGroup> = emptyList()
+    private var groupSel = 0
+    private var groupName = ""
+    private var inGroups = false
+    private lateinit var catList: RecyclerView; private lateinit var catLm: LinearLayoutManager
+    private lateinit var header: TextView; private lateinit var hint: TextView; private lateinit var infoCard: View
     private var root: FrameLayout? = null
     private lateinit var list: RecyclerView
     private lateinit var lm: LinearLayoutManager
@@ -80,7 +90,8 @@ class ChannelStrip(
         r.addView(View(activity).apply { background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xF5000000.toInt(), 0xE0000000.toInt(), 0x8C000000.toInt(), 0)) }, FrameLayout.LayoutParams(n(900f), -1))
         r.addView(View(activity).apply { background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(0x99000000.toInt(), 0)) }, FrameLayout.LayoutParams(-1, n(260f), Gravity.BOTTOM))
 
-        r.addView(text(24f, Color.WHITE, bold = true, spacing = 0.2f).apply { text = "LIVE TV" }, FrameLayout.LayoutParams(-2, -2).apply { leftMargin = n(80f); topMargin = n(36f) })
+        header = text(24f, Color.WHITE, bold = true, spacing = 0.2f, caps = true)
+        r.addView(header, FrameLayout.LayoutParams(n(330f), -2).apply { leftMargin = n(80f); topMargin = n(36f) })
         count = text(21f, 0xFFAEB4BE.toInt())
         r.addView(count, FrameLayout.LayoutParams(n(300f), -2).apply { leftMargin = n(307f); topMargin = n(38f) }); count.gravity = Gravity.END
 
@@ -91,7 +102,15 @@ class ChannelStrip(
             setPadding(0, 0, 0, n(600f))
         }
         r.addView(list, FrameLayout.LayoutParams(n(540f), -1).apply { leftMargin = n(80f); topMargin = n(84f); bottomMargin = n(72f) })
-        r.addView(text(21f, 0xFFAEB4BE.toInt()).apply { text = "▲ ▼ Channel   •   OK Watch   •   ◄ Close" }, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM).apply { leftMargin = n(84f); bottomMargin = n(30f) })
+        catLm = LinearLayoutManager(activity)
+        catList = RecyclerView(activity).apply {
+            layoutManager = catLm; adapter = Cats(); itemAnimator = null; clipChildren = false; clipToPadding = false
+            isFocusable = false; descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS; overScrollMode = View.OVER_SCROLL_NEVER
+            setPadding(0, 0, 0, n(600f)); visibility = View.GONE
+        }
+        r.addView(catList, FrameLayout.LayoutParams(n(540f), -1).apply { leftMargin = n(80f); topMargin = n(84f); bottomMargin = n(72f) })
+        hint = text(21f, 0xFFAEB4BE.toInt())
+        r.addView(hint, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM).apply { leftMargin = n(84f); bottomMargin = n(30f) })
 
         // top right: LIVE + clock
         val top = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -142,6 +161,7 @@ class ChannelStrip(
         body.addView(timeBox, LinearLayout.LayoutParams(-1, -2).apply { topMargin = n(20f) })
         body.addView(nextBox, LinearLayout.LayoutParams(-1, -2).apply { topMargin = n(20f) })
         card.addView(body, LinearLayout.LayoutParams(-1, -2))
+        infoCard = card
         r.addView(card, FrameLayout.LayoutParams(cardWd, -2).apply { leftMargin = n(660f); topMargin = n(205f) })
         r.visibility = View.GONE
         activity.findViewById<ViewGroup>(android.R.id.content).addView(r, ViewGroup.LayoutParams(-1, -1))
@@ -154,6 +174,11 @@ class ChannelStrip(
         channels = all
         sel = all.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
         playing = all.getOrNull(sel)
+        groups = try { StripGroups.provider?.invoke().orEmpty() } catch (_: Throwable) { emptyList() }
+        // which category is this list? the one whose channels it matches, else the playing channel's own
+        groupSel = groups.indexOfFirst { it.count == all.size && it.id == (playing?.categoryId ?: "") }.takeIf { it >= 0 } ?: groups.indexOfFirst { it.id == (playing?.categoryId ?: "") }.coerceAtLeast(0)
+        groupName = groups.getOrNull(groupSel)?.takeIf { it.count == all.size }?.name ?: "Live TV"
+        mode(false)
         list.adapter?.notifyDataSetChanged()
         place(); paintInfo()
         r.visibility = View.VISIBLE; r.alpha = 0f; r.animate().alpha(1f).setDuration(200).start()
@@ -170,8 +195,46 @@ class ChannelStrip(
     private fun bump() { ui.removeCallbacks(hide); ui.postDelayed(hide, 12_000L) }
     private fun place() = lm.scrollToPositionWithOffset(sel, slot * (rowH + gap))
 
+    private fun mode(cats: Boolean) {
+        inGroups = cats
+        list.visibility = if (cats) View.GONE else View.VISIBLE
+        infoCard.visibility = if (cats) View.GONE else View.VISIBLE
+        catList.visibility = if (cats) View.VISIBLE else View.GONE
+        header.text = if (cats) "Categories" else groupName
+        hint.text = if (cats) "▲ ▼ Category   •   OK Open   •   BACK Channels" else if (groups.size > 1) "▲ ▼ Channel   •   OK Watch   •   ◄ Categories" else "▲ ▼ Channel   •   OK Watch   •   BACK Close"
+        if (cats) { catList.adapter?.notifyDataSetChanged(); placeCat(); count.text = "${groupSel + 1} of ${groups.size}"; catList.alpha = 0f; catList.translationX = -n(40f).toFloat(); catList.animate().alpha(1f).translationX(0f).setDuration(180).start() }
+        else { list.alpha = 0f; list.translationX = n(40f).toFloat(); list.animate().alpha(1f).translationX(0f).setDuration(180).start() }
+    }
+    private fun placeCat() = catLm.scrollToPositionWithOffset(groupSel, slot * (n(78f) + gap))
+    private fun openGroup() {
+        val g = groups.getOrNull(groupSel) ?: return
+        val chs = try { g.channels() } catch (_: Throwable) { emptyList() }
+        if (chs.isEmpty()) return
+        channels = chs; groupName = g.name
+        sel = chs.indexOfFirst { it.id == playing?.id }.coerceAtLeast(0)
+        list.adapter?.notifyDataSetChanged(); mode(false); place(); paintInfo()
+    }
+
     /** Keys while the list is showing. True = handled. */
     fun key(code: Int): Boolean {
+        if (inGroups) {
+            bump()
+            when (code) {
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_PAGE_DOWN -> {
+                    val up = code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_CHANNEL_UP || code == KeyEvent.KEYCODE_PAGE_UP
+                    val old = groupSel
+                    groupSel = Math.floorMod(groupSel + if (up) -1 else 1, groups.size)
+                    catList.adapter?.notifyItemChanged(old); catList.adapter?.notifyItemChanged(groupSel)
+                    placeCat(); count.text = "${groupSel + 1} of ${groups.size}"
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_DPAD_RIGHT -> openGroup()
+                KeyEvent.KEYCODE_BACK -> { mode(false); paintInfo() }
+                KeyEvent.KEYCODE_DPAD_LEFT -> {}
+                else -> return false
+            }
+            return true
+        }
+        if (code == KeyEvent.KEYCODE_DPAD_LEFT && groups.size > 1) { mode(true); bump(); return true }
         when (code) {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_PAGE_DOWN -> {
                 val up = code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_CHANNEL_UP || code == KeyEvent.KEYCODE_PAGE_UP
@@ -181,7 +244,7 @@ class ChannelStrip(
                 place(); paintInfo(); bump()
                 return true
             }
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> { val ch = channels.getOrNull(sel); hide(); ch?.let(onPick); return true }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> { val ch = channels.getOrNull(sel); hide(); ch?.let { onPick(it, channels) }; return true }
             KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> { hide(); return true }
         }
         return false
@@ -216,6 +279,30 @@ class ChannelStrip(
             if (url.isNotBlank() && visible && channels.getOrNull(sel)?.id == ch.id) {
                 infoArt.load(url) { crossfade(200); listener(onSuccess = { _, _ -> infoLogo.visibility = View.GONE }) }
             }
+        }
+    }
+
+    private inner class Cat(val box: FrameLayout, val mark: View, val name: TextView, val num: TextView) : RecyclerView.ViewHolder(box)
+
+    private inner class Cats : RecyclerView.Adapter<Cat>() {
+        override fun getItemCount() = groups.size
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Cat {
+            val box = FrameLayout(activity)
+            val mark = View(activity).apply { background = round(gold, 4f * u) }
+            val name = text(24f, Color.WHITE, bold = true)
+            val num = text(20f, 0xFFC9CDD4.toInt(), bold = true).apply { background = round(0x33FFFFFF, 20f * u); setPadding(n(14f), n(6f), n(14f), n(6f)); setShadowLayer(0f, 0f, 0f, 0) }
+            box.addView(mark, FrameLayout.LayoutParams(n(6f), n(38f), Gravity.CENTER_VERTICAL).apply { leftMargin = n(18f) })
+            box.addView(name, FrameLayout.LayoutParams(n(370f), -2, Gravity.CENTER_VERTICAL).apply { leftMargin = n(42f) })
+            box.addView(num, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_VERTICAL or Gravity.END).apply { rightMargin = n(18f) })
+            box.layoutParams = RecyclerView.LayoutParams(n(527f), n(78f)).apply { bottomMargin = gap }
+            return Cat(box, mark, name, num)
+        }
+        override fun onBindViewHolder(h: Cat, position: Int) {
+            val g = groups[position]; val on = position == groupSel
+            h.box.background = if (on) GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0x52FFFFFF, 0x2EFFFFFF)).apply { cornerRadius = 16f * u; setStroke(maxOf(2, n(2.5f)), 0x8CFFFFFF.toInt()) } else round(0x14FFFFFF, 16f * u)
+            h.mark.visibility = if (on) View.VISIBLE else View.INVISIBLE
+            h.name.text = g.name; h.name.alpha = if (on) 1f else 0.85f
+            h.num.text = g.count.toString()
         }
     }
 

@@ -1191,7 +1191,7 @@ open class PlayerActivity : AppCompatActivity() {
                     withContext(Dispatchers.Main) { if (!isFinishing && !isDestroyed) done(url) }
                 }
             },
-            onPick = { ch -> if (ch.id != currentChannel?.id) { PlaybackQueue.setQueue(PlaybackQueue.channels, ch.id); tuneTo(ch) } })
+            onPick = { ch, from -> PlaybackQueue.setQueue(from, ch.id); if (ch.id != currentChannel?.id) tuneTo(ch) })
     }
     private val stripEpgTried = mutableSetOf<String>()
     /** Guide data for a channel in the list, from the on-box guide files only (no network while scrolling). */
@@ -1244,6 +1244,11 @@ open class PlayerActivity : AppCompatActivity() {
                 if (kickoffButton?.hasFocus() == true) return true
                 if (playerOverlay.visibility == View.VISIBLE) {
                     hideControlsBar(); return true
+                }
+                // Up on the bare picture opens the channel list too (the remote's CH+ still zaps).
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP && !catchUp && PlaybackQueue.channels.size > 1 && tv.onnowtv.livetv.data.Settings.playerUpDown != "channels") {
+                    channelStrip.show(PlaybackQueue.channels, currentChannel?.id)
+                    return true
                 }
                 PlaybackQueue.prev()?.let { tuneTo(it) }
                 return true

@@ -1515,3 +1515,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - `PlayerLook` (PlayerDock.kt, pref "look" in player_logo prefs): 0 Classic (now with corner vignette + darker bottom), 1 cover above logo, 2 cover beside logo/synopsis. Vignette applies to all three.
 - Switch: player settings (cog) sheet gets an extra row "Player look" via `PlayerDockSkin.extraLabel/extraValue/extraPick` (EnginePickerSheet.kt); OK cycles.
 - Note: `nativeKeyEvent` does not resolve inside vesper-tv sources; use a time debounce there.
+
+## Build 3.9.87-126 (Nov 21) — channel list: Up opens it too, Left = categories (not device-tested)
+- PlayerActivity: DPAD_UP on the bare picture also opens ChannelStrip (unless Settings "Up / Down while watching" = channels; CH+/CH- keys still zap).
+- ChannelStrip: Left → category list (`StripGroups.provider`, set in RebornActivity: Favourites + LiveStore.categories minus PIN-locked ones). OK/Right opens a category's channels, Back returns to channels, Left from channels returns to categories. Picking a channel sets PlaybackQueue to that category.
+- A file write was truncated mid-edit this session (disk ~98 % full) — always check file tails after python edits until disk is cleaned.

@@ -51,6 +51,13 @@ class RebornActivity : ComponentActivity() {
         Rebrand.install(application); Crash.install(application)
         tv.vesper.app.PlayerDockSkin.dock = { RebornPlayerDock(it) }; tv.vesper.app.PlayerDockSkin.logo = { PlayerLogo.url }; tv.vesper.app.PlayerDockSkin.brand = "REBORN PLAY"
         PlayerLook.load(this)
+        // Categories offered inside the full-screen Live TV channel list (PIN-locked ones are left out).
+        tv.onnowtv.livetv.ui.StripGroups.provider = {
+            val locked = tv.onnowtv.livetv.data.ParentalLock.lockedIds(applicationContext)
+            val favs = LiveStore.channelsIn(LiveStore.FAVS)
+            listOfNotNull(if (favs.isNotEmpty()) tv.onnowtv.livetv.ui.StripGroup(LiveStore.FAVS, "Favourites", favs.size) { LiveStore.channelsIn(LiveStore.FAVS) } else null) +
+                LiveStore.categories(applicationContext).filter { it.id !in locked }.map { c -> tv.onnowtv.livetv.ui.StripGroup(c.id, c.name, c.channelCount) { LiveStore.channelsIn(c.id) } }
+        }
         tv.vesper.app.PlayerDockSkin.extraLabel = "Player look"; tv.vesper.app.PlayerDockSkin.extraValue = { PlayerLook.names[PlayerLook.style] }
         tv.vesper.app.PlayerDockSkin.extraPick = { PlayerLook.next(applicationContext) }   // movies & shows get Reborn Play's own control bar
         Lockdown.enforce(this)
