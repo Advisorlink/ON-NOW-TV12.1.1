@@ -81,6 +81,14 @@ private fun Modifier.onOk(action: () -> Unit) = onKeyEvent { e ->
     if (e.key == Key.Enter || e.key == Key.DirectionCenter || e.key == Key.NumPadEnter) { if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) action(); true } else false
 }
 
+/** Which of the three player layouts is in use (changed from the player's settings button). */
+object PlayerLook {
+    val names = listOf("Classic", "Cover above logo", "Cover beside synopsis")
+    var style by mutableStateOf(0)
+    fun load(ctx: Context) { style = ctx.getSharedPreferences("player_logo", Context.MODE_PRIVATE).getInt("look", 0) }
+    fun next(ctx: Context) { style = (style + 1) % 3; ctx.getSharedPreferences("player_logo", Context.MODE_PRIVATE).edit().putInt("look", style).apply() }
+}
+
 private val Face = Color(0x66060B14)                       // dark see-through button face
 private val Edge = Color.White.copy(alpha = 0.38f)
 private fun Modifier.btn(on: Boolean, u: Float) = clip(CircleShape).background(Face).border((if (on) 4f else 2.5f).times(u).dp, if (on) Blue else Edge, CircleShape)
@@ -93,6 +101,9 @@ fun RebornPlayerDock(st: DockState) {
         fun d(px: Float): Dp = (px * u).dp
         fun f(px: Float) = (px * u).sp
         val logo = st.logoUrl.ifBlank { PlayerLogo.url }
+        val screenH = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
+        val look = PlayerLook.style; val cover = st.info.poster
+        val coverShape = RoundedCornerShape(d(12f))
         val playFocus = remember { FocusRequester() }
         LaunchedEffect(Unit) { runCatching { playFocus.requestFocus() } }
 
@@ -104,11 +115,25 @@ fun RebornPlayerDock(st: DockState) {
             // soft black behind the words on the left, and along the bottom behind the controls
             val cy = size.height * 0.58f
             scale(1.9f, 1f, Offset(0f, cy)) { drawCircle(Brush.radialGradient(0f to Color.Black.copy(alpha = 0.80f), 0.55f to Color.Black.copy(alpha = 0.50f), 1f to Color.Transparent, center = Offset(0f, cy), radius = cy), cy, Offset(0f, cy)) }
-            drawRect(Brush.verticalGradient(0.55f to Color.Transparent, 0.8f to Color.Black.copy(alpha = 0.55f), 1f to Color.Black.copy(alpha = 0.85f)))
+            // darker along the bottom
+            drawRect(Brush.verticalGradient(0.42f to Color.Transparent, 0.72f to Color.Black.copy(alpha = 0.70f), 1f to Color.Black.copy(alpha = 0.96f)))
+            // vignette: all four corners of the screen fall off to black
+            val top = size.height - screenH; val r = size.width * 0.42f
+            for (c in listOf(Offset(0f, top), Offset(size.width, top), Offset(0f, size.height), Offset(size.width, size.height)))
+                drawCircle(Brush.radialGradient(0f to Color.Black.copy(alpha = 0.78f), 0.6f to Color.Black.copy(alpha = 0.28f), 1f to Color.Transparent, center = c, radius = r), r, c)
         }.padding(top = d(110f), bottom = d(26f))) {
 
             // ── title logo · synopsis · year / runtime / quality
-            Column(Modifier.padding(start = d(47f))) {
+            Row(Modifier.padding(start = d(47f)), verticalAlignment = Alignment.Bottom) {
+                if (look == 2 && cover.isNotBlank()) {
+                    AsyncImage(cover, null, Modifier.size(d(206f), d(309f)).clip(coverShape).border(d(1.5f), Color.White.copy(alpha = 0.25f), coverShape), contentScale = ContentScale.Crop)
+                    Spacer(Modifier.width(d(32f)))
+                }
+            Column {
+                if (look == 1 && cover.isNotBlank()) {
+                    AsyncImage(cover, null, Modifier.size(d(150f), d(225f)).clip(coverShape).border(d(1.5f), Color.White.copy(alpha = 0.25f), coverShape), contentScale = ContentScale.Crop)
+                    Spacer(Modifier.height(d(18f)))
+                }
                 Box(Modifier.width(d(640f)).height(d(132f)), contentAlignment = Alignment.BottomStart) {
                     if (logo.isNotBlank()) AsyncImage(logo, st.info.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit, alignment = Alignment.BottomStart)
                     else Text(st.info.title.uppercase(), color = Color.White, fontFamily = Geist, fontWeight = FontWeight.Black, fontSize = f(64f), lineHeight = f(70f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -126,6 +151,8 @@ fun RebornPlayerDock(st: DockState) {
                             modifier = Modifier.padding(end = d(8f)).border(d(1.8f), Color.White.copy(alpha = 0.9f), RoundedCornerShape(d(8f))).padding(horizontal = d(9f), vertical = d(4f)))
                     }
                 }
+            }
+
             }
 
             // ── scrubber

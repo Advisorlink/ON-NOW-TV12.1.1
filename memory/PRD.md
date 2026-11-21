@@ -1510,3 +1510,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - VOD player bar ~15 % bigger than build 122 (button scale 0.78, logo box 640×132, synopsis 22).
 - VOD loading screen: title logo now shows for Reborn (`PlayerDockSkin.logo` → `PlayerLogo.url`). FOUND + FIXED: loading screen text said "ON NOW TV V2" (Compose text, not caught by Rebrand's TextView walker) → `PlayerDockSkin.brand = "REBORN PLAY"`. Other Compose text in shared vesper-tv screens may still carry old branding — audit pending.
 - Live player: "FIX NO AUDIO" gradient pill next to Swap Back (`addFixAudioButton`). Switches this channel to LibVLC without saving the setting (`audioFixOn`); next tuneTo or leaving the player returns to the saved engine. Hidden when engine already LibVLC or in catch-up.
+
+## Build 3.9.86-125 (Nov 21) — three VOD player looks (not device-tested)
+- `PlayerLook` (PlayerDock.kt, pref "look" in player_logo prefs): 0 Classic (now with corner vignette + darker bottom), 1 cover above logo, 2 cover beside logo/synopsis. Vignette applies to all three.
+- Switch: player settings (cog) sheet gets an extra row "Player look" via `PlayerDockSkin.extraLabel/extraValue/extraPick` (EnginePickerSheet.kt); OK cycles.
+- Note: `nativeKeyEvent` does not resolve inside vesper-tv sources; use a time debounce there.

@@ -135,7 +135,9 @@ class DockState(
 )
 
 /** An app built on this player can supply its own control bar; left null, the standard one is used. */
-object PlayerDockSkin { var dock: (@Composable (DockState) -> Unit)? = null; var logo: (() -> String)? = null; var brand: String = "ON NOW TV V2" }
+object PlayerDockSkin { var dock: (@Composable (DockState) -> Unit)? = null; var logo: (() -> String)? = null; var brand: String = "ON NOW TV V2"
+    /** Optional extra row in the player settings sheet: label, current value, action. */
+    var extraLabel: String? = null; var extraValue: (() -> String)? = null; var extraPick: (() -> Unit)? = null }
 
 data class TrackOption(val id: String, val label: String, val selected: Boolean)
 data class StreamOption(

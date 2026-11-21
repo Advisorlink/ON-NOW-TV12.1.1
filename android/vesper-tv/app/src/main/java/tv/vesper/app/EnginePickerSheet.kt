@@ -110,6 +110,14 @@ fun EnginePickerSheet(
                 )
                 Spacer(Modifier.height(10.dp))
             }
+            val extra = PlayerDockSkin.extraLabel
+            if (extra != null) {
+                val f = remember { FocusRequester() }
+                var lastPick by remember { mutableStateOf(0L) }
+                Box(Modifier.onKeyEvent { e ->
+                    if (e.key == Key.Enter || e.key == Key.DirectionCenter || e.key == Key.NumPadEnter) { if (e.type == KeyEventType.KeyDown) { val now = android.os.SystemClock.uptimeMillis(); if (now - lastPick > 350) { lastPick = now; PlayerDockSkin.extraPick?.invoke() } }; true } else false
+                }) { EngineRowView(row = EngineRow("", extra, PlayerDockSkin.extraValue?.invoke().orEmpty() + "  ·  press OK to change"), selected = false, focus = f, onPick = {}) }
+            }
         }
     }
 }
