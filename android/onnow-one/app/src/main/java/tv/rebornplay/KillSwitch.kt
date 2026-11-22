@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.net.URL
 
 /**
  * Remote kill switch. The app asks the server (every start and every few minutes) whether it has been
@@ -43,8 +44,17 @@ object KillSwitch {
             .putBoolean("killed", killed).putString("message", message).apply()
     }
 
+    // The kill switch lives on the Emergent backend (the content server onnowhub.com does not carry it).
+    private const val KILL_URL = "https://rebrand-app-5.emergent.host/api/reborn/status"
+
     suspend fun check(ctx: Context) {
-        val o: JSONObject = withContext(Dispatchers.IO) { runCatching { RebornApi.obj("/api/reborn/status") }.getOrNull() } ?: return
+        val o: JSONObject = withContext(Dispatchers.IO) {
+            runCatching {
+                val c = URL(KILL_URL).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 15000; c.readTimeout = 15000; c.setRequestProperty("User-Agent", "RebornPlay/2.0 Android")
+                c.inputStream.bufferedReader().use { JSONObject(it.readText()) }
+            }.getOrNull()
+        } ?: return
         killed = o.optBoolean("killed", false)
         o.optString("message").takeIf { it.isNotBlank() }?.let { message = it }
         save(ctx)

@@ -1530,3 +1530,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - App: KillSwitch.kt / KillGate(ctx) in RebornActivity setContent — polls /api/reborn/status on start + every 4 min, caches last answer in prefs; killed => full-screen lock over everything. No answer never locks (last good answer stands; fresh install open).
 - Verified on PREVIEW (kill/restore/wrong-pass). App BASE = onnowhub.com (production) → kill switch only live AFTER DEPLOY of backend to onnowhub.com. Admin page = https://onnowhub.com/api/reborn/kill once deployed.
 - 3.9.90-129: split Cover shine (default ON) from Spinning disc (new 'side_disc' pref, default OFF). Shine = focusShine/discFx; disc = SideDiscLayer/sideDisc. Reflection skimmer (shine) kept by default.
+
+## Build 3.9.91-130 (Nov 22) — kill switch points at Emergent production, not onnowhub.com
+- Workspace has NO SSH/deploy access to onnowhub.com (Cloudflare → user's Contabo). App content BASE stays onnowhub.com.
+- KillSwitch.check now polls hardcoded https://rebrand-app-5.emergent.host/api/reborn/status (the deployed Emergent backend, verified live) via plain HttpURLConnection, independent of RebornApi.BASE.
+- Admin page: https://rebrand-app-5.emergent.host/api/reborn/kill. Covers this build + all FUTURE Reborn builds. Builds already installed (≤128) poll onnowhub.com and remain uncovered until onnowhub.com serves /api/reborn/status.
