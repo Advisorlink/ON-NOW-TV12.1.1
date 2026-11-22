@@ -1535,3 +1535,4 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - Workspace has NO SSH/deploy access to onnowhub.com (Cloudflare → user's Contabo). App content BASE stays onnowhub.com.
 - KillSwitch.check now polls hardcoded https://rebrand-app-5.emergent.host/api/reborn/status (the deployed Emergent backend, verified live) via plain HttpURLConnection, independent of RebornApi.BASE.
 - Admin page: https://rebrand-app-5.emergent.host/api/reborn/kill. Covers this build + all FUTURE Reborn builds. Builds already installed (≤128) poll onnowhub.com and remain uncovered until onnowhub.com serves /api/reborn/status.
+- 3.9.92-131: kill check reverted to onnowhub.com (RebornApi.BASE) — single source of truth once user pushes to GitHub + deploys onnowhub. Admin page = https://onnowhub.com/api/reborn/kill. Covers all builds polling onnowhub.
