@@ -67,6 +67,7 @@ class RebornActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Blue, background = Bg0, surface = Bg1)) {
                 TvCanvas { RebornApp(this, { pendingRoute }, { pendingRoute = null }, resumeTick) }
+                KillGate(this)   // remote kill switch: covers everything when the app has been disabled from the server
             }
         }
         // Guide reminders (same banner + watcher as the V2 guide): tapping the banner jumps to the channel.

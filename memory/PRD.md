@@ -1524,3 +1524,8 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 ## Build 3.9.88-127 (Nov 22) — VOD player: one look only + glass buttons (not device-tested)
 - User chose "cover beside logo and synopsis" as THE player UI. `PlayerLook.style` is now a constant (2); the "Player look" row in the player settings sheet and the other two layouts' switch are removed (layout code for 0/1 still in PlayerDock.kt, unreachable).
 - Buttons: `Modifier.btn` = frosted face + top highlight + bright graded rim; play button has a white-to-pale-blue face. Highlight is still the blue outline, no glow.
+
+## Build 3.9.89-128 (Nov 22) — Remote kill switch
+- backend/reborn_kill.py (async motor): GET /api/reborn/status {killed,message,updated_at} no-store; GET /api/reborn/kill = password page; POST /api/reborn/kill/apply (key/action kill|restore|save/message). Collection reborn_kill._id=global. Key = REBORN_KILL_ADMIN_KEY. Wired in server.py after reborn_cloud.
+- App: KillSwitch.kt / KillGate(ctx) in RebornActivity setContent — polls /api/reborn/status on start + every 4 min, caches last answer in prefs; killed => full-screen lock over everything. No answer never locks (last good answer stands; fresh install open).
+- Verified on PREVIEW (kill/restore/wrong-pass). App BASE = onnowhub.com (production) → kill switch only live AFTER DEPLOY of backend to onnowhub.com. Admin page = https://onnowhub.com/api/reborn/kill once deployed.
