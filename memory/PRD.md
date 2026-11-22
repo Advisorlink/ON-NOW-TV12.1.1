@@ -1520,3 +1520,7 @@ Recording: https://customer-assets-jt897jd0.emergentagent.net/job_rebrand-app-5/
 - PlayerActivity: DPAD_UP on the bare picture also opens ChannelStrip (unless Settings "Up / Down while watching" = channels; CH+/CH- keys still zap).
 - ChannelStrip: Left → category list (`StripGroups.provider`, set in RebornActivity: Favourites + LiveStore.categories minus PIN-locked ones). OK/Right opens a category's channels, Back returns to channels, Left from channels returns to categories. Picking a channel sets PlaybackQueue to that category.
 - A file write was truncated mid-edit this session (disk ~98 % full) — always check file tails after python edits until disk is cleaned.
+
+## Build 3.9.88-127 (Nov 22) — VOD player: one look only + glass buttons (not device-tested)
+- User chose "cover beside logo and synopsis" as THE player UI. `PlayerLook.style` is now a constant (2); the "Player look" row in the player settings sheet and the other two layouts' switch are removed (layout code for 0/1 still in PlayerDock.kt, unreachable).
+- Buttons: `Modifier.btn` = frosted face + top highlight + bright graded rim; play button has a white-to-pale-blue face. Highlight is still the blue outline, no glow.

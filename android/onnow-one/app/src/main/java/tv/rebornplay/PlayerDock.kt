@@ -81,17 +81,20 @@ private fun Modifier.onOk(action: () -> Unit) = onKeyEvent { e ->
     if (e.key == Key.Enter || e.key == Key.DirectionCenter || e.key == Key.NumPadEnter) { if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) action(); true } else false
 }
 
-/** Which of the three player layouts is in use (changed from the player's settings button). */
-object PlayerLook {
-    val names = listOf("Classic", "Cover above logo", "Cover beside synopsis")
-    var style by mutableStateOf(0)
-    fun load(ctx: Context) { style = ctx.getSharedPreferences("player_logo", Context.MODE_PRIVATE).getInt("look", 0) }
-    fun next(ctx: Context) { style = (style + 1) % 3; ctx.getSharedPreferences("player_logo", Context.MODE_PRIVATE).edit().putInt("look", style).apply() }
-}
+/** The player layout: cover beside the logo and synopsis (the one look kept). */
+object PlayerLook { const val style = 2 }
 
 private val Face = Color(0x66060B14)                       // dark see-through button face
 private val Edge = Color.White.copy(alpha = 0.38f)
-private fun Modifier.btn(on: Boolean, u: Float) = clip(CircleShape).background(Face).border((if (on) 4f else 2.5f).times(u).dp, if (on) Blue else Edge, CircleShape)
+/** Glass button: frosted face, light catching the top, bright rim. Highlight = blue outline. */
+private fun Modifier.btn(on: Boolean, u: Float) = clip(CircleShape)
+    .background(Color(0x59060B14))
+    .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.03f))))
+    .drawBehind {
+        drawOval(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.Transparent), startY = size.height * 0.04f, endY = size.height * 0.5f), topLeft = Offset(size.width * 0.07f, size.height * 0.04f), size = androidx.compose.ui.geometry.Size(size.width * 0.86f, size.height * 0.46f))
+        drawRect(Brush.verticalGradient(0.7f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.22f)))
+    }
+    .then(if (on) Modifier.border((4f * u).dp, Blue, CircleShape) else Modifier.border((2f * u).dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.75f), Color.White.copy(alpha = 0.18f))), CircleShape))
 
 @Composable
 fun RebornPlayerDock(st: DockState) {
@@ -189,7 +192,7 @@ fun RebornPlayerDock(st: DockState) {
                 Round(Icons.Filled.Replay, "10m", u) { st.onSeekBy(-600_000L) }
                 Spacer(Modifier.width(d(12f)))
                 var playOn by remember { mutableStateOf(false) }
-                Box(Modifier.size(d(104f)).then(if (playOn) Modifier.border(d(3f), Blue, CircleShape) else Modifier).padding(d(6f)).clip(CircleShape).background(Color(0xFFF4FBFF))
+                Box(Modifier.size(d(104f)).then(if (playOn) Modifier.border(d(3f), Blue, CircleShape) else Modifier).padding(d(6f)).clip(CircleShape).background(Brush.verticalGradient(listOf(Color.White, Color(0xFFCFE0F2))))
                     .focusRequester(playFocus).onFocusChanged { playOn = it.isFocused }.focusable().onOk(st.onPlayPause), contentAlignment = Alignment.Center) {
                     Icon(if (st.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (st.isPlaying) "Pause" else "Play", tint = Ink, modifier = Modifier.size(d(48f)))
                 }
