@@ -210,7 +210,9 @@ private fun AppearanceSection(onPickLiveCategory: () -> Unit) {
     var covers by remember { mutableStateOf(Prefs.coversOnly(ctx)) }
     ToggleRow("Pop-out preview", "Resting on a cover slides it open into a wide card with its backdrop and trailer. Off = covers only, no wide card, no trailers.", !covers) { covers = !covers; Prefs.setCoversOnly(ctx, covers) }
     var discFx by remember { mutableStateOf(Prefs.discFx(ctx)) }
-    ToggleRow("Cover shine & disc", "A glass shine sweeps across the cover you move onto. Rest on it and its disc slides out of the side of the screen, turning slowly; press Play and it slides back in before the film starts.", discFx) { discFx = !discFx; Prefs.setDiscFx(ctx, discFx) }
+    ToggleRow("Cover shine", "A glass shine sweeps across the cover you move onto.", discFx) { discFx = !discFx; Prefs.setDiscFx(ctx, discFx) }
+    var sideDisc by remember { mutableStateOf(Prefs.sideDisc(ctx)) }
+    ToggleRow("Spinning disc", "Rest on a cover and its disc slides out of the side of the screen, turning slowly; press Play and it slides back in before the film starts.", sideDisc) { sideDisc = !sideDisc; Prefs.setSideDisc(ctx, sideDisc) }
     var delay by remember { mutableStateOf(Prefs.trailerDelayMs(ctx)) }
     var speed by remember { mutableStateOf(Prefs.expandMs(ctx)) }
     var pop by remember { mutableStateOf(Prefs.popDelayMs(ctx)) }

@@ -52,7 +52,7 @@ object SideDisc {
 @Composable
 fun BoxScope.SideDiscLayer() {
     val ctx = LocalContext.current
-    if (!remember { Prefs.discFx(ctx) }) return
+    if (!remember { Prefs.sideDisc(ctx) }) return
     DisposableEffect(Unit) {
         SideDisc.item = null; SideDisc.onRetracted = null; SideDisc.active = true
         onDispose { SideDisc.active = false; SideDisc.item = null; SideDisc.onRetracted = null }

@@ -112,6 +112,9 @@ object Prefs {
     fun setCoversOnly(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("covers_only", v).apply()
     /** Glass shine across the highlighted cover + the disc that slides out of the side of the Home screen. */
     fun discFx(ctx: Context) = p(ctx).getBoolean("disc_fx", true)
+    /** The disc that slides out of the side and spins (off by default). */
+    fun sideDisc(ctx: Context) = p(ctx).getBoolean("side_disc", false)
+    fun setSideDisc(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("side_disc", v).apply()
     fun setDiscFx(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("disc_fx", v).apply()
 }
 
