@@ -117,6 +117,28 @@ jobs:
               fi
             "
 
+      - name: Set kill switch password on VPS (only this one key in .env)
+        env:
+          SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
+          KILL_KEY: ${{ secrets.REBORN_KILL_ADMIN_KEY }}
+          VPS_HOST: ${{ steps.targets.outputs.host }}
+          VPS_USER: ${{ steps.targets.outputs.user }}
+          VPS_PATH: ${{ steps.targets.outputs.path }}
+        run: |
+          if [ -z "$KILL_KEY" ]; then
+            echo "REBORN_KILL_ADMIN_KEY secret not set in GitHub — leaving the VPS .env untouched."
+            exit 0
+          fi
+          printf '%s' "$KILL_KEY" | sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" "
+              set -e
+              cp -p $VPS_PATH/.env $VPS_PATH/.env.bak-killkey
+              /opt/onnowtv/venv/bin/python -c \"import sys, dotenv; dotenv.set_key('$VPS_PATH/.env', 'REBORN_KILL_ADMIN_KEY', sys.stdin.read())\"
+              chmod --reference=$VPS_PATH/.env.bak-killkey $VPS_PATH/.env
+              chown --reference=$VPS_PATH/.env.bak-killkey $VPS_PATH/.env
+              echo 'Kill switch password set.'
+            "
+
       - name: Restart backend service + health check
         env:
           SSHPASS: ${{ secrets.VPS_SSH_PASSWORD }}
